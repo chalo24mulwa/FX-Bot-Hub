@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: fxbotmarket
+          POSTGRES_PASSWORD: fxbotmarket
+          POSTGRES_DB: fxbotmarket
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U fxbotmarket"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: "postgresql://fxbotmarket:fxbotmarket@localhost:5432/fxbotmarket?schema=public"
+      REDIS_URL: "redis://localhost:6379"
+      AUTH_SECRET: "ci-test-secret"
+      EMAIL_PROVIDER: "console"
+      PAYMENT_PROVIDER: "manual"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx prisma migrate deploy
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      - run: npm run test
+
+      - run: npx playwright install --with-deps chromium
+
+      - run: npm run test:e2e
+
+      - run: npm run build
