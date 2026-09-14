@@ -26,6 +26,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   // manages Users/Accounts, which is what makes Google sign-in below work.
   session: { strategy: "jwt" },
   pages: { signIn: "/auth/sign-in" },
+  // Required for self-hosted production deployments (Docker, behind a
+  // reverse proxy — anything that isn't Vercel, which sets this
+  // automatically). Without it, Auth.js in production rejects every
+  // request as an "UntrustedHost" and redirects to /api/auth/error; dev
+  // mode trusts localhost implicitly, which is why this gap only shows up
+  // in production/CI. Safe here because NEXTAUTH_URL/AUTH_URL already
+  // pins the expected origin.
+  trustHost: true,
   providers: [
     Credentials({
       name: "Email and password",

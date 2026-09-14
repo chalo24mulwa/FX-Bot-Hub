@@ -34,6 +34,8 @@ jobs:
       DATABASE_URL: "postgresql://fxbotmarket:fxbotmarket@localhost:5432/fxbotmarket?schema=public"
       REDIS_URL: "redis://localhost:6379"
       AUTH_SECRET: "ci-test-secret"
+      NEXTAUTH_URL: "http://localhost:3000"
+      NEXT_PUBLIC_APP_URL: "http://localhost:3000"
       EMAIL_PROVIDER: "console"
       PAYMENT_PROVIDER: "manual"
 

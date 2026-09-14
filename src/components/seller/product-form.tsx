@@ -16,6 +16,11 @@ export interface ProductFormDefaults {
   categoryId?: string | null;
   shortSummary?: string;
   description?: string;
+  features?: string[];
+  requirements?: string | null;
+  installationInstructions?: string | null;
+  compatibilityNotes?: string | null;
+  supportInfo?: string | null;
   tags?: string[];
 }
 
@@ -118,6 +123,56 @@ export function ProductForm({
           required
           minLength={20}
           rows={6}
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+        />
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm">
+        Features (one per line)
+        <textarea
+          name="features"
+          defaultValue={defaults?.features?.join("\n")}
+          rows={4}
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+        />
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm">
+        Requirements
+        <textarea
+          name="requirements"
+          defaultValue={defaults?.requirements ?? ""}
+          rows={3}
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+        />
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm">
+        Installation instructions
+        <textarea
+          name="installationInstructions"
+          defaultValue={defaults?.installationInstructions ?? ""}
+          rows={4}
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+        />
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm">
+        Compatibility notes
+        <textarea
+          name="compatibilityNotes"
+          defaultValue={defaults?.compatibilityNotes ?? ""}
+          rows={2}
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+        />
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm">
+        Support information
+        <textarea
+          name="supportInfo"
+          defaultValue={defaults?.supportInfo ?? ""}
+          rows={2}
           className="rounded-md border border-slate-300 px-3 py-2 text-sm"
         />
       </label>

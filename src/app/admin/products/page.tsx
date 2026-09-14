@@ -4,7 +4,15 @@ import { Badge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_TABS = ["PENDING_REVIEW", "PUBLISHED", "REJECTED", "SUSPENDED", "DRAFT", "ARCHIVED"] as const;
+const STATUS_TABS = [
+  "PENDING_REVIEW",
+  "UNDER_REVIEW",
+  "PUBLISHED",
+  "REJECTED",
+  "SUSPENDED",
+  "DRAFT",
+  "ARCHIVED",
+] as const;
 
 interface AdminProductsPageProps {
   searchParams: Promise<{ status?: string; page?: string }>;

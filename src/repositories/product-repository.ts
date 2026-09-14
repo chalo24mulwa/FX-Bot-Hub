@@ -25,10 +25,11 @@ export const productDetailInclude = {
   images: { orderBy: { position: "asc" as const } },
   screenshots: { orderBy: { position: "asc" as const } },
   documentation: { orderBy: { position: "asc" as const } },
-  versions: { orderBy: { createdAt: "desc" as const }, take: 1, include: { files: true } },
+  versions: { orderBy: { createdAt: "desc" as const }, take: 20, include: { files: true } },
   reviews: {
+    where: { hidden: false },
     orderBy: { createdAt: "desc" as const },
-    take: 20,
+    take: 50,
     include: { user: { select: { name: true } } },
   },
   rating: true,

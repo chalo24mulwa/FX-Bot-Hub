@@ -1,25 +1,23 @@
 import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { getSellerDashboardStats } from "@/features/seller/analytics-service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatPriceCents } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export default async function SellerDashboardPage() {
   const session = await auth();
-  const sellerId = session!.user.id;
-
-  const [total, published, pending, downloads] = await Promise.all([
-    db.product.count({ where: { sellerId } }),
-    db.product.count({ where: { sellerId, status: "PUBLISHED" } }),
-    db.product.count({ where: { sellerId, status: "PENDING_REVIEW" } }),
-    db.download.count({ where: { product: { sellerId } } }),
-  ]);
+  const stats = await getSellerDashboardStats(session!.user.id);
 
   const cards = [
-    { label: "Total products", value: total },
-    { label: "Published", value: published },
-    { label: "Pending review", value: pending },
-    { label: "Total downloads", value: downloads },
+    { label: "Total products", value: stats.totalProducts },
+    { label: "Published", value: stats.published },
+    { label: "Pending", value: stats.pending },
+    { label: "Rejected", value: stats.rejected },
+    { label: "Sales", value: stats.sales },
+    { label: "Revenue", value: formatPriceCents(stats.revenueCents) },
+    { label: "Downloads", value: stats.downloads },
+    { label: "Ratings", value: `${stats.averageRating.toFixed(1)} (${stats.ratingCount})` },
   ];
 
   return (

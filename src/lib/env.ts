@@ -26,10 +26,10 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => v === "true"),
-  // Public-read base URL (CDN or bucket website endpoint) for images —
-  // screenshots/cover images are served directly from here, unlike EA/
-  // indicator files which stay private behind getSignedDownloadUrl.
-  STORAGE_PUBLIC_BASE_URL: z.string().optional(),
+  // NOTE: the public-read base URL for images is NEXT_PUBLIC_STORAGE_PUBLIC_BASE_URL,
+  // read directly in src/lib/storage/public-url.ts — not through this
+  // object, since that file must also load in the browser and this whole
+  // module (server secrets included) cannot.
 
   EMAIL_PROVIDER: z.enum(["console", "resend"]).default("console"),
   RESEND_API_KEY: z.string().optional(),

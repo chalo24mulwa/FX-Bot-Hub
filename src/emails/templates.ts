@@ -35,3 +35,39 @@ export function buildProductRejectedEmail(productName: string, reason: string | 
     text: `"${productName}" did not pass review.${reason ? ` Reason: ${reason}` : ""}`,
   };
 }
+
+export function buildOrderPaidEmail(orderId: string, ordersUrl: string): EmailTemplate {
+  return {
+    subject: "Your FX Bot Market order is confirmed",
+    html: wrap(
+      "Order confirmed",
+      `<p>Order #${orderId.slice(0, 8)} is paid. Your purchases are ready to download.</p><p><a href="${ordersUrl}">View your orders</a></p>`
+    ),
+    text: `Order #${orderId.slice(0, 8)} is paid. View your orders: ${ordersUrl}`,
+  };
+}
+
+export function buildSaleNotificationEmail(productName: string, amountCents: number, currency: string): EmailTemplate {
+  const amount = (amountCents / 100).toFixed(2);
+  return {
+    subject: `You made a sale: "${productName}"`,
+    html: wrap("New sale", `<p>"${productName}" just sold for ${amount} ${currency}.</p>`),
+    text: `"${productName}" just sold for ${amount} ${currency}.`,
+  };
+}
+
+export function buildPriceChangeEmail(productName: string, productUrl: string, newPrice: string): EmailTemplate {
+  return {
+    subject: `Price update: "${productName}"`,
+    html: wrap("Price updated", `<p>"${productName}" is now ${newPrice}.</p><p><a href="${productUrl}">View listing</a></p>`),
+    text: `"${productName}" is now ${newPrice}: ${productUrl}`,
+  };
+}
+
+export function buildNewVersionEmail(productName: string, version: string, productUrl: string): EmailTemplate {
+  return {
+    subject: `New version of "${productName}"`,
+    html: wrap("New version available", `<p>"${productName}" was updated to version ${version}.</p><p><a href="${productUrl}">View listing</a></p>`),
+    text: `"${productName}" was updated to version ${version}: ${productUrl}`,
+  };
+}

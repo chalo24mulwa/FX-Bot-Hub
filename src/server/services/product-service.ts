@@ -1,6 +1,10 @@
 import { db } from "@/lib/db";
 import { findProducts, productDetailInclude, productListInclude } from "@/repositories/product-repository";
+import { listRankedProducts } from "@/lib/ranking/ranking-service";
+import { notifyPriceChange } from "@/features/favorites/notify-favoriters";
+import { formatPriceCents } from "@/lib/utils";
 import type { ListProductsQuery, CreateProductInput, UpdateProductInput } from "@/lib/validations/product";
+import type { ProductStatus } from "@prisma/client";
 
 function slugify(name: string): string {
   return name
@@ -23,6 +27,9 @@ async function uniqueSlug(name: string, excludeId?: string): Promise<string> {
 // ---------- Public / buyer-facing ----------
 
 export async function listPublishedProducts(query: ListProductsQuery) {
+  if (query.sort === "popular" || query.sort === "best_sellers") {
+    return listRankedProducts(query);
+  }
   return findProducts(query, { status: "PUBLISHED" });
 }
 
@@ -31,6 +38,12 @@ export async function getPublishedProductBySlug(slug: string) {
     where: { slug, status: "PUBLISHED" },
     include: productDetailInclude,
   });
+}
+
+/** Fire-and-forget from the product detail page — a lost increment under
+ * concurrent load is an acceptable tradeoff for not blocking the render. */
+export async function incrementProductView(productId: string) {
+  await db.product.update({ where: { id: productId }, data: { viewCount: { increment: 1 } } }).catch(() => {});
 }
 
 export async function listFeaturedProducts(limit: number) {
@@ -61,18 +74,34 @@ export async function createDraftProduct(sellerId: string, input: CreateProductI
 }
 
 export async function updateOwnProduct(sellerId: string, productId: string, input: UpdateProductInput) {
-  const product = await db.product.findUnique({ where: { id: productId }, select: { sellerId: true, status: true } });
+  const product = await db.product.findUnique({
+    where: { id: productId },
+    select: { sellerId: true, status: true, priceCents: true, name: true, slug: true, currency: true },
+  });
   if (!product || product.sellerId !== sellerId) return null;
   // A published listing must go back through review after material edits.
   const resetsReview = product.status === "PUBLISHED" || product.status === "REJECTED";
+  const wasPublished = product.status === "PUBLISHED";
+  const priceChanged = input.priceCents !== undefined && input.priceCents !== product.priceCents;
 
-  return db.product.update({
+  const updated = await db.product.update({
     where: { id: productId },
     data: {
       ...input,
-      ...(resetsReview ? { status: "PENDING_REVIEW" as const } : {}),
+      ...(resetsReview ? { status: "PENDING_REVIEW" as const, rejectionReason: null } : {}),
     },
   });
+
+  if (wasPublished && priceChanged) {
+    void notifyPriceChange(
+      productId,
+      product.name,
+      product.slug,
+      formatPriceCents(updated.priceCents, updated.currency)
+    );
+  }
+
+  return updated;
 }
 
 export async function submitProductForReview(sellerId: string, productId: string) {
@@ -107,7 +136,7 @@ export async function getOwnProduct(sellerId: string, productId: string) {
 // ---------- Admin / moderation ----------
 
 export async function listProductsForModeration(
-  status: "PENDING_REVIEW" | "PUBLISHED" | "REJECTED" | "SUSPENDED" | "DRAFT" | "ARCHIVED" | undefined,
+  status: ProductStatus | undefined,
   page: number,
   pageSize: number
 ) {

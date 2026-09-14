@@ -14,6 +14,8 @@ export type Action =
   | "seller:view_dashboard"
   | "admin:view_dashboard"
   | "admin:view_audit_log"
+  | "admin:manage_settings"
+  | "category:manage"
   | "calendar:manage";
 
 /**
@@ -35,6 +37,8 @@ const PERMISSIONS: Record<Action, (role: UserRole) => boolean> = {
   "seller:view_dashboard": isSeller,
   "admin:view_dashboard": isStaff,
   "admin:view_audit_log": isStaff,
+  "admin:manage_settings": isAdmin,
+  "category:manage": isAdmin,
   "calendar:manage": isStaff,
 };
 

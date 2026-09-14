@@ -4,6 +4,7 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 
 const DASHBOARD_NAV = [
   { label: "Overview", href: "/dashboard" },
+  { label: "Orders", href: "/dashboard/orders" },
   { label: "Favorites", href: "/dashboard/favorites" },
   { label: "Notifications", href: "/dashboard/notifications" },
 ];

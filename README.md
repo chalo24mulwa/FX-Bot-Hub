@@ -11,9 +11,23 @@ governs every future phase: **extend this foundation, don't rebuild it.**
 
 Next.js (App Router) + TypeScript · PostgreSQL + Prisma · Redis + BullMQ ·
 Auth.js v5 (credentials + optional Google OAuth) · Tailwind CSS · shadcn/ui-style
-primitives · Zod · S3-compatible storage · pluggable payment/email/search
-providers · centralized RBAC (`USER`/`SELLER`/`AUTHOR`/`MODERATOR`/`ADMIN`/
-`SUPER_ADMIN`). Full rationale in CLAUDE.md.
+primitives · Zod · S3-compatible storage (presigned direct uploads) · pluggable
+payment/email/search providers · centralized RBAC (`USER`/`SELLER`/`AUTHOR`/
+`MODERATOR`/`ADMIN`/`SUPER_ADMIN`) · cart/checkout/licensing · Playwright e2e
+against a real production build. Full rationale in CLAUDE.md.
+
+## Feature tour
+
+- **Buyers**: browse/search/filter, favorite, add to cart, check out, download
+  owned files, leave verified-purchase reviews.
+- **Sellers** (`/seller`): a 12-step product creation wizard (type → platform →
+  basic info → description → features → screenshots → documentation → files →
+  pricing → compatibility → testing/support → submit for review), order/sales/
+  revenue dashboard, per-product analytics, customer list, review responses,
+  profile & payout settings.
+- **Admins** (`/admin`): moderation queue (claim → approve/reject-with-reason/
+  suspend/feature), user role & ban management, review moderation, category
+  management, marketplace settings (commission, ranking weights).
 
 ## Local development
 
@@ -47,7 +61,9 @@ providers · centralized RBAC (`USER`/`SELLER`/`AUTHOR`/`MODERATOR`/`ADMIN`/
    `password123` for all): `vendor@fxbotmarket.local` (SELLER),
    `buyer@fxbotmarket.local` (USER), `moderator@fxbotmarket.local` (ADMIN),
    `admin@fxbotmarket.local` (SUPER_ADMIN). Try the seller flow at `/seller`,
-   admin moderation at `/admin/products`.
+   admin moderation at `/admin/products`. File uploads (screenshots,
+   documentation, product files) need the `minio` service running — see Docker
+   below — since they upload directly to object storage via a presigned URL.
 
 ## Scripts
 

@@ -31,16 +31,18 @@ model User {
   profile       Profile?
   sellerProfile SellerProfile?
 
-  products      Product[]      @relation("ProductSeller")
-  reviews       Review[]
-  ratings       ProductRating[]
-  favorites     Favorite[]
-  downloads     Download[]
-  orders        Order[]
-  licenses      License[]
-  subscriptions Subscription[]
-  notifications Notification[]
-  auditLogs     AuditLog[]     @relation("AuditActor")
+  products           Product[]       @relation("ProductSeller")
+  moderatingProducts Product[]       @relation("ProductModerator")
+  reviews            Review[]
+  ratings            ProductRating[]
+  favorites          Favorite[]
+  downloads          Download[]
+  cart               Cart?
+  orders             Order[]
+  licenses           License[]
+  subscriptions      Subscription[]
+  notifications      Notification[]
+  auditLogs          AuditLog[]      @relation("AuditActor")
 
   @@map("users")
 }
@@ -155,9 +157,17 @@ enum ProductType {
   OTHER
 }
 
+// UNDER_REVIEW is a distinct step from PENDING_REVIEW: PENDING_REVIEW means
+// "submitted, waiting for a moderator to pick it up"; UNDER_REVIEW means a
+// moderator has claimed it (see assignedModeratorId) and is actively
+// reviewing. PUBLISHED is this app's "approved and live" state — Phase 2's
+// spec calls it APPROVED, but renaming would touch every status check for
+// no behavioral gain, so PUBLISHED stays and this comment documents the
+// mapping instead.
 enum ProductStatus {
   DRAFT
   PENDING_REVIEW
+  UNDER_REVIEW
   PUBLISHED
   REJECTED
   SUSPENDED
@@ -180,28 +190,37 @@ enum PricingType {
 }
 
 model Product {
-  id            String          @id @default(cuid())
-  slug          String          @unique
-  sellerId      String
-  categoryId    String?
-  name          String
-  type          ProductType
-  platform      Platform        @default(MT5)
-  shortSummary  String
-  description   String          @db.Text
-  pricingType   PricingType     @default(ONE_TIME)
-  priceCents    Int // 0 when pricingType = FREE
-  currency      String          @default("USD")
-  status        ProductStatus   @default(DRAFT)
-  featured      Boolean         @default(false)
-  tags          String[]        @default([])
-  searchVector  Unsupported("tsvector")?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  publishedAt   DateTime?
+  id                       String                   @id @default(cuid())
+  slug                     String                   @unique
+  sellerId                 String
+  categoryId               String?
+  name                     String
+  type                     ProductType
+  platform                 Platform                 @default(MT5)
+  shortSummary             String
+  description              String                   @db.Text
+  features                 String[]                 @default([])
+  requirements             String?                  @db.Text
+  installationInstructions String?                  @db.Text
+  compatibilityNotes       String?                  @db.Text
+  supportInfo              String?                  @db.Text
+  pricingType              PricingType              @default(ONE_TIME)
+  priceCents               Int // 0 when pricingType = FREE
+  currency                 String                   @default("USD")
+  status                   ProductStatus            @default(DRAFT)
+  rejectionReason          String?                  @db.Text // most recent rejection reason; full history is in AuditLog
+  assignedModeratorId      String?
+  featured                 Boolean                  @default(false)
+  tags                     String[]                 @default([])
+  viewCount                Int                      @default(0)
+  searchVector             Unsupported("tsvector")?
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
+  publishedAt              DateTime?
 
-  seller   User             @relation("ProductSeller", fields: [sellerId], references: [id], onDelete: Cascade)
-  category ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  seller            User             @relation("ProductSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+  category          ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  assignedModerator User?            @relation("ProductModerator", fields: [assignedModeratorId], references: [id], onDelete: SetNull)
 
   versions      ProductVersion[]
   images        ProductImage[]
@@ -212,6 +231,7 @@ model Product {
   rating        ProductRatingSummary?
   favorites     Favorite[]
   downloads     Download[]
+  cartItems     CartItem[]
   orderItems    OrderItem[]
   licenses      License[]
   subscriptions Subscription[]
@@ -219,6 +239,7 @@ model Product {
   @@index([status, type])
   @@index([status, featured])
   @@index([status, pricingType])
+  @@index([assignedModeratorId])
   @@map("products")
 }
 
@@ -229,7 +250,7 @@ model ProductVersion {
   changelog String?  @db.Text
   createdAt DateTime @default(now())
 
-  product Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
   files   ProductFile[]
 
   @@unique([productId, version])
@@ -296,13 +317,18 @@ model ProductDocumentation {
 }
 
 model Review {
-  id        String   @id @default(cuid())
-  productId String
-  userId    String
-  rating    Int // 1-5
-  title     String?
-  body      String?  @db.Text
-  createdAt DateTime @default(now())
+  id                String    @id @default(cuid())
+  productId         String
+  userId            String
+  rating            Int // 1-5
+  title             String?
+  body              String?   @db.Text
+  verifiedPurchase  Boolean   @default(false) // set at creation from a PAID OrderItem check; not re-derived later
+  sellerResponse    String?   @db.Text
+  sellerRespondedAt DateTime?
+  hidden            Boolean   @default(false) // admin moderation: hide instead of hard-delete by default
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -379,7 +405,33 @@ model Download {
   @@map("downloads")
 }
 
-// ---------- Orders / payments / licensing / subscriptions ----------
+// ---------- Cart / orders / payments / licensing / subscriptions ----------
+
+model Cart {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  cartId    String
+  productId String
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+
+  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, productId])
+  @@map("cart_items")
+}
 
 enum OrderStatus {
   PENDING
@@ -401,6 +453,7 @@ model Order {
   user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   items    OrderItem[]
   payments Payment[]
+  licenses License[]
 
   @@map("orders")
 }
@@ -455,10 +508,17 @@ enum LicenseStatus {
   EXPIRED
 }
 
+// Doubles as the entitlement record: a Download is authorized when a
+// non-revoked, non-expired License exists for (userId, productId) — see
+// src/features/downloads/entitlement-service.ts. `key` is a stable
+// identifier a future MT4/MT5-side verification endpoint can check; no such
+// endpoint exists yet, so this does not actually protect a running EA today
+// (see src/app/api/licenses/verify/route.ts's doc comment).
 model License {
   id             String        @id @default(cuid())
   userId         String
   productId      String
+  orderId        String?
   status         LicenseStatus @default(ACTIVE)
   key            String        @unique @default(cuid())
   activations    Int           @default(0)
@@ -468,6 +528,7 @@ model License {
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
 
   @@unique([userId, productId])
   @@map("licenses")
@@ -481,16 +542,16 @@ enum SubscriptionStatus {
 }
 
 model Subscription {
-  id                 String              @id @default(cuid())
-  userId             String
-  productId          String
-  status             SubscriptionStatus  @default(ACTIVE)
-  currentPeriodEnd   DateTime?
-  cancelAtPeriodEnd  Boolean             @default(false)
-  provider           PaymentProviderName?
-  providerReference  String?
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
+  id                String               @id @default(cuid())
+  userId            String
+  productId         String
+  status            SubscriptionStatus   @default(ACTIVE)
+  currentPeriodEnd  DateTime?
+  cancelAtPeriodEnd Boolean              @default(false)
+  provider          PaymentProviderName?
+  providerReference String?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -509,6 +570,9 @@ enum NotificationType {
   ORDER_PAID
   REVIEW_RECEIVED
   SYSTEM
+  PRICE_CHANGE
+  NEW_VERSION
+  PRODUCT_UPDATE
 }
 
 model Notification {
@@ -572,4 +636,21 @@ model EconomicEvent {
   @@index([eventTime])
   @@index([currency, eventTime])
   @@map("economic_events")
+}
+
+// ---------- Marketplace configuration ----------
+
+// Singleton row (id is always "singleton") holding admin-configurable
+// marketplace-wide settings. Read via src/features/admin/settings-service.ts,
+// which upserts the row on first read so callers never have to null-check.
+model MarketplaceSettings {
+  id                String   @id @default("singleton")
+  commissionPercent Float    @default(20)
+  // Weights for the discovery ranking score (see
+  // src/lib/ranking/ranking-service.ts) — sales, downloads, reviews,
+  // rating, recency, favorites. Admin-editable at /admin/settings.
+  rankingWeights    Json     @default("{\"sales\":3,\"downloads\":1,\"reviews\":1,\"rating\":2,\"recency\":1,\"favorites\":1}")
+  updatedAt         DateTime @updatedAt
+
+  @@map("marketplace_settings")
 }

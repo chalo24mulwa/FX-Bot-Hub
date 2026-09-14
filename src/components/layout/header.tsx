@@ -72,6 +72,9 @@ export function Header() {
         </form>
 
         <div className="hidden items-center gap-2 lg:flex">
+          <Link href="/cart" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))} aria-label="Cart">
+            Cart
+          </Link>
           {status === "authenticated" && session.user ? (
             <>
               {isSeller(session.user.role) && (
@@ -138,6 +141,9 @@ export function Header() {
           ))}
           <Link href={COMMUNITY_HREF} className="block py-1 text-sm text-slate-700">
             Community
+          </Link>
+          <Link href="/cart" className="block py-1 text-sm text-slate-700">
+            Cart
           </Link>
           <div className="mt-3 flex gap-2 border-t border-slate-200 pt-3">
             {status === "authenticated" ? (

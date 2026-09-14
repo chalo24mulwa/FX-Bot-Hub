@@ -9,10 +9,17 @@ export const productSortSchema = z.enum([
   "updated",
   "rating",
   "popular",
+  "best_sellers",
   "price_asc",
   "price_desc",
 ]);
 
+// Covers every step of the seller product wizard (src/components/seller/
+// product-wizard). Steps 1-5 (type/platform/basic info/description/features)
+// are required to create a draft; steps 6-11 (screenshots/docs/files handled
+// separately via asset endpoints, but pricing/compatibility/testing info
+// live here) are optional and PATCHed onto the draft as the seller fills
+// them in — see updateProductSchema below.
 const productFieldsSchema = z.object({
   name: z.string().min(3).max(120),
   type: productTypeSchema,
@@ -20,6 +27,11 @@ const productFieldsSchema = z.object({
   categoryId: z.string().cuid().optional(),
   shortSummary: z.string().min(10).max(200),
   description: z.string().min(20),
+  features: z.array(z.string().min(1).max(160)).max(20).default([]),
+  requirements: z.string().max(2000).optional(),
+  installationInstructions: z.string().max(4000).optional(),
+  compatibilityNotes: z.string().max(2000).optional(),
+  supportInfo: z.string().max(2000).optional(),
   pricingType: pricingTypeSchema.default("ONE_TIME"),
   priceCents: z.number().int().min(0),
   currency: z.string().length(3).default("USD"),

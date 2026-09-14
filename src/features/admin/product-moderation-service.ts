@@ -22,12 +22,30 @@ async function loadProductOrThrow(productId: string) {
   return product;
 }
 
+/** Claims a PENDING_REVIEW product for active review — moves it to
+ * UNDER_REVIEW and records the moderator so the queue shows who's on it. */
+export async function claimForReview({ actorId, productId, ipAddress }: ModerationActionInput) {
+  const result = await db.product.updateMany({
+    where: { id: productId, status: "PENDING_REVIEW" },
+    data: { status: "UNDER_REVIEW", assignedModeratorId: actorId },
+  });
+  if (result.count === 0) throw new Error("Product is not awaiting review.");
+
+  await recordAuditLog({ actorId, action: "product.claim_review", entityType: "Product", entityId: productId, ipAddress });
+  return db.product.findUniqueOrThrow({ where: { id: productId } });
+}
+
 export async function approveProduct({ actorId, productId, ipAddress }: ModerationActionInput) {
   const product = await loadProductOrThrow(productId);
 
   const updated = await db.product.update({
     where: { id: productId },
-    data: { status: "PUBLISHED", publishedAt: product.publishedAt ?? new Date() },
+    data: {
+      status: "PUBLISHED",
+      publishedAt: product.publishedAt ?? new Date(),
+      rejectionReason: null,
+      assignedModeratorId: null,
+    },
   });
 
   await Promise.all([
@@ -61,7 +79,7 @@ export async function rejectProduct({ actorId, productId, reason, ipAddress }: M
 
   const updated = await db.product.update({
     where: { id: productId },
-    data: { status: "REJECTED" },
+    data: { status: "REJECTED", rejectionReason: reason ?? null, assignedModeratorId: null },
   });
 
   await Promise.all([

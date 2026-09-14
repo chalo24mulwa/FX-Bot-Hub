@@ -7,6 +7,12 @@ const SELLER_NAV = [
   { label: "Overview", href: "/seller" },
   { label: "My Products", href: "/seller/products" },
   { label: "New Product", href: "/seller/products/new" },
+  { label: "Orders", href: "/seller/orders" },
+  { label: "Reviews", href: "/seller/reviews" },
+  { label: "Customers", href: "/seller/customers" },
+  { label: "Analytics", href: "/seller/analytics" },
+  { label: "Profile", href: "/seller/profile" },
+  { label: "Payout Settings", href: "/seller/payout" },
 ];
 
 export default async function SellerLayout({ children }: { children: React.ReactNode }) {
