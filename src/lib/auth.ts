@@ -19,7 +19,7 @@ declare module "next-auth" {
   }
 }
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const { handlers, auth, signIn, signOut, unstable_update: updateSession } = NextAuth({
   adapter: PrismaAdapter(db),
   // A Credentials provider forces JWT sessions (Auth.js cannot persist
   // credentials-based sessions via the DB adapter) — the adapter still
@@ -72,11 +72,34 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       return true;
     },
-    jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.id = user.id;
         token.role = (user as { role: UserRole }).role;
+        token.roleCheckedAt = Date.now();
+        return token;
       }
+
+      // Re-sync role/ban status from the DB — immediately when explicitly
+      // requested (updateSession(), called right after a role change: see
+      // src/features/users/actions.ts's becomeSellerAction) and otherwise
+      // periodically (not on every request — that would mean a DB round
+      // trip per page load). Without this, an admin promoting/banning a
+      // user would silently do nothing until that user next signs out and
+      // back in, since a JWT session otherwise only carries whatever role
+      // was true at sign-in time.
+      const ROLE_REFRESH_INTERVAL_MS = 60_000;
+      const checkedAt = typeof token.roleCheckedAt === "number" ? token.roleCheckedAt : 0;
+      if (token.id && (trigger === "update" || Date.now() - checkedAt > ROLE_REFRESH_INTERVAL_MS)) {
+        const current = await db.user.findUnique({
+          where: { id: token.id as string },
+          select: { role: true, bannedAt: true },
+        });
+        if (!current || current.bannedAt) return null; // ends the session
+        token.role = current.role;
+        token.roleCheckedAt = Date.now();
+      }
+
       return token;
     },
     session({ session, token }) {

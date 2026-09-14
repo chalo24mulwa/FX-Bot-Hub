@@ -1,12 +1,17 @@
+import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { isSeller, isStaff } from "@/lib/authorization/roles";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const session = await auth();
   const userId = session!.user.id;
+  const canBecomeSeller = !isSeller(session!.user.role) && !isStaff(session!.user.role);
 
   const [favoriteCount, licenseCount, orderCount] = await Promise.all([
     db.favorite.count({ where: { userId } }),
@@ -35,6 +40,18 @@ export default async function DashboardPage() {
           </Card>
         ))}
       </div>
+
+      {canBecomeSeller && (
+        <div className="mt-8 rounded-md border border-slate-200 bg-slate-50 p-4">
+          <p className="font-medium text-slate-900">Have a trading tool to share?</p>
+          <p className="mt-1 text-sm text-slate-600">
+            List EAs, indicators, signals, or tools on FX Bot Market.
+          </p>
+          <Link href="/dashboard/become-seller" className={cn(buttonVariants({ size: "sm" }), "mt-3")}>
+            Become a seller
+          </Link>
+        </div>
+      )}
     </div>
   );
 }
