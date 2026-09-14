@@ -39,6 +39,18 @@ before making structural changes.
 Six roles (`UserRole`): `USER < SELLER == AUTHOR < MODERATOR < ADMIN < SUPER_ADMIN`
 (rank order in `src/lib/authorization/roles.ts`). **Never write `role === "ADMIN"`
 in a page or route** — go through `src/lib/authorization/`:
+
+**Role/ban changes and session staleness**: a JWT session carries whatever role
+was true at sign-in — `src/lib/auth.ts`'s `jwt()` callback resyncs it from the
+DB periodically (`ROLE_REFRESH_INTERVAL_MS`, 60s) so admin role changes and bans
+take effect without forcing a re-login, and ends the session outright if the
+user is now banned. If you write code that changes a role/ban for the
+**currently signed-in user** (self-service onboarding is the only example so
+far — `becomeSellerAction` in `src/features/users/actions.ts`) and then redirect
+to somewhere gated by the new role, call `updateSession({})` (exported from
+`src/lib/auth.ts`) first — otherwise the redirect races the stale JWT and
+bounces the user straight back to sign-in. This one only reproduces with a real
+browser session; a direct DB check in a test won't catch it.
 - `roles.ts` — rank + `isSeller`/`isStaff`/`isAdmin` helpers.
 - `permissions.ts` — the capability matrix (`can(role, action)`); add a new
   capability here, not as an inline check at the call site.
