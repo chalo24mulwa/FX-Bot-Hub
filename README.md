@@ -10,8 +10,10 @@ governs every future phase: **extend this foundation, don't rebuild it.**
 ## Stack
 
 Next.js (App Router) + TypeScript · PostgreSQL + Prisma · Redis + BullMQ ·
-Auth.js v5 · Tailwind CSS · Zod · S3-compatible storage · pluggable
-payment/email providers. Full rationale in CLAUDE.md.
+Auth.js v5 (credentials + optional Google OAuth) · Tailwind CSS · shadcn/ui-style
+primitives · Zod · S3-compatible storage · pluggable payment/email/search
+providers · centralized RBAC (`USER`/`SELLER`/`AUTHOR`/`MODERATOR`/`ADMIN`/
+`SUPER_ADMIN`). Full rationale in CLAUDE.md.
 
 ## Local development
 
@@ -41,8 +43,11 @@ payment/email providers. Full rationale in CLAUDE.md.
    npm run dev
    ```
 
-   Visit [http://localhost:3000](http://localhost:3000). Seeded demo vendor:
-   `vendor@fxbotmarket.local` / `password123`.
+   Visit [http://localhost:3000](http://localhost:3000). Seeded logins (password
+   `password123` for all): `vendor@fxbotmarket.local` (SELLER),
+   `buyer@fxbotmarket.local` (USER), `moderator@fxbotmarket.local` (ADMIN),
+   `admin@fxbotmarket.local` (SUPER_ADMIN). Try the seller flow at `/seller`,
+   admin moderation at `/admin/products`.
 
 ## Scripts
 

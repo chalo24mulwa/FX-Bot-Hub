@@ -3,44 +3,126 @@ import bcrypt from "bcryptjs";
 
 const db = new PrismaClient();
 
-async function main() {
-  const category = await db.category.upsert({
-    where: { slug: "trend-following" },
-    update: {},
-    create: { name: "Trend Following", slug: "trend-following" },
-  });
-
-  const passwordHash = await bcrypt.hash("password123", 12);
-  const vendor = await db.user.upsert({
-    where: { email: "vendor@fxbotmarket.local" },
+async function upsertUser(email: string, name: string, role: "USER" | "SELLER" | "ADMIN" | "SUPER_ADMIN") {
+  const password = await bcrypt.hash("password123", 12);
+  return db.user.upsert({
+    where: { email },
     update: {},
     create: {
-      name: "Demo Vendor",
-      email: "vendor@fxbotmarket.local",
-      password: passwordHash,
-      role: "SELLER",
+      name,
+      email,
+      password,
+      role,
+      profile: { create: { displayName: name } },
+    },
+  });
+}
+
+async function main() {
+  const [trendFollowing, scalping, indicators] = await Promise.all([
+    db.productCategory.upsert({
+      where: { slug: "trend-following" },
+      update: {},
+      create: { name: "Trend Following", slug: "trend-following" },
+    }),
+    db.productCategory.upsert({
+      where: { slug: "scalping" },
+      update: {},
+      create: { name: "Scalping", slug: "scalping" },
+    }),
+    db.productCategory.upsert({
+      where: { slug: "indicators" },
+      update: {},
+      create: { name: "Indicators", slug: "indicators" },
+    }),
+  ]);
+
+  const vendor = await upsertUser("vendor@fxbotmarket.local", "Demo Vendor", "SELLER");
+  await db.sellerProfile.upsert({
+    where: { userId: vendor.id },
+    update: {},
+    create: {
+      userId: vendor.id,
+      displayName: "Demo Vendor",
+      bio: "Building EAs since 2018.",
+      verified: true,
     },
   });
 
-  await db.product.upsert({
-    where: { slug: "trend-rider-ea" },
-    update: {},
-    create: {
+  await upsertUser("buyer@fxbotmarket.local", "Demo Buyer", "USER");
+  await upsertUser("moderator@fxbotmarket.local", "Demo Moderator", "ADMIN");
+  await upsertUser("admin@fxbotmarket.local", "Demo Admin", "SUPER_ADMIN");
+
+  const products = [
+    {
       slug: "trend-rider-ea",
-      vendorId: vendor.id,
-      categoryId: category.id,
+      categoryId: trendFollowing.id,
       name: "Trend Rider EA",
-      type: "EXPERT_ADVISOR",
-      platform: "MT5",
+      type: "EA" as const,
+      platform: "MT5" as const,
+      pricingType: "ONE_TIME" as const,
+      priceCents: 4900,
+      featured: true,
+      tags: ["trend", "ema", "risk-management"],
       shortSummary: "A moving-average crossover EA with adaptive risk sizing.",
       description:
         "Trend Rider EA trades EMA crossovers on major pairs, with configurable risk per trade, a trailing stop, and a news-time filter you can wire to the economic calendar.",
-      priceCents: 4900,
-      currency: "USD",
-      status: "PUBLISHED",
-      publishedAt: new Date(),
     },
-  });
+    {
+      slug: "scalp-master-mt4",
+      categoryId: scalping.id,
+      name: "Scalp Master MT4",
+      type: "EA" as const,
+      platform: "MT4" as const,
+      pricingType: "SUBSCRIPTION" as const,
+      priceCents: 1900,
+      featured: true,
+      tags: ["scalping", "m1", "m5"],
+      shortSummary: "High-frequency scalping EA tuned for low-spread brokers.",
+      description:
+        "Scalp Master MT4 targets 5-15 pip moves on M1/M5 timeframes with tight spread and slippage guards.",
+    },
+    {
+      slug: "supertrend-plus",
+      categoryId: indicators.id,
+      name: "SuperTrend Plus",
+      type: "INDICATOR" as const,
+      platform: "MULTI_PLATFORM" as const,
+      pricingType: "FREE" as const,
+      priceCents: 0,
+      featured: false,
+      tags: ["trend", "free"],
+      shortSummary: "An enhanced SuperTrend indicator with multi-timeframe confirmation.",
+      description: "SuperTrend Plus overlays multi-timeframe trend direction with alerting.",
+    },
+    {
+      slug: "daily-fx-signals",
+      categoryId: null,
+      name: "Daily FX Signals",
+      type: "SIGNAL" as const,
+      platform: "MULTI_PLATFORM" as const,
+      pricingType: "SUBSCRIPTION" as const,
+      priceCents: 2900,
+      featured: false,
+      tags: ["signals", "daily"],
+      shortSummary: "Manually curated daily trade signals for major pairs.",
+      description: "Daily FX Signals delivers 2-4 vetted trade ideas per day with entry, SL, and TP.",
+    },
+  ];
+
+  for (const p of products) {
+    await db.product.upsert({
+      where: { slug: p.slug },
+      update: {},
+      create: {
+        ...p,
+        sellerId: vendor.id,
+        currency: "USD",
+        status: "PUBLISHED",
+        publishedAt: new Date(),
+      },
+    });
+  }
 
   await db.economicEvent.upsert({
     where: { externalId: "seed-nfp" },
@@ -58,7 +140,11 @@ async function main() {
     },
   });
 
-  console.log("Seed complete. Vendor login: vendor@fxbotmarket.local / password123");
+  console.log("Seed complete. Logins (password: password123):");
+  console.log("  vendor@fxbotmarket.local     (SELLER)");
+  console.log("  buyer@fxbotmarket.local      (USER)");
+  console.log("  moderator@fxbotmarket.local  (ADMIN)");
+  console.log("  admin@fxbotmarket.local      (SUPER_ADMIN)");
 }
 
 main()

@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
-import type { ListProductsQuery, CreateProductInput } from "@/lib/validations/product";
-import { Prisma } from "@prisma/client";
+import { findProducts, productDetailInclude, productListInclude } from "@/repositories/product-repository";
+import type { ListProductsQuery, CreateProductInput, UpdateProductInput } from "@/lib/validations/product";
 
 function slugify(name: string): string {
   return name
@@ -9,58 +9,118 @@ function slugify(name: string): string {
     .replace(/(^-|-$)/g, "");
 }
 
+async function uniqueSlug(name: string, excludeId?: string): Promise<string> {
+  const baseSlug = slugify(name);
+  let slug = baseSlug;
+  let suffix = 1;
+  while (true) {
+    const existing = await db.product.findUnique({ where: { slug }, select: { id: true } });
+    if (!existing || existing.id === excludeId) return slug;
+    slug = `${baseSlug}-${suffix++}`;
+  }
+}
+
+// ---------- Public / buyer-facing ----------
+
 export async function listPublishedProducts(query: ListProductsQuery) {
-  const where: Prisma.ProductWhereInput = {
-    status: "PUBLISHED",
-    type: query.type,
-    platform: query.platform,
-    category: query.categorySlug ? { slug: query.categorySlug } : undefined,
-    ...(query.q
-      ? {
-          OR: [
-            { name: { contains: query.q, mode: "insensitive" } },
-            { shortSummary: { contains: query.q, mode: "insensitive" } },
-          ],
-        }
-      : {}),
-  };
-
-  const [items, total] = await Promise.all([
-    db.product.findMany({
-      where,
-      orderBy: { publishedAt: "desc" },
-      skip: (query.page - 1) * query.pageSize,
-      take: query.pageSize,
-      include: { vendor: { select: { name: true } }, category: true },
-    }),
-    db.product.count({ where }),
-  ]);
-
-  return { items, total, page: query.page, pageSize: query.pageSize };
+  return findProducts(query, { status: "PUBLISHED" });
 }
 
 export async function getPublishedProductBySlug(slug: string) {
   return db.product.findFirst({
     where: { slug, status: "PUBLISHED" },
-    include: {
-      vendor: { select: { name: true } },
-      category: true,
-      images: { orderBy: { position: "asc" } },
-      versions: { orderBy: { createdAt: "desc" }, take: 1 },
-      reviews: { orderBy: { createdAt: "desc" }, take: 20, include: { user: { select: { name: true } } } },
+    include: productDetailInclude,
+  });
+}
+
+export async function listFeaturedProducts(limit: number) {
+  return db.product.findMany({
+    where: { status: "PUBLISHED", featured: true },
+    orderBy: { publishedAt: "desc" },
+    take: limit,
+    include: productListInclude,
+  });
+}
+
+export async function listNewestProducts(limit: number) {
+  return db.product.findMany({
+    where: { status: "PUBLISHED" },
+    orderBy: { publishedAt: "desc" },
+    take: limit,
+    include: productListInclude,
+  });
+}
+
+// ---------- Seller-facing ----------
+
+export async function createDraftProduct(sellerId: string, input: CreateProductInput) {
+  const slug = await uniqueSlug(input.name);
+  return db.product.create({
+    data: { ...input, sellerId, slug, status: "DRAFT" },
+  });
+}
+
+export async function updateOwnProduct(sellerId: string, productId: string, input: UpdateProductInput) {
+  const product = await db.product.findUnique({ where: { id: productId }, select: { sellerId: true, status: true } });
+  if (!product || product.sellerId !== sellerId) return null;
+  // A published listing must go back through review after material edits.
+  const resetsReview = product.status === "PUBLISHED" || product.status === "REJECTED";
+
+  return db.product.update({
+    where: { id: productId },
+    data: {
+      ...input,
+      ...(resetsReview ? { status: "PENDING_REVIEW" as const } : {}),
     },
   });
 }
 
-export async function createDraftProduct(vendorId: string, input: CreateProductInput) {
-  const baseSlug = slugify(input.name);
-  let slug = baseSlug;
-  let suffix = 1;
-  while (await db.product.findUnique({ where: { slug } })) {
-    slug = `${baseSlug}-${suffix++}`;
-  }
-
-  return db.product.create({
-    data: { ...input, vendorId, slug, status: "DRAFT" },
+export async function submitProductForReview(sellerId: string, productId: string) {
+  const result = await db.product.updateMany({
+    where: { id: productId, sellerId, status: { in: ["DRAFT", "REJECTED"] } },
+    data: { status: "PENDING_REVIEW" },
   });
+  return result.count > 0;
+}
+
+export async function listSellerProducts(sellerId: string, page: number, pageSize: number) {
+  const where = { sellerId };
+  const [items, total] = await Promise.all([
+    db.product.findMany({
+      where,
+      orderBy: { updatedAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: { category: true, rating: true, _count: { select: { orderItems: true, downloads: true } } },
+    }),
+    db.product.count({ where }),
+  ]);
+  return { items, total, page, pageSize };
+}
+
+export async function getOwnProduct(sellerId: string, productId: string) {
+  const product = await db.product.findUnique({ where: { id: productId }, include: productDetailInclude });
+  if (!product || product.sellerId !== sellerId) return null;
+  return product;
+}
+
+// ---------- Admin / moderation ----------
+
+export async function listProductsForModeration(
+  status: "PENDING_REVIEW" | "PUBLISHED" | "REJECTED" | "SUSPENDED" | "DRAFT" | "ARCHIVED" | undefined,
+  page: number,
+  pageSize: number
+) {
+  const where = status ? { status } : {};
+  const [items, total] = await Promise.all([
+    db.product.findMany({
+      where,
+      orderBy: { updatedAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      include: { seller: { select: { id: true, name: true, email: true } }, category: true },
+    }),
+    db.product.count({ where }),
+  ]);
+  return { items, total, page, pageSize };
 }

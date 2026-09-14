@@ -6,6 +6,16 @@ const envSchema = z.object({
   REDIS_URL: z.string().min(1).default("redis://localhost:6379"),
   AUTH_SECRET: z.string().min(1, "AUTH_SECRET is required"),
   NEXTAUTH_URL: z.string().url().optional(),
+  // Optional: when both are set, Google is added as a sign-in provider
+  // alongside credentials (see src/lib/auth.ts). Leave unset to stay
+  // credentials-only.
+  AUTH_GOOGLE_ID: z.string().optional(),
+  AUTH_GOOGLE_SECRET: z.string().optional(),
+
+  RATE_LIMIT_DISABLED: z
+    .string()
+    .optional()
+    .transform((v) => v === "true"),
 
   STORAGE_ENDPOINT: z.string().optional(),
   STORAGE_REGION: z.string().default("us-east-1"),
@@ -16,6 +26,10 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => v === "true"),
+  // Public-read base URL (CDN or bucket website endpoint) for images —
+  // screenshots/cover images are served directly from here, unlike EA/
+  // indicator files which stay private behind getSignedDownloadUrl.
+  STORAGE_PUBLIC_BASE_URL: z.string().optional(),
 
   EMAIL_PROVIDER: z.enum(["console", "resend"]).default("console"),
   RESEND_API_KEY: z.string().optional(),
