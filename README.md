@@ -27,9 +27,10 @@ against a real production build. Full rationale in CLAUDE.md.
   profile & payout settings.
 - **Admins** (`/admin`): moderation queue (claim → approve/reject-with-reason/
   suspend/feature), user role & ban management, review moderation, category
-  management, marketplace settings (commission, ranking weights), plus Phase
-  3's calendar/news/news-categories/signal-providers/signals/data-sources
-  management.
+  management, marketplace settings (commission, ranking weights), Phase 3's
+  calendar/news/news-categories/signal-providers/signals/data-sources
+  management, and Phase 4's finance dashboard, refunds, payouts, licenses,
+  and security-event log.
 - **Economic calendar** (`/calendar`): Today/Tomorrow/This Week/Next Week/
   custom-date presets, filters by currency/country/impact/category
   (saveable as a signed-in user's default), per-currency (`/calendar/[currency]`)
@@ -51,6 +52,21 @@ against a real production build. Full rationale in CLAUDE.md.
 - **Market intelligence dashboard** (`/intelligence`): a modular overview
   combining upcoming high-impact events, latest news, and newest marketplace
   products in one place.
+- **Commercial infrastructure** (Phase 4): a `PaymentService` wrapping the
+  same pluggable `PaymentProvider` (`createCharge`/`parseWebhook`/
+  `refundCharge`) behind a webhook endpoint (`POST /api/payments/webhook`)
+  and client-supplied idempotency keys, so a payment is never trusted from
+  a frontend "success" page alone. Product subscriptions (recurring
+  billing via `npm run subscriptions:renew`) alongside one-time purchases;
+  real license activation tracking (`/dashboard/licenses`,
+  `/api/licenses/{verify,activate,deactivate}`) with per-machine slots, not
+  just a counter; seller commissions computed against an admin-configurable
+  rate into an append-only payout ledger (`/seller/payout`); a refund
+  workflow that reverses licenses/subscriptions/ledger entries together
+  (`/admin/refunds`); printable invoices (`/invoices/[id]`); and a
+  fraud/security event log (`/admin/security`) that only ever signals for
+  an admin to review — never auto-bans anyone. See CLAUDE.md's "Phase 4"
+  section for the full design.
 
 ## Local development
 
@@ -106,7 +122,9 @@ against a real production build. Full rationale in CLAUDE.md.
 | `npm run worker:news-sync` | Run the news sync worker                 |
 | `npm run worker:market-data-sync` | Run the market data sync worker (stub) |
 | `npm run worker:event-reminder` | Run the scheduled event-reminder worker |
+| `npm run worker:subscription-renewal` | Run the product-subscription renewal worker |
 | `npm run sync:trigger`  | Enqueue one calendar+news+market-data sync pass and exit |
+| `npm run subscriptions:renew` | Enqueue one product-subscription renewal pass and exit |
 
 ## Docker
 

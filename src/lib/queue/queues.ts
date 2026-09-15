@@ -13,6 +13,8 @@ export interface EmailJobData {
 export type CalendarSyncJobData = Record<string, never>;
 export type NewsSyncJobData = Record<string, never>;
 export type MarketDataSyncJobData = Record<string, never>;
+// Same "pulls its own work list" shape: finds due Subscription rows itself.
+export type SubscriptionRenewalJobData = Record<string, never>;
 
 export interface EventReminderJobData {
   alertId: string;
@@ -51,5 +53,9 @@ export const marketDataSyncQueue = new Queue<MarketDataSyncJobData>("market-data
 // subscribed to) rather than a recurring sync — see scheduleEventReminder
 // in src/features/alerts/dispatch-service.ts.
 export const eventReminderQueue = new Queue<EventReminderJobData>("event-reminder", {
+  connection: queueConnection,
+});
+
+export const subscriptionRenewalQueue = new Queue<SubscriptionRenewalJobData>("subscription-renewal", {
   connection: queueConnection,
 });

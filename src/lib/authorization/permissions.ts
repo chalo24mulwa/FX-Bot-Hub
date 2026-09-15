@@ -19,7 +19,12 @@ export type Action =
   | "calendar:manage"
   | "news:manage"
   | "signal:moderate"
-  | "data_source:manage";
+  | "data_source:manage"
+  | "refund:manage"
+  | "payout:manage"
+  | "license:manage"
+  | "finance:view"
+  | "security:view";
 
 /**
  * Centralized capability matrix — the single source of truth for "who can
@@ -46,6 +51,11 @@ const PERMISSIONS: Record<Action, (role: UserRole) => boolean> = {
   "news:manage": isStaff,
   "signal:moderate": isStaff,
   "data_source:manage": isAdmin,
+  "refund:manage": isStaff,
+  "payout:manage": isAdmin,
+  "license:manage": isStaff,
+  "finance:view": isAdmin,
+  "security:view": isAdmin,
 };
 
 export function can(role: UserRole, action: Action): boolean {

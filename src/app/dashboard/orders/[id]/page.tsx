@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import { formatPriceCents } from "@/lib/utils";
+import { RequestRefundButton } from "@/components/commerce/request-refund-button";
 
 export const dynamic = "force-dynamic";
 
@@ -23,12 +24,17 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
           product: {
             include: { versions: { orderBy: { createdAt: "desc" }, take: 1, include: { files: true } } },
           },
+          invoice: true,
         },
       },
       payments: true,
+      refunds: { orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
   if (!order || order.userId !== session!.user.id) notFound();
+
+  const activeRefund = order.refunds.find((r) => r.status === "REQUESTED" || r.status === "APPROVED");
+  const canRequestRefund = order.status === "PAID" && !activeRefund;
 
   return (
     <div>
@@ -52,7 +58,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
                 </span>
               </div>
               {order.status === "PAID" && (
-                <div className="mt-2 flex flex-wrap gap-2">
+                <div className="mt-2 flex flex-wrap items-center gap-2">
                   {files.length === 0 ? (
                     <span className="text-xs text-slate-400">No files uploaded yet.</span>
                   ) : (
@@ -66,6 +72,14 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
                       </a>
                     ))
                   )}
+                  {item.invoice && (
+                    <Link
+                      href={`/invoices/${item.invoice.id}`}
+                      className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Invoice
+                    </Link>
+                  )}
                 </div>
               )}
             </li>
@@ -77,6 +91,16 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
         <span className="font-semibold text-slate-900">Total</span>
         <span className="font-semibold text-slate-900">{formatPriceCents(order.totalCents, order.currency)}</span>
       </div>
+
+      {activeRefund && (
+        <p className="mt-4 text-sm text-slate-500">Refund {activeRefund.status.toLowerCase()} — awaiting review.</p>
+      )}
+      {order.status === "REFUNDED" && <p className="mt-4 text-sm text-emerald-700">This order has been refunded.</p>}
+      {canRequestRefund && (
+        <div className="mt-4">
+          <RequestRefundButton orderId={order.id} />
+        </div>
+      )}
     </div>
   );
 }

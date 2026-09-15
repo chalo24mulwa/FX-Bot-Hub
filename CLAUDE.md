@@ -120,12 +120,15 @@ EA is "protected" — nothing today enforces this inside an actual `.ex4`/`.ex5`
 
 `Cart`/`CartItem` (`src/features/cart/cart-service.ts`) → `checkoutCart()`
 (`src/features/checkout/checkout-service.ts`) creates an `Order` + `OrderItem`s,
-calls the configured `PaymentProvider`, and — if the charge settles synchronously
+charges through `PaymentService` (`src/lib/payments/payment-service.ts`, wrapping
+the configured `PaymentProvider`), and — if the charge settles synchronously
 (true today) — marks the order `PAID` and calls `completePaidOrder()`
-(idempotent) to issue licenses, clear the bought items from the cart, and notify
+(idempotent) to issue licenses/subscriptions, record the commission split +
+ledger entries + invoice, clear the bought items from the cart, and notify
 buyer + seller(s). An async provider (Stripe/M-Pesa, once implemented) instead
-leaves the order `PENDING`; a webhook handler would call `completePaidOrder()`
-later — that handler doesn't exist yet, only the idempotent function it would call.
+leaves the order `PENDING`; `POST /api/payments/webhook` calls
+`completePaidOrder()` later once the provider confirms the charge — see
+"Phase 4" below for the full payment/refund/subscription architecture.
 
 ### Moderation workflow
 
@@ -327,6 +330,170 @@ not build time, and can hide behind an empty-state branch in
 manual/spot-checked testing. E2E tests must exercise the populated-list
 path, not just the "no results yet" empty state, for exactly this reason.
 
+## Phase 4: commercial infrastructure
+
+Adds real payment/refund/license/payout plumbing on top of Phases 1-3's
+checkout, without touching the marketplace, calendar, news, or signals
+domains. The core principle running through all of it, per Phase 4's own
+brief: **a frontend "success" page is never itself proof a payment
+happened.** The only trusted confirmations are a DB-recorded `Payment`
+row (`SUCCEEDED`) and a verified webhook — see `PaymentService` below.
+
+### PaymentService: the one place that talks to a PaymentProvider
+
+`src/lib/payments/payment-service.ts` wraps the adapter interface
+(`PaymentProvider` in `src/lib/payments/types.ts` — `createCharge`/
+`parseWebhook`/`refundCharge`) with the operations Phase 4 asked for:
+- `createPayment()` — records a `Payment` row and charges it in one step;
+  checkout and subscription renewal both go through this, never
+  `paymentProvider.createCharge()` directly.
+- `getPaymentStatus()` / `verifyPayment()` — the trusted DB-recorded
+  status. For the synchronous `manual` provider this is just a read; a
+  real async provider would reconcile against the processor here.
+- `handleWebhook()` — verifies the payload (provider's job — see the doc
+  comments on `stripe-provider.ts`/`mpesa-provider.ts` for what a real
+  implementation must check), dedupes by the provider's own event id
+  (`ProcessedWebhookEvent`, distinct from `Payment.providerReference` —
+  one charge can generate multiple webhook deliveries), and updates the
+  matching `Payment`. `POST /api/payments/webhook` is the one route every
+  provider posts to; it calls `completePaidOrder()`/`markOrderFailed()`
+  based on the result and logs a `SecurityEvent` on a signature failure.
+- `refundPayment()` — the provider-facing half of a refund only (calls
+  `provider.refundCharge()`). The actual refund *workflow*
+  (REQUESTED/APPROVED/REJECTED/PROCESSED, reversing licenses/
+  subscriptions/invoices/ledger entries) lives one layer up in
+  `src/features/refunds/refund-service.ts`, which calls this as one step
+  — kept separate so "charge a refund through the provider" and "what a
+  refund means for this app's own records" don't mix.
+
+The illustrative directory Phase 4's brief names
+(`/services/payments/providers/`) isn't literally where this lives —
+`src/lib/payments/` already existed from Phase 2 as the adapter registry
+(`manual`/`stripe`/`mpesa`, `paymentProvider` singleton) and this extends
+it rather than relocating it, same reasoning as Phase 2's PUBLISHED/
+APPROVED naming call.
+
+### Idempotency: client-supplied key, DB-enforced
+
+`Order.idempotencyKey` (unique, optional) is how a retried checkout
+submission — a double-click, a flaky network retry — returns the
+*existing* order instead of creating a duplicate one.
+`CheckoutButton` generates one `crypto.randomUUID()` per mount (stable
+across retries of that same click) and sends it as an `Idempotency-Key`
+header; `checkoutCart()` checks for an existing order with that key
+before doing anything else. **Two genuinely concurrent requests with the
+same key** (not just a sequential retry) both pass that check before
+either commits — the real guard is the DB's own unique constraint:
+`checkoutCart()` catches the `P2002` violation on `Order.create()` and
+returns the winner's order instead of erroring. Don't remove that
+catch — an e2e test (`checkout.spec.ts`'s idempotency test, which fires
+two requests via `Promise.all`) exists specifically to catch a regression
+here, and it only reproduces under real concurrency, not a sequential
+retry.
+
+### Entitlement: License for one-time/free, Subscription for recurring
+
+`checkEntitlement()` (`src/features/downloads/entitlement-service.ts`)
+branches on `Product.pricingType`: `SUBSCRIPTION` products are entitled by
+an `ACTIVE`/`TRIAL` `Subscription` row, everything else by a `License` row
+(`isLicenseUsable()` in `src/lib/commerce/license.ts` — status `ACTIVE`
+and not expired). `completePaidOrder()` creates the right one per item;
+no product ever gets both. `Download.success` records denied attempts
+too (not just successful downloads), so the admin/security surfaces can
+see failed access attempts, not only completed ones.
+
+### License activation: real slots, not just a counter
+
+`LicenseActivation` (one row per machine/terminal fingerprint) backs
+`maxActivations` with actual rows instead of a counter that can drift —
+`activateLicense()`/`deactivateLicense()`/`verifyLicenseKey()`
+(`src/features/licenses/license-service.ts`) are what
+`POST /api/licenses/{verify,activate,deactivate}` call. These are the
+only unauthenticated-by-session endpoints in the commerce surface — an
+EA has no browser session, so the license key itself is the credential
+(exactly how commercial EA licensing works elsewhere), protected by rate
+limiting rather than `assertSameOrigin()`. **Don't add a same-origin
+check to these three routes** — a same-site browser session is not the
+expected caller. `SUSPENDED` (reversible hold) vs `REVOKED` (permanent)
+are both admin-only (`license:manage`, `/admin/licenses`); a buyer's own
+keys are visible at `/dashboard/licenses`.
+
+### Seller commissions and the payout ledger
+
+`computeCommission()` (`src/lib/commerce/commission.ts`, pure/unit-tested)
+splits a sale using the existing, previously-unused
+`MarketplaceSettings.commissionPercent` — Phase 4 is what actually wires
+that admin-configurable field into a real financial effect for the first
+time. Every `completePaidOrder()` item writes two `LedgerEntry` rows
+(`SALE` +gross, `COMMISSION` -commission) plus one `Invoice`. **A
+seller's balance is always `SUM(LedgerEntry.amountCents)`
+(`getSellerBalance()`), never a stored/updated counter** — see the
+`LedgerEntry` model comment in `schema.prisma`. `Payout` records a
+seller's payout *request* only; no processor (Stripe Connect/M-Pesa B2C)
+is wired up, same gap as `SellerProfile.payoutEmail` since Phase 2 — an
+admin marks a payout `PAID` once money has actually moved through
+whatever channel is in use, which writes the offsetting `PAYOUT` ledger
+entry.
+
+### Refunds: whole-order only, by design
+
+A refund targets a whole `Order`'s `Payment` (real processors refund a
+charge, and `Payment` is per-`Order`, not per-item) —
+`src/features/refunds/refund-service.ts`'s `requestRefund()` /
+`rejectRefund()` / `approveAndProcessRefund()` reverse *every* item in
+the order: `License` → `REVOKED`, `Subscription` → `CANCELED`, each
+`Invoice` → `REFUNDED`, one `REFUND` ledger entry per seller. Partial
+(single-item) refunds of a multi-item order aren't supported — a
+deliberate scope limit (allocating a partial refund's commission
+correctly across items needs a design of its own), not an oversight.
+`APPROVED` is not a separately-persisted intermediate state for the
+`manual` provider — approving and processing happen in one call, since
+there's no async "capture" step to wait on; a real async processor would
+still resolve inline here (the provider call is awaited before the
+function returns).
+
+### Product subscription renewal: same pattern as Phase 3's sync jobs
+
+`src/services/subscriptions/renewal-service.ts`'s
+`runSubscriptionRenewals()` follows the exact "no in-process scheduler,
+an external cron calls a trigger script" model Phase 3 established for
+calendar/news sync (see below) — `npm run worker:subscription-renewal`
+runs the worker, `npm run subscriptions:renew`
+(`scripts/trigger-subscription-renewal.ts`) enqueues one run. A renewal
+creates a normal `Order`/`Payment` (idempotency-keyed as
+`renewal:<subscriptionId>:<currentPeriodEnd>` so a job re-run can't
+double-charge the same period) and calls the *same* `completePaidOrder()`
+checkout uses — a renewal and an initial purchase produce identical
+ledger/invoice/notification effects, deliberately, rather than a parallel
+"billing" code path. A failed renewal charge sets the subscription
+`PAST_DUE`, not `CANCELED` — nothing here auto-cancels on one failed
+charge.
+
+### Invoices: printable HTML, not a generated PDF file
+
+`/invoices/[id]` is a plain server-rendered page with a "Print / Save as
+PDF" button (`window.print()`) rather than a PDF-generation library —
+there wasn't one in this project already, and the browser's own
+print-to-PDF produces a real downloadable PDF with zero new dependencies.
+One `Invoice` per `OrderItem` (not per `Order`) — see the model comment
+in `schema.prisma` for why (a cart can mix products from different
+sellers; an invoice's "Seller"/"Product" fields are singular).
+
+### Fraud/security: log, never auto-act
+
+`SecurityEvent` (`/admin/security`) is written by
+`checkRepeatedPaymentFailures()`/`checkSuspiciousDownloadPattern()`
+(`src/lib/security/fraud.ts`, called after a failed payment / a
+successful download) and by an invalid webhook signature
+(`WEBHOOK_SIGNATURE_INVALID`, in the webhook route) or a
+license-activation-limit hit (`MULTIPLE_FAILED_LICENSE_ACTIVATIONS`, in
+`license-service.ts`). **Nothing reads a `SecurityEvent` and
+automatically bans, suspends, or revokes anything** — per Phase 4's own
+instruction ("Do not automatically ban users based solely on simplistic
+rules"), these are signals for an admin to act on, not triggers. Don't
+wire one up to an automatic action without that being an explicit,
+separate decision.
+
 ## Testing
 
 - `npm run test` (Vitest) — pure-logic unit tests only (authorization matrix,
@@ -345,7 +512,8 @@ path, not just the "no results yet" empty state, for exactly this reason.
   It does not depend on `prisma/seed.ts` — don't make e2e specs depend on that
   seed's data either; add to `global-setup.ts` instead. Phase 3 added one
   fixed `EconomicEvent`/`NewsArticle`/`NewsCategory`/`DataSource` fixture the
-  same way.
+  same way; Phase 4 added one published `SUBSCRIPTION`-priced product
+  (`e2e-subscription-product`) alongside the existing `e2e-free-product`.
 - The fixed e2e accounts and fixtures are upserted, not recreated per run —
   specs that assert on their alert-subscription/toggle state must not assume
   a starting direction (e.g. `AlertSubscribeButton`'s "subscribed" vs.
@@ -362,6 +530,13 @@ path, not just the "no results yet" empty state, for exactly this reason.
   MinIO/S3 service, so presigned uploads have nowhere to land. The wizard's
   Next button on those steps is exercised (so a broken upload step's UI would
   still be caught), just not an actual file transfer.
+- `page.request` (Playwright's raw HTTP client, used for the license-API and
+  checkout-idempotency specs) is **not** a browser `fetch()` call — it
+  doesn't automatically send an `Origin` header the way in-page JS does. A
+  route protected by `assertSameOrigin()` (e.g. `/api/checkout`) needs that
+  header set explicitly in the request (`checkout.spec.ts`'s idempotency
+  test does this); routes meant for a non-browser caller (the license APIs)
+  deliberately don't call `assertSameOrigin()` at all — see "Phase 4" above.
 
 ## Commands
 
@@ -369,23 +544,41 @@ path, not just the "no results yet" empty state, for exactly this reason.
   (Playwright) / `npm run typecheck` / `npm run lint`
 - `npm run db:migrate` (dev migration), `npm run db:seed`, `npm run db:studio`
 - `npm run worker:email` / `worker:calendar-sync` / `worker:news-sync` /
-  `worker:market-data-sync` / `worker:event-reminder` — long-running BullMQ
-  workers (each `tsx src/lib/queue/workers/*.ts`); `npm run sync:trigger`
-  enqueues one calendar+news+market-data sync pass and exits, for wiring to
-  an external cron.
+  `worker:market-data-sync` / `worker:event-reminder` /
+  `worker:subscription-renewal` — long-running BullMQ workers (each `tsx
+  src/lib/queue/workers/*.ts`); `npm run sync:trigger` enqueues one
+  calendar+news+market-data sync pass and exits; `npm run subscriptions:renew`
+  enqueues one product-subscription renewal pass and exits — both for wiring
+  to an external cron (renewal wants a daily cadence, sync can run more often).
 - `docker compose up` starts Postgres, Redis, and MinIO for local dev — copy
   `.env.example` to `.env` first.
 
 ## Known follow-ups (intentionally deferred, not oversights)
 
 - No real payment provider wired up — `PAYMENT_PROVIDER=manual` marks orders
-  paid synchronously so the full cart→checkout→license flow is testable before
-  Stripe/M-Pesa are implemented against the existing `PaymentProvider` interface.
-  There's correspondingly no payment webhook handler yet (see "Commerce" above).
-- `/api/licenses/verify` is a stub, not a working MT4/MT5-side DRM mechanism —
-  see its doc comment. Don't tell a seller their EA is "protected" from copying.
-- Vendor payout processing (Stripe Connect / M-Pesa B2C) is not built — the
-  seller payout settings page only records where payouts *should* go.
+  paid synchronously so the full cart→checkout→license/subscription flow, the
+  webhook route, and refunds are all testable before Stripe/M-Pesa are
+  implemented against the existing `PaymentProvider` interface (`createCharge`/
+  `parseWebhook`/`refundCharge`, all three now real, working operations —
+  see "Phase 4" above). When a real provider is wired in, prefer Pesapal or
+  an M-Pesa Till integration over Stripe for this market, per product
+  direction — applies to both marketplace checkout and signal subscriptions.
+- `/api/licenses/verify` is a real, working check against this app's own
+  License/LicenseActivation records (see "Phase 4" above) — but it is not a
+  DRM mechanism baked into a compiled `.ex4`/`.ex5`. Nothing stops a buyer
+  from redistributing their copy of a downloaded file itself; this only
+  stops a copy without a valid key from getting a "valid" verify response.
+  Don't tell a seller unauthorized copies of their EA can't run.
+- Vendor payout *processing* (Stripe Connect / M-Pesa B2C — actually moving
+  money) is not built — `Payout` records the request and an admin manually
+  marks it paid once money has moved through whatever channel is in use;
+  see "Phase 4" above.
+- Refunds only support the whole order, not a single item within a
+  multi-item order — a deliberate scope limit (see "Phase 4" above), not an
+  oversight.
+- Invoices are a printable HTML page (browser print-to-PDF), not a
+  generated PDF file — no PDF-generation library was already a dependency;
+  see "Phase 4" above.
 - Product review by the product's own seller isn't blocked — a low-priority
   edge case, not a security issue (their review still needs their own purchase
   to be "verified," which they get for free as the owner, so it'd read oddly
@@ -406,7 +599,6 @@ path, not just the "no results yet" empty state, for exactly this reason.
 - Calendar/event/article/signal timestamps display in UTC only, not the
   viewer's local timezone (see "Phase 3" above) — a known simplification,
   not an oversight.
-- No real payment provider is wired up for signal subscriptions either — same
-  `PAYMENT_PROVIDER=manual` gap as marketplace checkout. When a real provider
-  is wired in, prefer Pesapal or an M-Pesa Till integration over Stripe for
-  this market, per product direction.
+- Product subscription renewal (`runSubscriptionRenewals`) has no
+  in-process scheduler either — same external-cron model as calendar/news
+  sync (see "Phase 4" above); `npm run subscriptions:renew` triggers one run.

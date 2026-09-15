@@ -103,11 +103,19 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <div className="flex items-center gap-2">
             <FavoriteButton productId={product.id} initialFavorited={isFavorited} className="static bg-white" />
             {entitlement.entitled ? (
-              <span className="text-sm font-medium text-emerald-700">You own this product</span>
+              <span className="text-sm font-medium text-emerald-700">
+                {entitlement.reason === "subscribed" ? "You're subscribed" : "You own this product"}
+              </span>
             ) : (
               <AddToCartButton
                 productId={product.id}
-                label={product.pricingType === "FREE" ? "Get for free" : `Buy — ${formatPriceCents(product.priceCents, product.currency)}`}
+                label={
+                  product.pricingType === "FREE"
+                    ? "Get for free"
+                    : product.pricingType === "SUBSCRIPTION"
+                      ? `Subscribe — ${formatPriceCents(product.priceCents, product.currency)}/mo`
+                      : `Buy — ${formatPriceCents(product.priceCents, product.currency)}`
+                }
               />
             )}
           </div>

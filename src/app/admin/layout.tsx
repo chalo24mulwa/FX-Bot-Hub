@@ -15,6 +15,11 @@ const ADMIN_NAV = [
   { label: "Signal Providers", href: "/admin/signal-providers" },
   { label: "Signals", href: "/admin/signals" },
   { label: "Data Sources", href: "/admin/data-sources" },
+  { label: "Finance", href: "/admin/finance" },
+  { label: "Refunds", href: "/admin/refunds" },
+  { label: "Payouts", href: "/admin/payouts" },
+  { label: "Licenses", href: "/admin/licenses" },
+  { label: "Security", href: "/admin/security" },
   { label: "Settings", href: "/admin/settings" },
   { label: "Audit Logs", href: "/admin/audit-logs" },
 ];

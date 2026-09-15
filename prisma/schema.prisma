@@ -44,6 +44,12 @@ model User {
   notifications      Notification[]
   auditLogs          AuditLog[]      @relation("AuditActor")
 
+  invoicesAsBuyer  Invoice[]       @relation("InvoiceBuyer")
+  invoicesAsSeller Invoice[]       @relation("InvoiceSeller")
+  ledgerEntries    LedgerEntry[]
+  payouts          Payout[]
+  securityEvents   SecurityEvent[]
+
   signalProviderProfile SignalProviderProfile?
   signalSubscriptions   SignalSubscription[]
   alerts                Alert[]
@@ -240,6 +246,7 @@ model Product {
   orderItems    OrderItem[]
   licenses      License[]
   subscriptions Subscription[]
+  invoices      Invoice[]
 
   @@index([status, type])
   @@index([status, featured])
@@ -397,6 +404,10 @@ model Download {
   userId        String
   productId     String
   productFileId String?
+  // false = an authenticated user hit the download route without a valid
+  // entitlement (denied at src/app/api/downloads/[productFileId]/route.ts)
+  // — recorded so denied attempts are visible, not just successful ones.
+  success       Boolean  @default(true)
   ipAddress     String?
   userAgent     String?
   createdAt     DateTime @default(now())
@@ -447,18 +458,25 @@ enum OrderStatus {
 }
 
 model Order {
-  id         String      @id @default(cuid())
-  userId     String
-  status     OrderStatus @default(PENDING)
-  totalCents Int
-  currency   String      @default("USD")
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  id             String      @id @default(cuid())
+  userId         String
+  status         OrderStatus @default(PENDING)
+  // Client-supplied key (see src/features/checkout/checkout-service.ts) so a
+  // retried checkout submission — a double-click, a flaky network retry —
+  // returns the existing order instead of creating a second one. Optional:
+  // system-initiated orders (e.g. subscription renewals) don't need one.
+  idempotencyKey String?     @unique
+  totalCents     Int
+  currency       String      @default("USD")
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 
   user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   items    OrderItem[]
   payments Payment[]
   licenses License[]
+  refunds  Refund[]
+  invoices Invoice[]
 
   @@map("orders")
 }
@@ -470,8 +488,9 @@ model OrderItem {
   unitPriceCents Int
   quantity       Int    @default(1)
 
-  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  invoice Invoice?
 
   @@map("order_items")
 }
@@ -496,29 +515,35 @@ model Payment {
   status            PaymentStatus       @default(INITIATED)
   amountCents       Int
   currency          String              @default("USD")
-  providerReference String? // e.g. Stripe payment_intent id, M-Pesa checkout request id
+  // e.g. Stripe payment_intent id, M-Pesa checkout request id, or this
+  // app's own manual_<uuid>. Unique per provider so a payment can never be
+  // recorded twice for the same upstream charge — see PaymentService.
+  providerReference String?
   rawPayload        Json?
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  refunds Refund[]
 
-  @@index([provider, providerReference])
+  @@unique([provider, providerReference])
   @@map("payments")
 }
 
 enum LicenseStatus {
   ACTIVE
+  SUSPENDED // admin/fraud hold — reversible, unlike REVOKED
   REVOKED
   EXPIRED
 }
 
-// Doubles as the entitlement record: a Download is authorized when a
-// non-revoked, non-expired License exists for (userId, productId) — see
-// src/features/downloads/entitlement-service.ts. `key` is a stable
-// identifier a future MT4/MT5-side verification endpoint can check; no such
-// endpoint exists yet, so this does not actually protect a running EA today
-// (see src/app/api/licenses/verify/route.ts's doc comment).
+// Doubles as the entitlement record for ONE_TIME/FREE products: a download
+// is authorized when a non-suspended/revoked/expired License exists for
+// (userId, productId) — see src/features/downloads/entitlement-service.ts.
+// SUBSCRIPTION-priced products are entitled via Subscription instead (see
+// below); no License row is created for those. `key` is the credential an
+// MT4/MT5 EA presents to /api/licenses/verify — see that route's doc
+// comment for what it does and doesn't protect against.
 model License {
   id             String        @id @default(cuid())
   userId         String
@@ -531,12 +556,31 @@ model License {
   issuedAt       DateTime      @default(now())
   expiresAt      DateTime?
 
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product            Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  order              Order?              @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  licenseActivations LicenseActivation[]
 
   @@unique([userId, productId])
   @@map("licenses")
+}
+
+// One row per machine/terminal that has activated a License, so
+// maxActivations is enforced against real slots (not just a counter that
+// can drift) and a specific activation can be deactivated to free a slot.
+model LicenseActivation {
+  id            String    @id @default(cuid())
+  licenseId     String
+  machineId     String // client-supplied fingerprint (e.g. MT4/MT5 account/terminal id)
+  activatedAt   DateTime  @default(now())
+  deactivatedAt DateTime?
+  ipAddress     String?
+
+  license License @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+
+  @@unique([licenseId, machineId])
+  @@index([licenseId])
+  @@map("license_activations")
 }
 
 // Shared by product Subscription and SignalSubscription. Phase 3's spec
@@ -545,7 +589,9 @@ model License {
 // in Phase 2) instead of adding a near-duplicate enum for one spelling
 // difference. PAUSED added here for signal subscriptions (a subscriber
 // pausing without cancelling); product Subscription just never sets it.
+// TRIAL (Phase 4) is only used by product Subscription.
 enum SubscriptionStatus {
+  TRIAL
   ACTIVE
   CANCELED
   EXPIRED
@@ -558,6 +604,7 @@ model Subscription {
   userId            String
   productId         String
   status            SubscriptionStatus   @default(ACTIVE)
+  trialEndsAt       DateTime?
   currentPeriodEnd  DateTime?
   cancelAtPeriodEnd Boolean              @default(false)
   provider          PaymentProviderName?
@@ -570,6 +617,191 @@ model Subscription {
 
   @@unique([userId, productId])
   @@map("subscriptions")
+}
+
+// ---------- Commerce: refunds, invoices, ledger, payouts, fraud/security ----------
+
+// Dedup table for inbound webhook deliveries, keyed by the provider's own
+// event id (distinct from Payment.providerReference, which identifies the
+// charge — a single charge can generate multiple webhook deliveries, e.g.
+// Stripe retries). PaymentService.handleWebhook checks this before touching
+// any Order/Payment state, so a duplicate delivery is a no-op, not a
+// double-processed payment.
+model ProcessedWebhookEvent {
+  id         String              @id @default(cuid())
+  provider   PaymentProviderName
+  eventId    String
+  receivedAt DateTime            @default(now())
+
+  @@unique([provider, eventId])
+  @@map("processed_webhook_events")
+}
+
+enum RefundStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  PROCESSED
+}
+
+// requestedByUserId/processedByUserId are plain ids (not relations), same
+// pattern as AuditLog's actorId — this is an audit-trail field, not
+// something the app queries "this user's refunds they processed" by.
+model Refund {
+  id                      String       @id @default(cuid())
+  paymentId               String
+  orderId                 String
+  amountCents             Int
+  currency                String
+  reason                  String?      @db.Text
+  status                  RefundStatus @default(REQUESTED)
+  requestedByUserId       String
+  processedByUserId       String?
+  providerRefundReference String?
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([status])
+  @@map("refunds")
+}
+
+enum InvoiceStatus {
+  OPEN
+  PAID
+  REFUNDED
+  VOID
+}
+
+// One invoice per OrderItem (not per Order) — a cart can mix products from
+// different sellers, and an invoice's "Seller"/"Product" fields are
+// singular, so this is the natural granularity. Generated when the order
+// is marked PAID (see completePaidOrder), never edited after — a refund
+// changes `status`, not the recorded amount.
+model Invoice {
+  id               String        @id @default(cuid())
+  invoiceNumber    String        @unique
+  orderId          String
+  orderItemId      String        @unique
+  buyerId          String
+  sellerId         String
+  productId        String
+  amountCents      Int
+  currency         String
+  status           InvoiceStatus @default(OPEN)
+  paymentReference String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  buyer     User      @relation("InvoiceBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  seller    User      @relation("InvoiceSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([buyerId])
+  @@index([sellerId])
+  @@map("invoices")
+}
+
+enum LedgerEntryType {
+  SALE
+  COMMISSION
+  REFUND
+  ADJUSTMENT
+  PAYOUT
+}
+
+// Append-only financial ledger — a seller's balance is the SUM of their
+// entries (src/repositories/ledger-repository.ts's getSellerBalance),
+// never a stored/overwritten counter, so it can't drift out of sync with
+// its own history. amountCents is signed: SALE credits the seller
+// (+gross), COMMISSION debits the marketplace's cut (-commission), REFUND
+// debits back out the seller's net share of a refunded sale, PAYOUT debits
+// what's been paid out, ADJUSTMENT is a signed admin correction.
+model LedgerEntry {
+  id          String          @id @default(cuid())
+  sellerId    String
+  type        LedgerEntryType
+  amountCents Int
+  currency    String
+  orderId     String?
+  orderItemId String?
+  refundId    String?
+  payoutId    String?
+  description String
+  createdAt   DateTime        @default(now())
+
+  seller User @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([sellerId, createdAt])
+  @@index([type, createdAt])
+  @@map("ledger_entries")
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+}
+
+// Payout processing (Stripe Connect / M-Pesa B2C) isn't wired up — same gap
+// as SellerProfile.payoutEmail (see CLAUDE.md). This model tracks the
+// payout *request and record*; an admin marks it PAID once money has moved
+// through whatever manual/external channel is actually in use today.
+model Payout {
+  id                String       @id @default(cuid())
+  sellerId          String
+  amountCents       Int
+  currency          String
+  status            PayoutStatus @default(PENDING)
+  payoutEmail       String?
+  requestedAt       DateTime     @default(now())
+  processedAt       DateTime?
+  processedByUserId String?
+  notes             String?      @db.Text
+
+  seller User @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([sellerId, status])
+  @@map("payouts")
+}
+
+enum SecurityEventType {
+  REPEATED_PAYMENT_FAILURE
+  SUSPICIOUS_DOWNLOAD_PATTERN
+  WEBHOOK_SIGNATURE_INVALID
+  DUPLICATE_WEBHOOK
+  MULTIPLE_FAILED_LICENSE_ACTIVATIONS
+  OTHER
+}
+
+enum SecurityEventSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+// Signal, don't act: recorded for admin visibility, never triggers an
+// automatic ban/suspension by itself — see CLAUDE.md's fraud/security note.
+model SecurityEvent {
+  id        String                @id @default(cuid())
+  userId    String?
+  type      SecurityEventType
+  severity  SecurityEventSeverity @default(LOW)
+  metadata  Json?
+  ipAddress String?
+  createdAt DateTime              @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([type, createdAt])
+  @@index([userId])
+  @@map("security_events")
 }
 
 // ---------- Notifications / audit ----------

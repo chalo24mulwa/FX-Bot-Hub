@@ -5,7 +5,9 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 const DASHBOARD_NAV = [
   { label: "Overview", href: "/dashboard" },
   { label: "Orders", href: "/dashboard/orders" },
+  { label: "Licenses", href: "/dashboard/licenses" },
   { label: "Favorites", href: "/dashboard/favorites" },
+  { label: "Product Subscriptions", href: "/dashboard/product-subscriptions" },
   { label: "Signal Subscriptions", href: "/dashboard/subscriptions" },
   { label: "Alerts", href: "/dashboard/alerts" },
   { label: "Notifications", href: "/dashboard/notifications" },

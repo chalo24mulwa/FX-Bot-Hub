@@ -1,41 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { db } from "@/lib/db";
+import { withAuthorization } from "@/lib/authorization";
+import { checkRateLimit, clientIp } from "@/lib/security/rate-limit";
+import { verifyLicenseKey } from "@/features/licenses/license-service";
 
 const bodySchema = z.object({
   licenseKey: z.string().min(1),
-  productId: z.string().cuid(),
 });
 
 /**
- * STUB — API shape for a future MT4/MT5-side license check (an EA/indicator
- * calling out on init to confirm it's allowed to run). This validates the
- * License record and returns a verdict, but nothing in this codebase
- * enforces it inside an actual .ex4/.ex5 binary — there is no real-time
- * activation tracking, no hardware/account-lock, and no MQL-side client.
- * Do not present this as "EA protection" to sellers until that exists;
- * today it's a record of purchase, not a working DRM mechanism.
+ * The real-time check an MT4/MT5 EA (or any external client) calls with
+ * just the license key its buyer was issued — no session, no database
+ * credentials or secret keys in the request or response, matching the "no
+ * secrets inside EA downloads" requirement. The key itself is the
+ * credential; this is exactly how license verification works for
+ * commercial EAs generally. This is a real, working check against this
+ * app's own License/LicenseActivation records — see
+ * license-service.ts's doc comments for exactly what it validates
+ * (status, expiry, activation count). It is NOT a DRM mechanism baked
+ * into a compiled .ex4/.ex5: nothing stops a buyer from distributing their
+ * copy of the file itself, only from getting a "valid" answer here without
+ * a real license key. Don't present this as "unauthorized copies can't
+ * run" to sellers.
  */
 export async function POST(request: NextRequest) {
-  const { licenseKey, productId } = bodySchema.parse(await request.json());
-
-  const license = await db.license.findUnique({
-    where: { key: licenseKey },
-    select: { productId: true, status: true, expiresAt: true, activations: true, maxActivations: true },
+  return withAuthorization(async () => {
+    await checkRateLimit(clientIp(request), { bucket: "license:verify", limit: 60, windowSeconds: 60 });
+    const { licenseKey } = bodySchema.parse(await request.json());
+    const result = await verifyLicenseKey(licenseKey);
+    return NextResponse.json(result);
   });
-
-  if (!license || license.productId !== productId) {
-    return NextResponse.json({ valid: false, reason: "not_found" });
-  }
-  if (license.status !== "ACTIVE") {
-    return NextResponse.json({ valid: false, reason: "revoked_or_expired" });
-  }
-  if (license.expiresAt && license.expiresAt < new Date()) {
-    return NextResponse.json({ valid: false, reason: "expired" });
-  }
-  if (license.activations >= license.maxActivations) {
-    return NextResponse.json({ valid: false, reason: "activation_limit_reached" });
-  }
-
-  return NextResponse.json({ valid: true });
 }

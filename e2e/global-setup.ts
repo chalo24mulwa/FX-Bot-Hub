@@ -104,5 +104,27 @@ export default async function globalSetup() {
     create: { name: "Manual calendar (e2e)", kind: "CALENDAR", providerKey: "manual", enabled: true },
   });
 
+  // Phase 4 fixture: a published SUBSCRIPTION-priced product, distinct from
+  // the FREE/ONE_TIME e2e-free-product above, for the product-subscription
+  // checkout/renewal/cancel e2e coverage.
+  await db.product.upsert({
+    where: { slug: "e2e-subscription-product" },
+    update: { status: "PUBLISHED", publishedAt: new Date() },
+    create: {
+      slug: "e2e-subscription-product",
+      sellerId: seller.id,
+      name: "E2E Subscription Product",
+      type: "SIGNAL",
+      platform: "MULTI_PLATFORM",
+      pricingType: "SUBSCRIPTION",
+      priceCents: 500,
+      currency: "USD",
+      status: "PUBLISHED",
+      publishedAt: new Date(),
+      shortSummary: "A subscription product used by end-to-end tests.",
+      description: "Seeded for Playwright — safe to leave in the database.",
+    },
+  });
+
   await db.$disconnect();
 }

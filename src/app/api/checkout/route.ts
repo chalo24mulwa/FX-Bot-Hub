@@ -11,7 +11,8 @@ export async function POST(request: NextRequest) {
     await checkRateLimit(clientIp(request), { bucket: "checkout", limit: 10, windowSeconds: 60 });
 
     try {
-      const result = await checkoutCart(session.user.id, session.user.email!);
+      const idempotencyKey = request.headers.get("idempotency-key") ?? undefined;
+      const result = await checkoutCart(session.user.id, session.user.email!, idempotencyKey);
       return NextResponse.json(result);
     } catch (err) {
       if (err instanceof CheckoutError) {

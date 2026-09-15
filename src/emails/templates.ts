@@ -71,3 +71,75 @@ export function buildNewVersionEmail(productName: string, version: string, produ
     text: `"${productName}" was updated to version ${version}: ${productUrl}`,
   };
 }
+
+export function buildDownloadAvailableEmail(productName: string, downloadUrl: string): EmailTemplate {
+  return {
+    subject: `Download ready: "${productName}"`,
+    html: wrap("Your download is ready", `<p>"${productName}" is ready to download.</p><p><a href="${downloadUrl}">View your order</a></p>`),
+    text: `"${productName}" is ready to download: ${downloadUrl}`,
+  };
+}
+
+export function buildPaymentFailedEmail(orderId: string, retryUrl: string): EmailTemplate {
+  return {
+    subject: "Your FX Bot Market payment did not go through",
+    html: wrap(
+      "Payment failed",
+      `<p>We couldn't process payment for order #${orderId.slice(0, 8)}. No charge was made.</p><p><a href="${retryUrl}">Try again</a></p>`
+    ),
+    text: `Payment for order #${orderId.slice(0, 8)} did not go through. No charge was made. Try again: ${retryUrl}`,
+  };
+}
+
+export function buildSubscriptionStartedEmail(productName: string, subscriptionsUrl: string): EmailTemplate {
+  return {
+    subject: `Subscription started: "${productName}"`,
+    html: wrap(
+      "Subscription active",
+      `<p>Your subscription to "${productName}" is active. You'll be billed automatically each period unless you cancel.</p><p><a href="${subscriptionsUrl}">Manage subscription</a></p>`
+    ),
+    text: `Your subscription to "${productName}" is active. Manage it: ${subscriptionsUrl}`,
+  };
+}
+
+export function buildSubscriptionEndingEmail(productName: string, endsAt: string, subscriptionsUrl: string): EmailTemplate {
+  return {
+    subject: `Your "${productName}" subscription is ending`,
+    html: wrap(
+      "Subscription ending soon",
+      `<p>Your subscription to "${productName}" is set to end on ${endsAt}.</p><p><a href="${subscriptionsUrl}">Manage subscription</a></p>`
+    ),
+    text: `Your subscription to "${productName}" ends on ${endsAt}. Manage it: ${subscriptionsUrl}`,
+  };
+}
+
+export function buildRefundEmail(productName: string, amountCents: number, currency: string): EmailTemplate {
+  const amount = (amountCents / 100).toFixed(2);
+  return {
+    subject: `Refund processed: "${productName}"`,
+    html: wrap("Refund processed", `<p>Your refund of ${amount} ${currency} for "${productName}" has been processed.</p>`),
+    text: `Your refund of ${amount} ${currency} for "${productName}" has been processed.`,
+  };
+}
+
+export function buildSellerRefundNoticeEmail(productName: string, amountCents: number, currency: string): EmailTemplate {
+  const amount = (amountCents / 100).toFixed(2);
+  return {
+    subject: `Refund issued: "${productName}"`,
+    html: wrap(
+      "Sale refunded",
+      `<p>A ${amount} ${currency} sale of "${productName}" was refunded. Your seller balance has been adjusted accordingly.</p>`
+    ),
+    text: `A ${amount} ${currency} sale of "${productName}" was refunded. Your seller balance has been adjusted.`,
+  };
+}
+
+export function buildPayoutEmail(amountCents: number, currency: string, status: "PROCESSING" | "PAID"): EmailTemplate {
+  const amount = (amountCents / 100).toFixed(2);
+  const verb = status === "PAID" ? "has been paid out" : "is being processed";
+  return {
+    subject: `Payout ${status === "PAID" ? "sent" : "processing"}: ${amount} ${currency}`,
+    html: wrap(`Payout ${status === "PAID" ? "sent" : "processing"}`, `<p>Your payout of ${amount} ${currency} ${verb}.</p>`),
+    text: `Your payout of ${amount} ${currency} ${verb}.`,
+  };
+}
