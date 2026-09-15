@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { env } from "@/lib/env";
 import { handleWebhook } from "@/lib/payments/payment-service";
 import { completePaidOrder, markOrderFailed } from "@/features/checkout/checkout-service";
 import { checkRepeatedPaymentFailures } from "@/lib/security/fraud";
@@ -25,6 +26,23 @@ const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
  * state.
  */
 export async function POST(request: NextRequest) {
+  // Phase 5 security fix (docs/PHASE5_AUDIT.md): the manual provider's
+  // parseWebhook() performs no signature verification at all — it was only
+  // ever meant for dev/staging (see manual-provider.ts's own doc comment).
+  // If PAYMENT_PROVIDER=manual were ever left set in production, this
+  // route would otherwise be an unauthenticated way to flip any Payment to
+  // SUCCEEDED given a guessed/leaked providerReference. Hard-stop instead
+  // of relying on a comment to prevent that misconfiguration from being
+  // exploitable.
+  if (env.PAYMENT_PROVIDER === "manual" && env.NODE_ENV === "production") {
+    await recordSecurityEvent({
+      type: "WEBHOOK_SIGNATURE_INVALID",
+      severity: "HIGH",
+      metadata: { note: "Webhook hit with PAYMENT_PROVIDER=manual in production — refused." },
+    });
+    return NextResponse.json({ error: "Not available." }, { status: 503 });
+  }
+
   const rawBody = await request.text();
   const headers = Object.fromEntries(request.headers.entries());
 

@@ -49,6 +49,22 @@ jobs:
 
       - run: npm ci
 
+      # Phase 5 (docs/PHASE5_AUDIT.md): security-check step — fails the
+      # build on a critical known-vulnerable dependency. Threshold is
+      # "critical" rather than "high": as of this writing there's exactly
+      # one high-severity advisory (deepmerge-ts, pulled in transitively by
+      # the `prisma` CLI devDependency only — @prisma/client, the runtime
+      # dependency, is unaffected) with no fix available that doesn't
+      # downgrade Prisma against this project's own version pin (see
+      # CLAUDE.md). It's a known, accepted, tracked risk (a dev-time CLI
+      # tool, not shipped to production), not silently ignored — re-run
+      # `npm audit` periodically and raise this threshold back to "high"
+      # once a real fix lands upstream. Not a replacement for a real SAST/
+      # secret-scanning tool (CodeQL, Snyk, etc.), which needs an
+      # account/config this repo doesn't have set up yet; this is the
+      # zero-setup baseline.
+      - run: npm audit --audit-level=critical
+
       - run: npx prisma migrate deploy
 
       - run: npm run lint

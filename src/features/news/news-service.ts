@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
+import { cacheWrap } from "@/lib/cache";
 
 export interface ListArticlesQuery {
   categorySlug?: string;
@@ -7,6 +8,16 @@ export interface ListArticlesQuery {
   breaking?: boolean;
   page?: number;
   pageSize?: number;
+}
+
+const PUBLISHED_ARTICLES_TTL_SECONDS = 120;
+
+// Phase 5: the news list page calls `article.publishedAt?.toLocaleDateString()`
+// directly (no Date|string tolerance) — a cache hit would otherwise hand it
+// a string and crash. `new Date(x)` is safe whether `x` is already a Date
+// or a string, and `publishedAt` is nullable so that's preserved too.
+function reviveArticleDates<T extends { publishedAt: Date | string | null }>(article: T): T {
+  return { ...article, publishedAt: article.publishedAt ? new Date(article.publishedAt) : null };
 }
 
 export async function listPublishedArticles(query: ListArticlesQuery) {
@@ -20,17 +31,24 @@ export async function listPublishedArticles(query: ListArticlesQuery) {
     breaking: query.breaking,
   };
 
-  const [items, total] = await Promise.all([
-    db.newsArticle.findMany({
-      where,
-      orderBy: { publishedAt: "desc" },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-      include: { category: true },
-    }),
-    db.newsArticle.count({ where }),
-  ]);
-  return { items, total, page, pageSize };
+  const { items, total } = await cacheWrap(
+    `published-articles:${JSON.stringify({ ...query, page, pageSize })}`,
+    PUBLISHED_ARTICLES_TTL_SECONDS,
+    async () => {
+      const [items, total] = await Promise.all([
+        db.newsArticle.findMany({
+          where,
+          orderBy: { publishedAt: "desc" },
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+          include: { category: true },
+        }),
+        db.newsArticle.count({ where }),
+      ]);
+      return { items, total };
+    }
+  );
+  return { items: items.map(reviveArticleDates), total, page, pageSize };
 }
 
 export async function getArticleBySlug(slug: string) {
@@ -55,5 +73,7 @@ export async function listLatestNews(limit = 6) {
 }
 
 export async function listCategories() {
-  return db.newsCategory.findMany({ orderBy: { name: "asc" } });
+  return cacheWrap("news-categories", PUBLISHED_ARTICLES_TTL_SECONDS, () =>
+    db.newsCategory.findMany({ orderBy: { name: "asc" } })
+  );
 }

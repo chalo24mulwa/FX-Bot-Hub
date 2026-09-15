@@ -7,6 +7,10 @@ export interface RankingFactors {
   rating: number;
   ageDays: number;
   favorites: number;
+  /** 0-1, from src/lib/quality/product-quality.ts's computeQualityScore().
+   * Optional (defaults to 0) so existing call sites/tests that predate
+   * Phase 5's quality factor don't all need updating at once. */
+  quality?: number;
 }
 
 /** Pure scoring function, split out from ranking-service.ts so the weighting
@@ -20,6 +24,7 @@ export function computeRankingScore(weights: RankingWeights, factors: RankingFac
     weights.reviews * factors.reviews +
     weights.rating * factors.rating +
     weights.recency * recencyScore +
-    weights.favorites * factors.favorites
+    weights.favorites * factors.favorites +
+    (weights.quality ?? 0) * (factors.quality ?? 0)
   );
 }

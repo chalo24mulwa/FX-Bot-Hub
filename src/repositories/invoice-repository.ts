@@ -34,6 +34,25 @@ export async function createInvoiceForOrderItem(input: CreateInvoiceInput, tx: P
   });
 }
 
+/**
+ * Batch variant for completePaidOrder()'s per-order-item loop — one
+ * `createMany` instead of N sequential create calls. Callers must only use
+ * this for order items that are known-new within the current transaction
+ * (completePaidOrder only reaches here once, guarded by its own
+ * `order.status === "PAID"` early return), so the existence check
+ * `createInvoiceForOrderItem` does isn't needed here.
+ */
+export async function createInvoicesForOrderItems(inputs: CreateInvoiceInput[], tx: Prisma.TransactionClient = db) {
+  if (inputs.length === 0) return;
+  await tx.invoice.createMany({
+    data: inputs.map((input) => ({
+      invoiceNumber: generateInvoiceNumber(input.orderItemId),
+      status: "PAID" as const,
+      ...input,
+    })),
+  });
+}
+
 export async function getInvoice(id: string) {
   return db.invoice.findUnique({
     where: { id },

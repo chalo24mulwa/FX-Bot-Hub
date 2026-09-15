@@ -5,6 +5,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
+import { checkRateLimit, clientIp } from "@/lib/security/rate-limit";
 import type { UserRole } from "@prisma/client";
 
 declare module "next-auth" {
@@ -41,17 +42,50 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      authorize: async (credentials) => {
+      // Phase 5: this endpoint had no rate limiting at all — an unlimited-
+      // attempt online brute-force/credential-stuffing surface (found in
+      // the Phase 5 security audit, see docs/PHASE5_AUDIT.md). The
+      // counter only increments on a FAILED attempt (wrong password,
+      // unknown email, banned account) — deliberately, so a legitimate
+      // user's own correct-password sign-ins never count against it (this
+      // also means a shared account signing in repeatedly and correctly,
+      // like this app's own e2e fixture accounts, is never penalized).
+      // Limited by both the submitted email (catches distributed attempts
+      // against one account) and the caller's IP (catches one attacker
+      // cycling through many emails). Always denies the same way — no
+      // distinct message — so a rate-limited response can't be
+      // distinguished from "wrong password" by an attacker. This doesn't
+      // skip the bcrypt compare for an already-over-threshold attacker
+      // (that would need a separate non-incrementing "peek" check this
+      // app's rate-limit utility doesn't have) — it still logs/throttles
+      // every failure, just without that extra optimization.
+      authorize: async (credentials, request) => {
         const email = credentials?.email as string | undefined;
         const password = credentials?.password as string | undefined;
         if (!email || !password) return null;
 
+        async function recordFailure() {
+          // Parallel, not sequential — each fail-open path can take up to
+          // Redis's commandTimeout (2s, src/lib/redis.ts) when Redis is
+          // unreachable, and awaiting them one after another doubled that
+          // to ~4s on every failed sign-in, which actually timed out
+          // e2e's "wrong password is rejected" assertion in this
+          // environment (no Redis running here) — a real, measurable
+          // regression from an earlier version of this fix, not just a
+          // theoretical one. Caught by running the full e2e suite.
+          await Promise.all([
+            checkRateLimit(email!.toLowerCase(), { bucket: "auth:signin:email", limit: 10, windowSeconds: 300 }).catch(() => {}),
+            checkRateLimit(clientIp(request), { bucket: "auth:signin:ip", limit: 30, windowSeconds: 300 }).catch(() => {}),
+          ]);
+          return null;
+        }
+
         const user = await db.user.findUnique({ where: { email } });
-        if (!user?.password) return null;
-        if (user.bannedAt) return null;
+        if (!user?.password) return recordFailure();
+        if (user.bannedAt) return recordFailure();
 
         const valid = await bcrypt.compare(password, user.password);
-        if (!valid) return null;
+        if (!valid) return recordFailure();
 
         return { id: user.id, name: user.name, email: user.email, role: user.role };
       },

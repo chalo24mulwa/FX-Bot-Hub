@@ -8,6 +8,12 @@ export interface RankingWeights {
   rating: number;
   recency: number;
   favorites: number;
+  /** Phase 5: weight on the 0-1 product-quality checklist score (see
+   * src/lib/quality/product-quality.ts) — optional so a settings row
+   * saved before Phase 5 (missing this key entirely) still merges to a
+   * complete RankingWeights via the DEFAULT_WEIGHTS spread below, rather
+   * than needing a migration to backfill it. */
+  quality?: number;
 }
 
 const DEFAULT_WEIGHTS: RankingWeights = {
@@ -17,6 +23,7 @@ const DEFAULT_WEIGHTS: RankingWeights = {
   rating: 2,
   recency: 1,
   favorites: 1,
+  quality: 1,
 };
 
 /** Upserts the singleton row on first read so every caller gets a settings

@@ -1,0 +1,39 @@
+# Environment variables
+
+Parsed and validated at boot by `src/lib/env.ts` (Zod) — the app fails fast
+on startup if a required variable is missing, rather than failing obscurely
+deep in a request handler. Copy `.env.example` to `.env` for local
+development; it already has working defaults for the Docker Compose stack.
+
+| Variable | Required | Default | Notes |
+| --- | --- | --- | --- |
+| `NODE_ENV` | No | `development` | Set by the platform in most deployments; don't hard-code `production` in `.env`. |
+| `DATABASE_URL` | **Yes** | — | Postgres connection string. See `docs/DATABASE.md` for connection-pooling guidance in production. |
+| `REDIS_URL` | No | `redis://localhost:6379` | Backs caching, rate limiting, and every BullMQ queue. The app degrades (not crashes) if unreachable — see `docs/OBSERVABILITY.md`. |
+| `AUTH_SECRET` | **Yes** | — | Auth.js session/JWT signing secret. Generate with `npx auth secret`. Rotating it invalidates every existing session. |
+| `NEXTAUTH_URL` | Recommended in prod | — | The app's own canonical URL. Auth.js needs this (with `trustHost: true`, already set in `src/lib/auth.ts`) for any deployment that isn't Vercel. |
+| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | No | unset | Google sign-in registers automatically only when **both** are set (see `src/lib/auth.ts`). Redirect URI to register in Google Cloud Console: `<your-url>/api/auth/callback/google`. |
+| `STORAGE_ENDPOINT` | No | unset (falls back to AWS default) | S3-compatible endpoint — set for MinIO/R2/DigitalOcean Spaces; leave unset for real AWS S3. |
+| `STORAGE_REGION` | No | `us-east-1` | |
+| `STORAGE_BUCKET` | No | `fx-bot-market` | |
+| `STORAGE_ACCESS_KEY_ID` / `STORAGE_SECRET_ACCESS_KEY` | Effectively required (uploads fail without them) | unset | Credentials for the bucket above. |
+| `STORAGE_FORCE_PATH_STYLE` | No | `false` | Set `true` for MinIO/most non-AWS S3-compatible services. |
+| `NEXT_PUBLIC_STORAGE_PUBLIC_BASE_URL` | **Yes** for any page showing product images | — | Public-read base URL for product images. `NEXT_PUBLIC_` because it's read directly in the browser (`src/lib/storage/public-url.ts`) — never put a secret in a `NEXT_PUBLIC_` variable. |
+| `RATE_LIMIT_DISABLED` | No | `false` | Bypasses Redis-backed rate limiting entirely. **Never set `true` in production** — it's a manual override for environments without Redis (e.g. some CI runs), and rate limiting already fails open automatically if Redis is merely unreachable. |
+| `NEXT_PUBLIC_APP_URL` | Recommended | `http://localhost:3000` | Used to build absolute URLs in the sitemap, emails, and Open Graph tags. |
+| `EMAIL_PROVIDER` | No | `console` | `console` logs instead of sending — fine for local dev, **must** be `resend` (or a future real provider) in production or no emails are actually delivered. |
+| `RESEND_API_KEY` | Required if `EMAIL_PROVIDER=resend` | unset | |
+| `EMAIL_FROM` | No | `FX Bot Market <no-reply@fxbotmarket.local>` | Must be a verified sending domain/address with your email provider in production. |
+| `PAYMENT_PROVIDER` | No | `manual` | **`manual` must never be set in production** — it marks every order paid instantly with no real charge. See the PRODUCTION REQUIREMENT note in `CLAUDE.md` and the Phase 5 hard-stop on `/api/payments/webhook` when this is misconfigured. Switch to `stripe` or `mpesa` once one is actually implemented (currently typed stubs — see `src/lib/payments/`). |
+| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Required once Stripe is implemented | unset | Not yet wired to a real Stripe integration — see `src/lib/payments/stripe-provider.ts`. |
+| `MPESA_CONSUMER_KEY` / `MPESA_CONSUMER_SECRET` / `MPESA_SHORTCODE` / `MPESA_PASSKEY` | Required once M-Pesa is implemented | unset | Not yet wired to a real Safaricom Daraja integration — see `src/lib/payments/mpesa-provider.ts`. Per product direction, prefer M-Pesa Till / a direct bank-linking integration over Stripe for this market when this is built out. |
+
+## Secrets checklist before a production deploy
+
+- [ ] `AUTH_SECRET` is a real random value, not the placeholder, and is not committed anywhere.
+- [ ] `DATABASE_URL` points at the production database, uses a non-superuser role, and is not logged anywhere (see `docs/SECURITY.md`).
+- [ ] `PAYMENT_PROVIDER` is **not** `manual`.
+- [ ] `EMAIL_PROVIDER` is **not** `console`.
+- [ ] `RATE_LIMIT_DISABLED` is unset or `false`.
+- [ ] `NEXT_PUBLIC_*` variables contain nothing sensitive — anything in them ships to every visitor's browser.
+- [ ] Secrets are injected via your platform's secret manager (see `docs/BACKUP.md`'s "Secret management" section), not baked into a committed `.env` file or a Docker image layer.

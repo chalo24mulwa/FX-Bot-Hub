@@ -7,6 +7,19 @@ calendar — structurally inspired by MQL5 Market (catalog), Forex Factory Calen
 See [CLAUDE.md](./CLAUDE.md) for the architecture map and the ground rule that
 governs every future phase: **extend this foundation, don't rebuild it.**
 
+## Documentation
+
+- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — system shape, request flow, code layout, the provider-adapter pattern.
+- [`docs/DATABASE.md`](./docs/DATABASE.md) — schema organization, migration workflow, indexing/pagination strategy, connection pooling.
+- [`docs/API.md`](./docs/API.md) — the `/api` REST surface, conventions, and mobile-app readiness.
+- [`docs/SECURITY.md`](./docs/SECURITY.md) — auth, authorization, CSRF, rate limiting, and the pre-ship checklist.
+- [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md) — how to deploy, and what's not automated yet.
+- [`docs/ENVIRONMENT.md`](./docs/ENVIRONMENT.md) — every environment variable and the pre-deploy secrets checklist.
+- [`docs/BACKUP.md`](./docs/BACKUP.md) — backups, restore process, disaster recovery, secret management.
+- [`docs/OBSERVABILITY.md`](./docs/OBSERVABILITY.md) — logging, health checks, queue monitoring.
+- [`docs/ADMIN_GUIDE.md`](./docs/ADMIN_GUIDE.md) · [`docs/SELLER_GUIDE.md`](./docs/SELLER_GUIDE.md) · [`docs/DEVELOPER_GUIDE.md`](./docs/DEVELOPER_GUIDE.md) — role-specific how-to guides.
+- [`docs/PHASE5_AUDIT.md`](./docs/PHASE5_AUDIT.md) — the scalability/security audit behind Phase 5's changes.
+
 ## Stack
 
 Next.js (App Router) + TypeScript · PostgreSQL + Prisma · Redis + BullMQ ·
@@ -67,6 +80,19 @@ against a real production build. Full rationale in CLAUDE.md.
   fraud/security event log (`/admin/security`) that only ever signals for
   an admin to review — never auto-bans anyone. See CLAUDE.md's "Phase 4"
   section for the full design.
+- **Scale & hardening** (Phase 5): Redis caching on the marketplace
+  ranking query, homepage lists, calendar/news defaults, and signal
+  provider profiles; new indexes matched to real query patterns; sign-in
+  rate limiting; a hard production stop on the payment webhook if
+  misconfigured to the dev-only `manual` provider; a product-quality
+  checklist (`/admin/analytics`, and per-product on `/marketplace/[slug]`)
+  feeding into marketplace ranking; platform analytics
+  (`/admin/analytics`) and seller analytics with date-range filtering; a
+  cross-entity `/api/search`; AI-ready provider interfaces (no real
+  provider wired up); a background-jobs health page (`/admin/queues`);
+  structured logging; and a full documentation set (see above). See
+  [`docs/PHASE5_AUDIT.md`](./docs/PHASE5_AUDIT.md) for the audit and what
+  was fixed vs. deliberately deferred.
 
 ## Local development
 

@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { isStaff } from "@/lib/authorization/roles";
 import { isLicenseUsable } from "@/lib/commerce/license";
-import type { UserRole } from "@prisma/client";
+import type { Prisma, UserRole } from "@prisma/client";
 
 export interface EntitlementCheck {
   entitled: boolean;
@@ -64,8 +64,13 @@ export async function checkEntitlement(
  * called once a FREE product's "Get" is confirmed, or an order for it is
  * marked PAID (see src/features/checkout/checkout-service.ts). Idempotent.
  */
-export async function ensureLicense(userId: string, productId: string, orderId?: string) {
-  return db.license.upsert({
+export async function ensureLicense(
+  userId: string,
+  productId: string,
+  orderId?: string,
+  tx: Prisma.TransactionClient = db
+) {
+  return tx.license.upsert({
     where: { userId_productId: { userId, productId } },
     update: {},
     create: { userId, productId, orderId, status: "ACTIVE" },

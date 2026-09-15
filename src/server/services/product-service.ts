@@ -3,6 +3,7 @@ import { findProducts, productDetailInclude, productListInclude } from "@/reposi
 import { listRankedProducts } from "@/lib/ranking/ranking-service";
 import { notifyPriceChange } from "@/features/favorites/notify-favoriters";
 import { formatPriceCents } from "@/lib/utils";
+import { cacheWrap } from "@/lib/cache";
 import type { ListProductsQuery, CreateProductInput, UpdateProductInput } from "@/lib/validations/product";
 import type { ProductStatus } from "@prisma/client";
 
@@ -46,22 +47,32 @@ export async function incrementProductView(productId: string) {
   await db.product.update({ where: { id: productId }, data: { viewCount: { increment: 1 } } }).catch(() => {});
 }
 
+// Phase 5: both were uncached homepage reads (docs/PHASE5_AUDIT.md). Only
+// `updatedAt` from these rows is ever rendered (ProductCard already
+// tolerates it arriving as a string after a cache round-trip — see its
+// `Date | string` type), so this is safe to cache as plain JSON.
+const HOMEPAGE_PRODUCTS_TTL_SECONDS = 120;
+
 export async function listFeaturedProducts(limit: number) {
-  return db.product.findMany({
-    where: { status: "PUBLISHED", featured: true },
-    orderBy: { publishedAt: "desc" },
-    take: limit,
-    include: productListInclude,
-  });
+  return cacheWrap(`featured-products:${limit}`, HOMEPAGE_PRODUCTS_TTL_SECONDS, () =>
+    db.product.findMany({
+      where: { status: "PUBLISHED", featured: true },
+      orderBy: { publishedAt: "desc" },
+      take: limit,
+      include: productListInclude,
+    })
+  );
 }
 
 export async function listNewestProducts(limit: number) {
-  return db.product.findMany({
-    where: { status: "PUBLISHED" },
-    orderBy: { publishedAt: "desc" },
-    take: limit,
-    include: productListInclude,
-  });
+  return cacheWrap(`newest-products:${limit}`, HOMEPAGE_PRODUCTS_TTL_SECONDS, () =>
+    db.product.findMany({
+      where: { status: "PUBLISHED" },
+      orderBy: { publishedAt: "desc" },
+      take: limit,
+      include: productListInclude,
+    })
+  );
 }
 
 // ---------- Seller-facing ----------

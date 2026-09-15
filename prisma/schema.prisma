@@ -55,6 +55,10 @@ model User {
   alerts                Alert[]
   calendarPreference    CalendarPreference?
 
+  analyticsEvents AnalyticsEvent[]
+
+  // Phase 5: admin user list filters by role and sorts by createdAt.
+  @@index([role, createdAt])
   @@map("users")
 }
 
@@ -233,25 +237,30 @@ model Product {
   category          ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   assignedModerator User?            @relation("ProductModerator", fields: [assignedModeratorId], references: [id], onDelete: SetNull)
 
-  versions      ProductVersion[]
-  images        ProductImage[]
-  screenshots   ProductScreenshot[]
-  documentation ProductDocumentation[]
-  reviews       Review[]
-  ratings       ProductRating[]
-  rating        ProductRatingSummary?
-  favorites     Favorite[]
-  downloads     Download[]
-  cartItems     CartItem[]
-  orderItems    OrderItem[]
-  licenses      License[]
-  subscriptions Subscription[]
-  invoices      Invoice[]
+  versions        ProductVersion[]
+  images          ProductImage[]
+  screenshots     ProductScreenshot[]
+  documentation   ProductDocumentation[]
+  reviews         Review[]
+  ratings         ProductRating[]
+  rating          ProductRatingSummary?
+  favorites       Favorite[]
+  downloads       Download[]
+  cartItems       CartItem[]
+  orderItems      OrderItem[]
+  licenses        License[]
+  subscriptions   Subscription[]
+  invoices        Invoice[]
+  analyticsEvents AnalyticsEvent[]
 
   @@index([status, type])
   @@index([status, featured])
   @@index([status, pricingType])
   @@index([assignedModeratorId])
+  // Phase 5: marketplace default sort and the moderation queue both sort by
+  // one of these within a status filter — neither was covered before.
+  @@index([status, publishedAt])
+  @@index([status, updatedAt])
   @@map("products")
 }
 
@@ -478,6 +487,10 @@ model Order {
   refunds  Refund[]
   invoices Invoice[]
 
+  // Phase 5: "my orders" sorts by createdAt within a user; admin/finance
+  // reads filter by status and sort by createdAt.
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
   @@map("orders")
 }
 
@@ -562,6 +575,8 @@ model License {
   licenseActivations LicenseActivation[]
 
   @@unique([userId, productId])
+  // Phase 5: both the buyer-facing and admin license lists sort by issuedAt.
+  @@index([issuedAt])
   @@map("licenses")
 }
 
@@ -616,6 +631,8 @@ model Subscription {
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([userId, productId])
+  // Phase 5: the renewal worker's every-tick query filters exactly this way.
+  @@index([status, currentPeriodEnd])
   @@map("subscriptions")
 }
 
@@ -702,8 +719,9 @@ model Invoice {
   seller    User      @relation("InvoiceSeller", fields: [sellerId], references: [id], onDelete: Cascade)
   product   Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
 
-  @@index([buyerId])
-  @@index([sellerId])
+  // Phase 5: both list views filter by one of these and sort by createdAt.
+  @@index([buyerId, createdAt])
+  @@index([sellerId, createdAt])
   @@map("invoices")
 }
 
@@ -801,6 +819,8 @@ model SecurityEvent {
 
   @@index([type, createdAt])
   @@index([userId])
+  // Phase 5: the admin security-events list is unfiltered, sorted by createdAt.
+  @@index([createdAt])
   @@map("security_events")
 }
 
@@ -836,6 +856,8 @@ model Notification {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, read])
+  // Phase 5: the notification list sorts by createdAt within a user.
+  @@index([userId, createdAt])
   @@map("notifications")
 }
 
@@ -855,7 +877,46 @@ model AuditLog {
 
   @@index([entityType, entityId])
   @@index([actorId])
+  // Phase 5: the admin audit log list is unfiltered, sorted by createdAt.
+  @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ---------- Phase 5: platform analytics ----------
+
+enum AnalyticsEventType {
+  PAGE_VIEW
+  PRODUCT_VIEW
+  SEARCH
+  FAVORITE
+  DOWNLOAD
+  PURCHASE
+  SIGNAL_VIEW
+  CALENDAR_VIEW
+}
+
+// Deliberately minimal: no IP address, no user agent, no full URL/query
+// string stored — just enough to answer "how much of X happened, on what,
+// by whom (optionally)" for the admin/seller analytics views. `userId` is
+// nullable so anonymous browsing can still be counted without requiring a
+// session; an authenticated event can be cleared by setting userId to null
+// (see src/lib/analytics/track.ts's anonymize note) without losing the
+// aggregate counts it contributes to.
+model AnalyticsEvent {
+  id        String             @id @default(cuid())
+  type      AnalyticsEventType
+  userId    String?
+  productId String?
+  metadata  Json? // small, non-identifying context only (e.g. {"query": "trend ea"} for SEARCH)
+  createdAt DateTime           @default(now())
+
+  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([type, createdAt])
+  @@index([productId, type, createdAt])
+  @@index([userId, createdAt])
+  @@map("analytics_events")
 }
 
 // ---------- Economic calendar ----------

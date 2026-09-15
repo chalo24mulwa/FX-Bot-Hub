@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getSignal } from "@/features/signals/signal-service";
 import { Badge } from "@/components/ui/badge";
+import { auth } from "@/lib/auth";
+import { track } from "@/lib/analytics/track";
 
 export const dynamic = "force-dynamic";
 
@@ -19,8 +21,9 @@ export async function generateMetadata({ params }: SignalDetailPageProps): Promi
 
 export default async function SignalDetailPage({ params }: SignalDetailPageProps) {
   const { id } = await params;
-  const signal = await getSignal(id);
+  const [signal, session] = await Promise.all([getSignal(id), auth()]);
   if (!signal) notFound();
+  void track({ type: "SIGNAL_VIEW", userId: session?.user.id, metadata: { signalId: signal.id } });
 
   return (
     <main className="mx-auto max-w-2xl flex-1 px-6 py-12">

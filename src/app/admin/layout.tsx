@@ -20,6 +20,8 @@ const ADMIN_NAV = [
   { label: "Payouts", href: "/admin/payouts" },
   { label: "Licenses", href: "/admin/licenses" },
   { label: "Security", href: "/admin/security" },
+  { label: "Background Jobs", href: "/admin/queues" },
+  { label: "Analytics", href: "/admin/analytics" },
   { label: "Settings", href: "/admin/settings" },
   { label: "Audit Logs", href: "/admin/audit-logs" },
 ];

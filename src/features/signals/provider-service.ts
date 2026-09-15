@@ -1,4 +1,14 @@
 import { db } from "@/lib/db";
+import { cacheWrap } from "@/lib/cache";
+
+// Phase 5: public provider profile + stats were uncached reads on every
+// profile-page view (docs/PHASE5_AUDIT.md). Neither getProviderBySlug's nor
+// computeProviderStats's fields are ever rendered as Dates on that page (no
+// createdAt/updatedAt display), so this is safe to cache as plain JSON with
+// no revival needed — unlike calendar/news. Per-user overlay data
+// (subscribed/alertSubscribed/isOwner) is looked up separately by the page
+// itself and never touches this cache.
+const PROVIDER_PROFILE_TTL_SECONDS = 60;
 
 function slugify(name: string): string {
   return name
@@ -43,7 +53,9 @@ export async function becomeSignalProvider(input: BecomeProviderInput) {
 }
 
 export async function getProviderBySlug(slug: string) {
-  return db.signalProviderProfile.findUnique({ where: { slug }, include: { user: { select: { name: true } } } });
+  return cacheWrap(`provider-profile:${slug}`, PROVIDER_PROFILE_TTL_SECONDS, () =>
+    db.signalProviderProfile.findUnique({ where: { slug }, include: { user: { select: { name: true } } } })
+  );
 }
 
 export async function getProviderByUserId(userId: string) {
@@ -80,30 +92,32 @@ export interface ProviderStats {
  * see CLAUDE.md. Never present these numbers as verified unless that flag
  * is also true. */
 export async function computeProviderStats(providerId: string): Promise<ProviderStats> {
-  const [totalSignals, closedAgg, subscriberCount] = await Promise.all([
-    db.signal.count({ where: { providerId } }),
-    db.signal.aggregate({
-      where: { providerId, status: "CLOSED", resultPips: { not: null } },
-      _count: true,
-      _avg: { resultPips: true },
-    }),
-    db.signalSubscription.count({ where: { providerId, status: "ACTIVE" } }),
-  ]);
+  return cacheWrap(`provider-stats:${providerId}`, PROVIDER_PROFILE_TTL_SECONDS, async () => {
+    const [totalSignals, closedAgg, subscriberCount] = await Promise.all([
+      db.signal.count({ where: { providerId } }),
+      db.signal.aggregate({
+        where: { providerId, status: "CLOSED", resultPips: { not: null } },
+        _count: true,
+        _avg: { resultPips: true },
+      }),
+      db.signalSubscription.count({ where: { providerId, status: "ACTIVE" } }),
+    ]);
 
-  const closedSignals = closedAgg._count;
-  let winRatePercent: number | null = null;
-  if (closedSignals > 0) {
-    const winning = await db.signal.count({
-      where: { providerId, status: "CLOSED", resultPips: { gt: 0 } },
-    });
-    winRatePercent = (winning / closedSignals) * 100;
-  }
+    const closedSignals = closedAgg._count;
+    let winRatePercent: number | null = null;
+    if (closedSignals > 0) {
+      const winning = await db.signal.count({
+        where: { providerId, status: "CLOSED", resultPips: { gt: 0 } },
+      });
+      winRatePercent = (winning / closedSignals) * 100;
+    }
 
-  return {
-    totalSignals,
-    closedSignals,
-    winRatePercent,
-    averageResultPips: closedAgg._avg.resultPips,
-    subscriberCount,
-  };
+    return {
+      totalSignals,
+      closedSignals,
+      winRatePercent,
+      averageResultPips: closedAgg._avg.resultPips,
+      subscriberCount,
+    };
+  });
 }

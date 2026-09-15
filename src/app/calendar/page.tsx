@@ -4,6 +4,7 @@ import { getPresetRange, getCustomRange, type CalendarPreset } from "@/lib/calen
 import { CalendarTable } from "@/components/calendar/calendar-table";
 import { CalendarFilters } from "@/components/calendar/calendar-filters";
 import { saveCalendarPreferencesAction } from "@/features/calendar/actions";
+import { track } from "@/lib/analytics/track";
 import type { EventImpact, EventCategory } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +40,8 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
     }),
     listDistinctCurrencies(),
   ]);
+
+  void track({ type: "CALENDAR_VIEW", userId: session?.user.id, metadata: { preset: presetParam } });
 
   return (
     <main className="mx-auto max-w-6xl flex-1 px-6 py-12">

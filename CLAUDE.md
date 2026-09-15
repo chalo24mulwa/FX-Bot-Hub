@@ -318,17 +318,23 @@ complete it later" shape — see "Commerce" above.
 
 ### Client/Server Component boundary bug pattern
 
-`SignalCard` (`src/components/signals/signal-card.tsx`) needs `"use
-client"` because it attaches an inline `onClick` (`stopPropagation()`) to
-a nested `<Link>`. Without it, the component type-checks and builds fine,
-and even renders fine on every page where the list happens to be
-empty — the crash ("Event handlers cannot be passed to Client Component
-props") only appears once a Server Component actually renders it with
-real data. This is a general trap worth remembering: an event handler
-passed as a prop from a Server Component context fails at *request* time,
-not build time, and can hide behind an empty-state branch in
-manual/spot-checked testing. E2E tests must exercise the populated-list
-path, not just the "no results yet" empty state, for exactly this reason.
+`SignalCard` (`src/components/signals/signal-card.tsx`) originally needed
+`"use client"` because it attached an inline `onClick`
+(`stopPropagation()`) to a nested `<Link>`. Without it, the component
+type-checks and builds fine, and even renders fine on every page where the
+list happens to be empty — the crash ("Event handlers cannot be passed to
+Client Component props") only appeared once a Server Component actually
+rendered it with real data. General trap worth remembering: an event
+handler passed as a prop from a Server Component context fails at
+*request* time, not build time, and can hide behind an empty-state branch
+in manual/spot-checked testing. E2E tests must exercise the
+populated-list path, not just the "no results yet" empty state, for
+exactly this reason.
+
+That nested `<Link>` turned out to be its own separate bug, found and
+fixed in Phase 5 — see "Phase 5" below. `SignalCard` no longer needs
+`"use client"` at all: the stretched-link pattern it uses now has no
+client-side interactivity of its own.
 
 ## Phase 4: commercial infrastructure
 
@@ -494,6 +500,169 @@ rules"), these are signals for an admin to act on, not triggers. Don't
 wire one up to an automatic action without that being an explicit,
 separate decision.
 
+## Phase 5: scale, security, and observability
+
+A real audit before any change (`docs/PHASE5_AUDIT.md` — four parallel
+research passes over the actual codebase, not guessed), then targeted
+fixes. Full documentation set added under `docs/` — see `README.md`'s
+"Documentation" section for the index; this section is the short summary
+of what changed and why, cross-referencing those docs rather than
+repeating them.
+
+- **Checkout atomicity fix**: `completePaidOrder()` previously ran its
+  per-order-item writes (license/subscription, ledger, invoice) as
+  separate sequential awaited calls with no transaction — a real
+  correctness gap (a crash mid-loop could leave an order `PAID` with only
+  some items licensed), not just a performance one. Now wrapped in one
+  `$transaction`, with ledger entries and invoices batched via
+  `createMany` across all items instead of inserted one at a time.
+- **`cacheWrap()`'s own lookup could silently cost ~2s** — the single most
+  important bug this phase's regression pass found, because it undermined
+  the entire caching rollout, not just one page. `redis.get()` inside
+  `cacheWrap()` shares `src/lib/redis.ts`'s single ioredis client, whose
+  `commandTimeout` (2000ms) is tuned for BullMQ — reasonable for a queue
+  command, wildly too slow for what's supposed to be a cheap cache check.
+  When Redis is unreachable, a queued `GET` doesn't reject until that
+  timeout elapses, so *every* `cacheWrap()` call added up to ~2s, and a
+  page calling it twice (e.g. the signal provider profile page's provider
+  lookup + stats lookup) added up to ~4s — slower than not caching at
+  all. This was initially misdiagnosed as a UI bug (see the `SignalCard`
+  entry below) because the symptom looked identical: a client-side
+  navigation whose destination page renders too slowly for its URL to
+  have updated within a 5s test assertion looks exactly like "the click
+  didn't do anything." Fixed with an independent, short (250ms)
+  `Promise.race` timeout around every Redis read *and* write in
+  `cacheWrap()`/`cacheInvalidate()` — a cache lookup now can never
+  meaningfully stall a request, regardless of the shared client's own
+  timeout. **Lesson**: a slow fallback is not a safe fallback — "fails
+  open" needs to also mean "fails open *fast*," especially for something
+  whose whole purpose is to make a request faster, not slower.
+- **`SignalCard`'s nested-`<Link>`**: a *real*, separate bug found in the
+  same investigation, initially (and incorrectly) blamed for the above
+  symptom. `signal-card.tsx` nested a `<Link>` (the provider name, with
+  `stopPropagation`) inside another `<Link>` (the whole-card link) —
+  nested `<a>` tags are invalid HTML, and browsers silently restructure
+  the DOM to cope with it. Worth fixing regardless of whether it was the
+  actual cause of the failing test (it wasn't — the cache timeout above
+  was). Two fix attempts before the right one: a `<div onClick={...}
+  role="link">` wrapper still didn't resolve the (actually unrelated)
+  test failure and separately reintroduced ambiguity of its own —
+  stamping `role="link"` on the div puts a *second* "link" into the
+  accessibility tree with an aggregated accessible name, the same kind of
+  nested-interactive-element ambiguity the fix was meant to remove, just
+  via ARIA instead of HTML. The actual fix: the standard "stretched link"
+  CSS pattern — an absolutely-positioned `<Link>` covering the whole card
+  as the click target, with the provider-name `<Link>` as a normal
+  sibling at a higher `z-index` so its own click area wins. Two real
+  anchors, siblings, no nesting, no synthetic ARIA role standing in for a
+  second one — see `FavoriteButton`'s sibling-not-nested positioning in
+  `product-card.tsx` for the same underlying principle applied slightly
+  differently. `SignalCard` no longer needs `"use client"` at all as a
+  result. **Lesson, twice over**: (1) a plausible-looking root cause that
+  "should" explain a symptom isn't confirmed until the fix for it actually
+  makes the test pass — this one didn't, for two attempts in a row, which
+  was the signal to keep looking rather than declare victory; (2) when a
+  fix doesn't resolve the failure it was aimed at, don't just try a
+  different fix for the same theory — go find the *actual* cause.
+- **Sign-in rate-limit correctness**: the first version of the Phase 5
+  sign-in rate-limit fix checked the limit *before* verifying the
+  password, so every successful sign-in also counted against it — this
+  broke this app's own e2e suite (fixed-credential accounts shared and
+  signed into repeatedly across parallel spec files). Corrected to only
+  record *failed* attempts. Running the full suite again then surfaced
+  the same "shared client, 2s commandTimeout" problem as the cache bug
+  above, independently: `auth.spec.ts`'s "wrong password is rejected"
+  test timed out because two rate-limit checks were awaited
+  *sequentially*, doubling the fail-open cost to ~4s on every failed
+  sign-in. Fixed by running both checks in `Promise.all` (rate limiting's
+  fail-open cost is bounded by the shared client's own timeout, unlike
+  the cache fix above — a rate-limit check happening once per request,
+  not compounding across multiple calls on one page, made parallelizing
+  sufficient here without needing its own shorter timeout too). Two real,
+  test-suite-caught regressions from one seemingly-obvious fix — see
+  `docs/DEVELOPER_GUIDE.md`'s review checklist for why running the tests
+  matters even when a change looks correct on inspection.
+- **`/admin/queues` could hang indefinitely**: BullMQ's own Redis
+  connection handling doesn't reliably bound command latency when Redis
+  was *never* reachable at all (distinct from "was reachable, then
+  dropped," which `src/lib/redis.ts`'s `commandTimeout` is tuned for) —
+  this page hung past Playwright's 30s test timeout under that condition.
+  Fixed with an explicit `Promise.race`-based timeout guard per queue,
+  degrading to a visible "unavailable" row instead of hanging the whole
+  page. A monitoring page must never become unusable because the thing
+  it's monitoring is down.
+- **Idempotency-key race**: `checkout.spec.ts` gained a test that fires
+  two concurrent checkout requests with the same `Idempotency-Key` via
+  `Promise.all` — this reproduces a genuine race the sequential-retry case
+  doesn't (both requests can pass the "does this key exist" check before
+  either commits). Fixed by catching the resulting DB unique-constraint
+  violation in `checkoutCart()` and returning the winner's order. Keep
+  this test — it's the only thing that would catch a regression here.
+- **Caching, and its Date-serialization gotcha**: `cacheWrap()`
+  (`src/lib/cache.ts`) round-trips through JSON, so a `Date` field is a
+  real `Date` object on a cache miss but a **string** on a cache hit.
+  Before Phase 5, exactly one thing was cached (the homepage's category
+  list, which happens to have no `Date` fields — not a coincidence).
+  Phase 5 added caching to the marketplace ranking query, homepage
+  product lists, calendar's default view, published news, and signal
+  provider profiles — each checked against its actual downstream
+  consumers first; calendar and news needed an explicit Date-revival step
+  (`reviveEventDates()`/`reviveArticleDates()`) because `CalendarTable`
+  and the news list call `.toISOString()`/`.toLocaleDateString()` directly
+  with no `Date | string` tolerance, unlike `ProductCard` (which already
+  had that tolerance, for reasons predating Phase 5 — see
+  `docs/DEVELOPER_GUIDE.md`'s cache gotcha section before adding a new
+  cached read).
+- **Security fixes** (`docs/PHASE5_AUDIT.md` has the full list): sign-in
+  rate limiting (was previously unlimited-attempt), a hard production
+  refusal on `/api/payments/webhook` if `PAYMENT_PROVIDER=manual` is ever
+  set in production (that provider does zero signature verification by
+  design — see its own doc comment — and was never meant to reach
+  production), plus rate limiting on review creation, refund requests,
+  and favorite toggling (the last two because they feed the ranking score
+  and the financial ledger respectively, so unlimited-rate abuse isn't
+  just a performance concern).
+- **Product quality checklist** (`src/lib/quality/product-quality.ts`) —
+  a pure, unit-tested scoring function over concrete signals
+  (documentation/screenshots/compatibility-info/recency/verified-seller/
+  verified-reviews), shown per-product and folded into ranking as a new
+  configurable weight. Explicitly **not** a claim about trading
+  performance, profitability, or safety — every surface displaying it
+  keeps that framing, per the Phase 5 brief's own instruction.
+- **Platform analytics** (`AnalyticsEvent`, `src/lib/analytics/track.ts`)
+  — deliberately doesn't duplicate what already has a dedicated table
+  (favorites, downloads, purchases all already have one); it adds
+  `PRODUCT_VIEW` as a time series (the pre-existing `Product.viewCount` is
+  just a running counter with no history) and `SEARCH` query tracking
+  (nothing recorded this before at all). No IP/user-agent/free-text PII
+  stored — see the model's schema comment.
+- **SearchService extended** to a generic, entity-tagged
+  `search(query, {types, limit})` across products/news/signals
+  (`/api/search`) — news/signals use plain `ILIKE`, not the tsvector-based
+  ranking products get, since neither has a search-vector column/trigger
+  yet (see `src/lib/search/postgres-search-service.ts`'s doc comments).
+- **AI-readiness interfaces** (`src/lib/ai/`) — content-assistance
+  operations only (summarize, recommend, tag, detect-duplicate); no real
+  provider wired up, a `NoopAIProvider` stub throughout, matching the
+  Stripe/M-Pesa stub pattern exactly. Deliberately excludes anything that
+  would generate or auto-execute a trade — the brief explicitly rules that
+  out, and nothing here should grow into it without that being a
+  separate, deliberate decision.
+- **Notification service unification** (`src/lib/notifications/notify.ts`)
+  — new unified helper; existing 14+ call sites that independently called
+  `createNotification()` + `enqueueEmail()` side by side were **not**
+  mass-migrated (real regression risk for no functional gain, this late
+  in a change) — `event-reminder-worker.ts` is migrated as a working
+  example. New notification call sites should use the unified helper.
+- **Structured logging** (`src/lib/logger.ts`) — JSON-shaped log lines,
+  applied to every BullMQ worker and the payment webhook; not an
+  error-monitoring *service* integration (no Sentry/equivalent — needs a
+  real account this environment doesn't have, see `docs/OBSERVABILITY.md`
+  for the integration point).
+- **`/admin/queues`** — per-queue job counts + recent `SyncLog` runs.
+  Deliberately minimal (not a full job browser/retry UI — that's a Bull
+  Board integration, flagged as a follow-up).
+
 ## Testing
 
 - `npm run test` (Vitest) — pure-logic unit tests only (authorization matrix,
@@ -602,3 +771,34 @@ separate decision.
 - Product subscription renewal (`runSubscriptionRenewals`) has no
   in-process scheduler either — same external-cron model as calendar/news
   sync (see "Phase 4" above); `npm run subscriptions:renew` triggers one run.
+- No error-monitoring *service* (Sentry or equivalent) is wired up — only
+  structured logging (see "Phase 5" above and `docs/OBSERVABILITY.md` for
+  the integration point). No CSP yet (see `docs/SECURITY.md`). One
+  high-severity `npm audit` finding is a known, accepted risk (a
+  `prisma` CLI devDependency, not the runtime client — see
+  `.github/workflows/ci.yml`'s comment).
+- Cursor (keyset) pagination isn't used anywhere — offset pagination
+  throughout, fine at current scale; `docs/DATABASE.md` names the specific
+  tables that would benefit most once they outgrow it.
+- `listOutstandingSellerBalances()` and `listSellerCustomers()` are
+  documented, deliberate scope limits from the Phase 5 audit (a
+  correctness-required full-table scan for the former; a `distinct`-over-
+  join query Prisma can't cleanly cursor-paginate for the latter, capped
+  instead) — see `docs/PHASE5_AUDIT.md`.
+- `SearchService.search()`'s news/signal branches use plain `ILIKE`, not
+  true ranked full-text search (no tsvector column/trigger for those two
+  tables yet, unlike products) — see "Phase 5" above. "Guides" and
+  "developers" aren't search targets at all (no guides content model
+  exists; no public seller-profile surface exists independent of a
+  product).
+- `src/lib/ai/`'s `AIProvider` has no real implementation — a `noop` stub
+  throughout, matching the Stripe/M-Pesa pattern. Nothing calls it yet.
+- The notification-service unification (`src/lib/notifications/notify.ts`)
+  is new infrastructure, not adopted everywhere — most of the 14+
+  pre-Phase-5 call sites that independently call `createNotification()` +
+  `enqueueEmail()` still do so directly; migrate opportunistically, not in
+  a batch (see "Phase 5" above for why).
+- No deploy job exists in CI, and there's no staging/production
+  environment separation — see `docs/DEPLOYMENT.md` for what exists today
+  and what adding either would need. Not fabricated here since there's no
+  real target hosting provider configured in this project.

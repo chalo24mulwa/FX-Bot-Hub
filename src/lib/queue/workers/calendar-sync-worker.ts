@@ -1,6 +1,7 @@
 import { Worker } from "bullmq";
 import { queueConnection } from "../connection";
 import { runCalendarSync } from "@/services/calendar/sync-service";
+import { logger } from "@/lib/logger";
 import type { CalendarSyncJobData } from "../queues";
 
 // Run standalone: `npx tsx src/lib/queue/workers/calendar-sync-worker.ts`
@@ -14,5 +15,5 @@ export const calendarSyncWorker = new Worker<CalendarSyncJobData>(
 );
 
 calendarSyncWorker.on("failed", (job, err) => {
-  console.error(`[calendar-sync-worker] job ${job?.id} failed:`, err);
+  logger.error("calendar-sync job failed", { jobId: job?.id, error: err.message });
 });

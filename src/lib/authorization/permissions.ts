@@ -24,7 +24,8 @@ export type Action =
   | "payout:manage"
   | "license:manage"
   | "finance:view"
-  | "security:view";
+  | "security:view"
+  | "queue:view";
 
 /**
  * Centralized capability matrix — the single source of truth for "who can
@@ -56,6 +57,7 @@ const PERMISSIONS: Record<Action, (role: UserRole) => boolean> = {
   "license:manage": isStaff,
   "finance:view": isAdmin,
   "security:view": isAdmin,
+  "queue:view": isAdmin,
 };
 
 export function can(role: UserRole, action: Action): boolean {

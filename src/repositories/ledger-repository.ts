@@ -18,6 +18,14 @@ export async function recordLedgerEntry(input: RecordLedgerEntryInput, tx: Prism
   return tx.ledgerEntry.create({ data: input });
 }
 
+/** Batch variant — one `createMany` instead of N sequential inserts, used
+ * by completePaidOrder()'s per-order-item loop (each item posts a SALE and
+ * a COMMISSION entry). */
+export async function recordLedgerEntries(inputs: RecordLedgerEntryInput[], tx: Prisma.TransactionClient = db) {
+  if (inputs.length === 0) return;
+  await tx.ledgerEntry.createMany({ data: inputs });
+}
+
 /** A seller's balance is always the sum of their own ledger history —
  * never a stored counter — so it can't drift from what actually happened.
  * See the LedgerEntry model comment in schema.prisma. */

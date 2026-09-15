@@ -4,8 +4,8 @@ import { createPayment } from "@/lib/payments/payment-service";
 import { ensureLicense } from "@/features/downloads/entitlement-service";
 import { computeCommission } from "@/lib/commerce/commission";
 import { getMarketplaceSettings } from "@/features/admin/settings-service";
-import { recordLedgerEntry } from "@/repositories/ledger-repository";
-import { createInvoiceForOrderItem } from "@/repositories/invoice-repository";
+import { recordLedgerEntries, type RecordLedgerEntryInput } from "@/repositories/ledger-repository";
+import { createInvoicesForOrderItems, type CreateInvoiceInput } from "@/repositories/invoice-repository";
 import { checkRepeatedPaymentFailures } from "@/lib/security/fraud";
 import { createNotification } from "@/repositories/notification-repository";
 import { enqueueEmail } from "@/jobs/send-email";
@@ -161,11 +161,22 @@ export async function checkoutCart(userId: string, userEmail: string, idempotenc
   return { orderId: order.id, status: "pending", redirectUrl };
 }
 
-/** Marks an order PAID, issues licenses/subscriptions, records the
- * commission split + invoice + ledger entries for each item's seller,
- * clears the buyer's cart of those items, and notifies buyer + sellers.
+/**
+ * Marks an order PAID, issues licenses/subscriptions, records the
+ * commission split + invoice + ledger entries for each item's seller, and
+ * clears the buyer's cart of those items — all inside one `$transaction`,
+ * so a crash partway through can never leave an order PAID with only some
+ * items licensed (found and fixed in the Phase 5 audit: this previously
+ * ran as separate sequential awaited writes with no atomicity). Ledger
+ * entries and invoices are batched via `createMany` across all items
+ * rather than inserted one at a time — also from Phase 5, since the
+ * unbatched version was ~5 round trips per item. Notifications/emails stay
+ * outside the transaction (fire-and-forget, non-critical, must not roll
+ * back a paid order if an email fails to enqueue).
+ *
  * Idempotent — safe to call twice for the same order (e.g. a retried
- * webhook), since it returns early once the order is already PAID. */
+ * webhook), since it returns early once the order is already PAID.
+ */
 export async function completePaidOrder(orderId: string) {
   const order = await db.order.findUnique({
     where: { id: orderId },
@@ -179,75 +190,94 @@ export async function completePaidOrder(orderId: string) {
 
   const settings = await getMarketplaceSettings();
   const paymentReference = order.payments[0]?.providerReference ?? undefined;
+  const buyer = await db.user.findUniqueOrThrow({ where: { id: order.userId } });
 
-  await db.order.update({ where: { id: order.id }, data: { status: "PAID" } });
+  await db.$transaction(async (tx) => {
+    await tx.order.update({ where: { id: order.id }, data: { status: "PAID" } });
 
-  const [cart, buyer] = await Promise.all([
-    db.cart.findUnique({ where: { userId: order.userId } }),
-    db.user.findUniqueOrThrow({ where: { id: order.userId } }),
-  ]);
+    const cart = await tx.cart.findUnique({ where: { userId: order.userId } });
+    if (cart) {
+      await tx.cartItem.deleteMany({
+        where: { cartId: cart.id, productId: { in: order.items.map((i) => i.productId) } },
+      });
+    }
+
+    const ledgerEntries: RecordLedgerEntryInput[] = [];
+    const invoices: CreateInvoiceInput[] = [];
+
+    for (const item of order.items) {
+      const grossCents = item.unitPriceCents * item.quantity;
+
+      if (item.product.pricingType === "SUBSCRIPTION") {
+        await tx.subscription.upsert({
+          where: { userId_productId: { userId: order.userId, productId: item.productId } },
+          update: {
+            status: "ACTIVE",
+            currentPeriodEnd: new Date(Date.now() + SUBSCRIPTION_PERIOD_DAYS * 86_400_000),
+            cancelAtPeriodEnd: false,
+          },
+          create: {
+            userId: order.userId,
+            productId: item.productId,
+            status: "ACTIVE",
+            currentPeriodEnd: new Date(Date.now() + SUBSCRIPTION_PERIOD_DAYS * 86_400_000),
+            provider: order.payments[0]?.provider,
+            providerReference: paymentReference,
+          },
+        });
+      } else {
+        await ensureLicense(order.userId, item.productId, order.id, tx);
+      }
+
+      const split = computeCommission(grossCents, settings.commissionPercent);
+      ledgerEntries.push(
+        {
+          sellerId: item.product.sellerId,
+          type: "SALE",
+          amountCents: split.grossCents,
+          currency: order.currency,
+          orderId: order.id,
+          orderItemId: item.id,
+          description: `Sale: ${item.product.name} x${item.quantity}`,
+        },
+        {
+          sellerId: item.product.sellerId,
+          type: "COMMISSION",
+          amountCents: -split.commissionCents,
+          currency: order.currency,
+          orderId: order.id,
+          orderItemId: item.id,
+          description: `Marketplace commission (${settings.commissionPercent}%): ${item.product.name}`,
+        }
+      );
+      invoices.push({
+        orderId: order.id,
+        orderItemId: item.id,
+        buyerId: order.userId,
+        sellerId: item.product.sellerId,
+        productId: item.productId,
+        amountCents: grossCents,
+        currency: order.currency,
+        paymentReference,
+      });
+    }
+
+    await recordLedgerEntries(ledgerEntries, tx);
+    await createInvoicesForOrderItems(invoices, tx);
+  });
 
   for (const item of order.items) {
-    const grossCents = item.unitPriceCents * item.quantity;
-
     if (item.product.pricingType === "SUBSCRIPTION") {
-      await db.subscription.upsert({
-        where: { userId_productId: { userId: order.userId, productId: item.productId } },
-        update: {
-          status: "ACTIVE",
-          currentPeriodEnd: new Date(Date.now() + SUBSCRIPTION_PERIOD_DAYS * 86_400_000),
-          cancelAtPeriodEnd: false,
-        },
-        create: {
-          userId: order.userId,
-          productId: item.productId,
-          status: "ACTIVE",
-          currentPeriodEnd: new Date(Date.now() + SUBSCRIPTION_PERIOD_DAYS * 86_400_000),
-          provider: order.payments[0]?.provider,
-          providerReference: paymentReference,
-        },
-      });
       void enqueueEmail(
         buyer.email,
         buildSubscriptionStartedEmail(item.product.name, `${siteUrl}/dashboard/product-subscriptions`)
       );
     } else {
-      await ensureLicense(order.userId, item.productId, order.id);
+      void enqueueEmail(
+        buyer.email,
+        buildDownloadAvailableEmail(item.product.name, `${siteUrl}/dashboard/orders/${order.id}`)
+      );
     }
-
-    if (cart) {
-      await db.cartItem.deleteMany({ where: { cartId: cart.id, productId: item.productId } });
-    }
-
-    const split = computeCommission(grossCents, settings.commissionPercent);
-    await recordLedgerEntry({
-      sellerId: item.product.sellerId,
-      type: "SALE",
-      amountCents: split.grossCents,
-      currency: order.currency,
-      orderId: order.id,
-      orderItemId: item.id,
-      description: `Sale: ${item.product.name} x${item.quantity}`,
-    });
-    await recordLedgerEntry({
-      sellerId: item.product.sellerId,
-      type: "COMMISSION",
-      amountCents: -split.commissionCents,
-      currency: order.currency,
-      orderId: order.id,
-      orderItemId: item.id,
-      description: `Marketplace commission (${settings.commissionPercent}%): ${item.product.name}`,
-    });
-    await createInvoiceForOrderItem({
-      orderId: order.id,
-      orderItemId: item.id,
-      buyerId: order.userId,
-      sellerId: item.product.sellerId,
-      productId: item.productId,
-      amountCents: grossCents,
-      currency: order.currency,
-      paymentReference,
-    });
 
     void createNotification({
       userId: item.product.sellerId,
@@ -261,16 +291,7 @@ export async function completePaidOrder(orderId: string) {
       buildSaleNotificationEmail(item.product.name, item.quantity * item.unitPriceCents, order.currency)
     );
   }
-
   void enqueueEmail(buyer.email, buildOrderPaidEmail(order.id, `${siteUrl}/dashboard/orders`));
-  for (const item of order.items) {
-    if (item.product.pricingType !== "SUBSCRIPTION") {
-      void enqueueEmail(
-        buyer.email,
-        buildDownloadAvailableEmail(item.product.name, `${siteUrl}/dashboard/orders/${order.id}`)
-      );
-    }
-  }
 
   return db.order.findUniqueOrThrow({ where: { id: order.id } });
 }

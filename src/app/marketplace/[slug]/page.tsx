@@ -13,6 +13,8 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getPublicUrl } from "@/lib/storage";
 import { formatPriceCents } from "@/lib/utils";
+import { track } from "@/lib/analytics/track";
+import { computeQualityScore, isRecentlyUpdated } from "@/lib/quality/product-quality";
 
 // Product data (price, status, reviews) changes independently of any build.
 export const dynamic = "force-dynamic";
@@ -40,6 +42,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   if (!product) notFound();
 
   void incrementProductView(product.id);
+  void track({ type: "PRODUCT_VIEW", userId: session?.user.id, productId: product.id });
 
   const [isFavorited, entitlement] = await Promise.all([
     session?.user
@@ -72,6 +75,29 @@ export default async function ProductPage({ params }: ProductPageProps) {
   };
 
   const myReview = session?.user ? product.reviews.find((r) => r.userId === session.user.id) : undefined;
+
+  // Precise version of the ranking's approximate quality signal (see
+  // src/lib/ranking/ranking-service.ts) — full review rows are already
+  // loaded here, so "verified reviews" can check verifiedPurchase exactly
+  // instead of just "has any review." A checklist of completeness/trust
+  // signals only — never a claim this product is profitable or safe to
+  // trade, see the copy right below it.
+  const quality = computeQualityScore({
+    hasDocumentation: product.documentation.length > 0,
+    hasScreenshots: product.screenshots.length > 0,
+    hasCompatibilityInfo: Boolean(product.compatibilityNotes?.trim()),
+    recentlyUpdated: isRecentlyUpdated(product.updatedAt),
+    verifiedSeller: product.seller.sellerProfile?.verified ?? false,
+    hasVerifiedReviews: product.reviews.some((r) => r.verifiedPurchase),
+  });
+  const QUALITY_LABELS: Record<keyof typeof quality.signals, string> = {
+    hasDocumentation: "Documentation",
+    hasScreenshots: "Screenshots",
+    hasCompatibilityInfo: "Compatibility info",
+    recentlyUpdated: "Recently updated",
+    verifiedSeller: "Verified developer",
+    hasVerifiedReviews: "Verified purchase reviews",
+  };
 
   return (
     <main className="mx-auto max-w-4xl flex-1 px-6 py-12">
@@ -122,6 +148,28 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <ContactSellerButton productId={product.id} />
         </div>
       </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-1.5">
+        <span className="text-xs text-slate-400">
+          Quality signals ({quality.metCount}/{quality.totalCount}):
+        </span>
+        {(Object.keys(quality.signals) as (keyof typeof quality.signals)[]).map((key) => (
+          <Badge
+            key={key}
+            className={
+              quality.signals[key]
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-slate-200 bg-slate-50 text-slate-400"
+            }
+          >
+            {quality.signals[key] ? "✓" : "–"} {QUALITY_LABELS[key]}
+          </Badge>
+        ))}
+      </div>
+      <p className="mt-1 text-xs text-slate-400">
+        These reflect listing completeness and trust signals only — not a claim about trading performance,
+        profitability, or safety.
+      </p>
 
       {entitlement.entitled && latestVersion && latestVersion.files.length > 0 && (
         <div className="mt-6 rounded-md border border-emerald-200 bg-emerald-50 p-4">

@@ -5,6 +5,7 @@ import { MarketplaceFilters } from "@/components/marketplace/marketplace-filters
 import { Pagination } from "@/components/marketplace/pagination";
 import { auth } from "@/lib/auth";
 import { listFavoriteProductIds } from "@/features/favorites/favorite-service";
+import { track } from "@/lib/analytics/track";
 
 // Listings + search params vary per request; never prerender statically.
 export const dynamic = "force-dynamic";
@@ -21,6 +22,10 @@ export default async function MarketplacePage({ searchParams }: MarketplacePageP
     auth(),
   ]);
   const favoriteIds = session?.user ? await listFavoriteProductIds(session.user.id) : new Set<string>();
+
+  if (query.q) {
+    void track({ type: "SEARCH", userId: session?.user.id, metadata: { query: query.q, resultCount: total } });
+  }
 
   return (
     <main className="mx-auto max-w-6xl flex-1 px-6 py-12">

@@ -1,6 +1,7 @@
 import { Worker } from "bullmq";
 import { queueConnection } from "../connection";
 import { emailProvider } from "@/lib/email";
+import { logger } from "@/lib/logger";
 import type { EmailJobData } from "../queues";
 
 // Run standalone: `npx tsx src/lib/queue/workers/email-worker.ts`
@@ -14,5 +15,5 @@ export const emailWorker = new Worker<EmailJobData>(
 );
 
 emailWorker.on("failed", (job, err) => {
-  console.error(`[email-worker] job ${job?.id} failed:`, err);
+  logger.error("email job failed", { jobId: job?.id, to: job?.data.to, error: err.message });
 });
