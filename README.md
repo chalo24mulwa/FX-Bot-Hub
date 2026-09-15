@@ -19,6 +19,7 @@ governs every future phase: **extend this foundation, don't rebuild it.**
 - [`docs/OBSERVABILITY.md`](./docs/OBSERVABILITY.md) — logging, health checks, queue monitoring.
 - [`docs/ADMIN_GUIDE.md`](./docs/ADMIN_GUIDE.md) · [`docs/SELLER_GUIDE.md`](./docs/SELLER_GUIDE.md) · [`docs/DEVELOPER_GUIDE.md`](./docs/DEVELOPER_GUIDE.md) — role-specific how-to guides.
 - [`docs/PHASE5_AUDIT.md`](./docs/PHASE5_AUDIT.md) — the scalability/security audit behind Phase 5's changes.
+- [`docs/PRODUCTION_READINESS_REPORT.md`](./docs/PRODUCTION_READINESS_REPORT.md) — PASS/WARNING/FAIL status for every major system, and what's left before a real launch.
 
 ## Stack
 
