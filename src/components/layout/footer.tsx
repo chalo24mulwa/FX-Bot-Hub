@@ -7,7 +7,11 @@ export function Footer() {
       <div className="mx-auto grid max-w-7xl grid-cols-2 gap-8 px-4 py-10 sm:px-6 md:grid-cols-4">
         <div className="col-span-2 md:col-span-1">
           <p className="text-lg font-bold text-slate-900">
-            FX <span className="text-blue-600">Bot</span> Market
+            FX{" "}
+            <span className="bg-gradient-to-r from-blue-600 via-teal-500 to-emerald-500 bg-clip-text text-transparent">
+              BOT
+            </span>{" "}
+            <span className="text-amber-600">Hub</span>
           </p>
           <p className="mt-2 text-sm text-slate-500">
             A marketplace for Forex Expert Advisors, indicators, and trading tools.
@@ -30,7 +34,7 @@ export function Footer() {
         ))}
       </div>
       <div className="border-t border-slate-200 px-4 py-4 text-center text-xs text-slate-400 sm:px-6">
-        © {new Date().getFullYear()} FX Bot Market. All rights reserved.
+        © {new Date().getFullYear()} FX BOT Hub. All rights reserved.
       </div>
     </footer>
   );

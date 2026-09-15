@@ -124,7 +124,7 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
       </section>
 
       <section className="mt-8 text-xs text-slate-400">
-        <p>Source: {event.source === "manual" ? "FX Bot Market editorial team" : event.source}</p>
+        <p>Source: {event.source === "manual" ? "FX BOT Hub editorial team" : event.source}</p>
         <p className="mt-2 max-w-xl">
           Economic events can affect markets but do not guarantee a particular market movement. This
           information is provided for reference only and is not trading advice.

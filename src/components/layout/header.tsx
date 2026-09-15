@@ -26,7 +26,11 @@ export function Header() {
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-6">
         <Link href="/" className="shrink-0 text-lg font-bold tracking-tight text-slate-900">
-          FX <span className="text-blue-600">Bot</span> Market
+          FX{" "}
+          <span className="bg-gradient-to-r from-blue-600 via-teal-500 to-emerald-500 bg-clip-text text-transparent">
+            BOT
+          </span>{" "}
+          <span className="text-amber-600">Hub</span>
         </Link>
 
         <nav className="hidden items-center gap-1 lg:flex" aria-label="Primary">

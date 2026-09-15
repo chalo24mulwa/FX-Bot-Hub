@@ -16,7 +16,7 @@ export default async function BecomeSellerPage() {
     <div>
       <h1 className="text-2xl font-semibold text-slate-900">Become a seller</h1>
       <p className="mt-1 max-w-md text-sm text-slate-500">
-        List Expert Advisors, indicators, signals, or tools on FX Bot Market. No approval
+        List Expert Advisors, indicators, signals, or tools on FX BOT Hub. No approval
         needed to get started — your products still go through review before they go live.
       </p>
       <form action={becomeSellerAction} className="mt-6 flex max-w-sm flex-col gap-4">

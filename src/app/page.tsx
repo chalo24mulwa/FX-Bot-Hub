@@ -33,7 +33,11 @@ export default async function HomePage() {
       <section className="border-b border-slate-200 bg-gradient-to-b from-slate-50 to-white">
         <div className="mx-auto max-w-6xl px-6 py-20 text-center">
           <h1 className="text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
-            FX Bot Market
+            FX{" "}
+            <span className="bg-gradient-to-r from-blue-600 via-teal-500 to-emerald-500 bg-clip-text text-transparent">
+              BOT
+            </span>{" "}
+            <span className="text-amber-600">Hub</span>
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-600">
             Expert Advisors, indicators, and trading signals for MT4 &amp; MT5 — plus an

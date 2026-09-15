@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: ProviderPageProps): Promise<M
   if (!provider) return {};
   return {
     title: provider.displayName,
-    description: provider.bio ?? `${provider.displayName}'s Forex signal track record on FX Bot Market.`,
+    description: provider.bio ?? `${provider.displayName}'s Forex signal track record on FX BOT Hub.`,
     alternates: { canonical: `/signals/provider/${provider.slug}` },
   };
 }

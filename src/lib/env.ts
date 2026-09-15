@@ -33,7 +33,7 @@ const envSchema = z.object({
 
   EMAIL_PROVIDER: z.enum(["console", "resend"]).default("console"),
   RESEND_API_KEY: z.string().optional(),
-  EMAIL_FROM: z.string().default("FX Bot Market <no-reply@fxbotmarket.local>"),
+  EMAIL_FROM: z.string().default("FX BOT Hub <no-reply@fxbotmarket.local>"),
 
   PAYMENT_PROVIDER: z.enum(["manual", "stripe", "mpesa"]).default("manual"),
   STRIPE_SECRET_KEY: z.string().optional(),

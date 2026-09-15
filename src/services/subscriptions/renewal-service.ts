@@ -73,7 +73,7 @@ export async function runSubscriptionRenewals(): Promise<RenewalResult> {
         orderId: order.id,
         amountCents: sub.product.priceCents,
         currency: sub.product.currency,
-        description: `FX Bot Market subscription renewal — ${sub.product.name}`,
+        description: `FX BOT Hub subscription renewal — ${sub.product.name}`,
         customerEmail: sub.user.email,
       });
 

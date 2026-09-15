@@ -86,7 +86,7 @@ export default async function InvoicePage({ params }: InvoicePageProps) {
         </tfoot>
       </table>
 
-      <p className="mt-10 text-xs text-slate-400">FX Bot Market — this invoice is generated automatically at time of sale.</p>
+      <p className="mt-10 text-xs text-slate-400">FX BOT Hub — this invoice is generated automatically at time of sale.</p>
     </main>
   );
 }
