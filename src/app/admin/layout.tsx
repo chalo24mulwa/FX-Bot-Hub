@@ -9,6 +9,12 @@ const ADMIN_NAV = [
   { label: "Products", href: "/admin/products" },
   { label: "Reviews", href: "/admin/reviews" },
   { label: "Categories", href: "/admin/categories" },
+  { label: "Calendar", href: "/admin/calendar" },
+  { label: "News", href: "/admin/news" },
+  { label: "News Categories", href: "/admin/news-categories" },
+  { label: "Signal Providers", href: "/admin/signal-providers" },
+  { label: "Signals", href: "/admin/signals" },
+  { label: "Data Sources", href: "/admin/data-sources" },
   { label: "Settings", href: "/admin/settings" },
   { label: "Audit Logs", href: "/admin/audit-logs" },
 ];

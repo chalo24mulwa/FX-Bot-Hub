@@ -16,7 +16,10 @@ export type Action =
   | "admin:view_audit_log"
   | "admin:manage_settings"
   | "category:manage"
-  | "calendar:manage";
+  | "calendar:manage"
+  | "news:manage"
+  | "signal:moderate"
+  | "data_source:manage";
 
 /**
  * Centralized capability matrix — the single source of truth for "who can
@@ -40,6 +43,9 @@ const PERMISSIONS: Record<Action, (role: UserRole) => boolean> = {
   "admin:manage_settings": isAdmin,
   "category:manage": isAdmin,
   "calendar:manage": isStaff,
+  "news:manage": isStaff,
+  "signal:moderate": isStaff,
+  "data_source:manage": isAdmin,
 };
 
 export function can(role: UserRole, action: Action): boolean {

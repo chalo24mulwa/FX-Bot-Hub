@@ -133,10 +133,83 @@ async function main() {
       currency: "USD",
       title: "Non-Farm Payrolls",
       impact: "HIGH",
+      category: "EMPLOYMENT",
       eventTime: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
       forecast: "180K",
       previous: "165K",
       source: "manual",
+    },
+  });
+
+  // Phase 3: one enabled manual DataSource per kind, so /admin/data-sources
+  // has something to show/toggle out of the box.
+  await Promise.all([
+    db.dataSource.upsert({
+      where: { kind_providerKey: { kind: "CALENDAR", providerKey: "manual" } },
+      update: {},
+      create: { name: "Manual calendar", kind: "CALENDAR", providerKey: "manual", enabled: true },
+    }),
+    db.dataSource.upsert({
+      where: { kind_providerKey: { kind: "NEWS", providerKey: "manual" } },
+      update: {},
+      create: { name: "Manual news", kind: "NEWS", providerKey: "manual", enabled: true },
+    }),
+  ]);
+
+  const centralBanks = await db.newsCategory.upsert({
+    where: { slug: "central-banks" },
+    update: {},
+    create: { name: "Central Banks", slug: "central-banks" },
+  });
+
+  await db.newsArticle.upsert({
+    where: { slug: "fed-holds-rates-steady" },
+    update: {},
+    create: {
+      slug: "fed-holds-rates-steady",
+      title: "Fed holds rates steady, signals data-dependent path ahead",
+      summary:
+        "The Federal Reserve kept its benchmark rate unchanged, with the chair reiterating that future moves depend on incoming inflation and employment data.",
+      sourceName: "Demo Wire Service",
+      sourceUrl: "https://example.com/fed-holds-rates-steady",
+      currency: "USD",
+      categoryId: centralBanks.id,
+      breaking: false,
+      status: "PUBLISHED",
+      publishedAt: new Date(),
+    },
+  });
+
+  const signalProvider = await db.signalProviderProfile.upsert({
+    where: { slug: "demo-signals-desk" },
+    update: {},
+    create: {
+      userId: vendor.id,
+      slug: "demo-signals-desk",
+      displayName: "Demo Signals Desk",
+      bio: "Illustrative signal provider for local development.",
+      tradingStyle: "Swing trading, H4/D1",
+      markets: ["EURUSD", "GBPUSD", "XAUUSD"],
+      pricingType: "FREE",
+      verified: true,
+    },
+  });
+
+  await db.signal.upsert({
+    where: { id: "seed-signal-eurusd" },
+    update: {},
+    create: {
+      id: "seed-signal-eurusd",
+      providerId: signalProvider.id,
+      instrument: "EURUSD",
+      direction: "BUY",
+      status: "ACTIVE",
+      timeframe: "H4",
+      entryZoneLow: 1.085,
+      entryZoneHigh: 1.088,
+      stopLoss: 1.08,
+      takeProfit: [1.095, 1.1],
+      reasonMarkdown: "Illustrative signal seeded for local development.",
     },
   });
 

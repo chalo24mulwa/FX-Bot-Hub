@@ -55,5 +55,54 @@ export default async function globalSetup() {
     },
   });
 
+  // Phase 3 fixtures: one economic event, one published news article + its
+  // category, and one enabled manual calendar DataSource — enough for the
+  // calendar/news specs to have something to render without depending on
+  // the (Redis-backed, not run in CI) sync workers.
+  await db.economicEvent.upsert({
+    where: { externalId: "e2e-fixture-event" },
+    update: {},
+    create: {
+      externalId: "e2e-fixture-event",
+      country: "United States",
+      currency: "USD",
+      title: "E2E Fixture Event",
+      impact: "HIGH",
+      category: "CENTRAL_BANK",
+      eventTime: new Date(Date.now() + 3 * 86_400_000),
+      forecast: "1.0%",
+      previous: "0.9%",
+      source: "manual",
+    },
+  });
+
+  const category = await db.newsCategory.upsert({
+    where: { slug: "e2e-news-category" },
+    update: {},
+    create: { name: "E2E News Category", slug: "e2e-news-category" },
+  });
+
+  await db.newsArticle.upsert({
+    where: { slug: "e2e-fixture-article" },
+    update: { status: "PUBLISHED", publishedAt: new Date() },
+    create: {
+      slug: "e2e-fixture-article",
+      title: "E2E Fixture Article",
+      summary: "Seeded for Playwright — safe to leave in the database.",
+      sourceName: "E2E Wire",
+      sourceUrl: "https://example.com/e2e-fixture-article",
+      currency: "USD",
+      categoryId: category.id,
+      status: "PUBLISHED",
+      publishedAt: new Date(),
+    },
+  });
+
+  await db.dataSource.upsert({
+    where: { kind_providerKey: { kind: "CALENDAR", providerKey: "manual" } },
+    update: {},
+    create: { name: "Manual calendar (e2e)", kind: "CALENDAR", providerKey: "manual", enabled: true },
+  });
+
   await db.$disconnect();
 }

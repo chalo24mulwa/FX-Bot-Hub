@@ -200,12 +200,132 @@ there, not by inlining new math into `ranking-service.ts`.
 - `src/lib/cache.ts`'s `cacheWrap()` is cache-aside over Redis, used for
   slow-changing reads (homepage categories). Same fail-soft posture as rate
   limiting: a cache-read failure falls through to computing directly.
-- Economic calendar (`economic_events` table, `/calendar`, `/api/calendar`) is
-  seeded manually for now. `calendarSyncQueue` (`src/lib/queue/queues.ts`) exists
-  for wiring a real provider later.
 - SEO: `src/app/sitemap.ts` + `robots.ts` (Next.js file conventions),
   per-product `generateMetadata` + JSON-LD (`schema.org/Product`) in
-  `marketplace/[slug]/page.tsx`.
+  `marketplace/[slug]/page.tsx`. Phase 3 extended the sitemap with published
+  news articles, signal provider profiles, and per-currency calendar pages.
+
+## Phase 3: calendar, news, signals, alerts
+
+Adds Forex Signals, an overhauled Economic Calendar, Forex News, and a
+polymorphic alert/subscription system on top of Phases 1-2's marketplace.
+Nothing here replaces the payment, auth, or RBAC foundations — signal
+subscriptions bill through the *same* `paymentProvider` singleton
+(`src/lib/payments`) as marketplace checkout, not a second integration.
+
+### Calendar/news provider abstraction
+
+`src/services/calendar/providers/` and `src/services/news/providers/` mirror
+the payments/storage/email pattern: a `key`-based registry
+(`getCalendarProvider(key)` / `getNewsProvider(key)`), a working `manual`
+provider (reads/writes this app's own rows, `source: "manual"`), and a typed
+`licensed-feed` stub that throws "not configured" until a real licensed
+feed is wired in. **Do not scrape Forex Factory/TradingView/MQL5** — new
+providers must be built against a real API or licensed feed; see the schema
+comment on `DataSource`.
+
+- `EconomicCalendarService` (`src/services/calendar/calendar-service.ts`)
+  is the **only** read path for calendar data — always paginated
+  (`MAX_PAGE_SIZE = 250`), always date-bounded (`from`/`to` required). Never
+  add a query that scans the whole `economic_events` table; a calendar
+  accumulates years of history. `buildEventWhere()` is factored out as a
+  pure function specifically so filter-combination logic (empty array vs.
+  undefined vs. populated) is unit-testable without a DB — see
+  `calendar-service.test.ts`.
+- `runCalendarSync()` / `runNewsSync()` (`*/sync-service.ts`) loop every
+  *enabled* `DataSource` of the matching kind, upsert by `externalId`
+  (dedup — a re-run never creates duplicates, only refreshes
+  actual/forecast/previous), and record one `SyncLog` row per run. One
+  provider failing doesn't abort the others. The HIGH-impact-alert gate is
+  factored into a pure `shouldDispatchHighImpactAlert(wasExisting, impact)`
+  predicate for the same unit-testability reason — see
+  `sync-service.test.ts`.
+- `runMarketDataSync()` (`src/services/market-data/sync-service.ts`) is an
+  **honest, fully-wired stub** — real queue, real `SyncLog` entries, real
+  `DataSource` loop, zero actual data written. No `MarketPrice`/instrument
+  schema was invented for it since Phase 3's brief didn't specify one;
+  read the file's doc comment before building against it.
+- Sync jobs run via BullMQ (`calendarSyncQueue`/`newsSyncQueue`/
+  `marketDataSyncQueue` in `src/lib/queue/queues.ts`, `SYNC_JOB_OPTIONS`:
+  3 attempts, exponential backoff from 30s) — start workers with
+  `npm run worker:calendar-sync` / `worker:news-sync` /
+  `worker:market-data-sync`, or enqueue one-off runs with
+  `npm run sync:trigger` (`scripts/trigger-sync.ts`), e.g. from an external
+  cron. There is no in-process scheduler; something outside the app must
+  call one of these.
+
+### Calendar display: UTC only, not viewer-local
+
+`CalendarTable` (`src/components/calendar/calendar-table.tsx`) renders
+event times in UTC with an explicit "(UTC)" column header, not the
+viewer's local timezone — deliberately, to avoid an SSR/client hydration
+mismatch from formatting a `Date` with the visitor's timezone on the
+server. The underlying range math
+(`src/lib/calendar/date-ranges.ts` — `getPresetRange`/`getCustomRange`) is
+already timezone-aware (takes a viewer UTC offset in minutes) and
+unit-tested; only the *display* of individual event timestamps is
+UTC-only. Per-viewer display localization is a known follow-up.
+
+### Alerts: polymorphic model, required targetId
+
+`Alert` (`src/features/alerts/`) is one table for five alert types
+(`ECONOMIC_EVENT`/`CURRENCY`/`SIGNAL_PROVIDER`/`PRODUCT`/`NEWS_TOPIC`),
+keyed by `targetId: String` (no FK — deliberately, to avoid cascade-delete
+surprises across five different target tables) with a
+`@@unique([userId, type, targetId])` constraint. **`targetId` must stay a
+required `String`, never optional** — a compound-unique `where` clause
+with a nullable field doesn't type-check cleanly against Prisma's
+`upsert`/`findUnique` (Postgres NULLs aren't equal, so the generated type
+can't accept `null` there), and worse, a nullable targetId would make
+"alert on X" and "no target set" indistinguishable. If a future alert type
+doesn't have a natural target id, mint a synthetic one — don't relax this
+field back to optional.
+
+`dispatch-service.ts` fans an event out to every subscriber via the
+existing `notification-repository.ts` + `send-email.ts` (fire-and-forget,
+same pattern as the rest of the app) and schedules a delayed BullMQ job
+(`eventReminderQueue`, fires 30 minutes before `eventTime`) for economic
+event reminders. Alerts only fire for genuinely new state (a new HIGH
+event, a newly published signal) — see the sync dedup note above; nothing
+re-alerts existing subscribers on every sync pass.
+
+### Signal providers: verified vs. self-reported, never fabricated
+
+`computeProviderStats()` (`src/features/signals/provider-service.ts`)
+always computes from this app's own `Signal` rows — i.e. inherently
+self-reported by the provider's own publish/close actions.
+`SignalProviderProfile.verified` is a **separate, admin-only** boolean
+(`setProviderVerifiedAction`, `signal:moderate` permission) that the UI
+must check independently before showing a "verified" badge. Win rate
+(`winRatePercent`) is `null` — never a fabricated `0%` or `NaN` — when
+there are zero closed signals; don't add a default that turns "no data"
+into a number.
+
+### Signal subscriptions
+
+`SignalSubscription` reuses the existing `SubscriptionStatus` enum
+(`ACTIVE`/`CANCELED`/`EXPIRED`/`PAST_DUE`, extended with `PAUSED`) rather
+than a near-duplicate enum, despite Phase 3's brief spelling it
+"CANCELLED" — a deliberate reuse decision, not an oversight.
+`subscribeToProvider()` activates a `FREE` provider's subscription
+instantly with no charge; a paid (`SUBSCRIPTION`) provider goes through
+`paymentProvider.createCharge()` exactly like marketplace checkout,
+including the same "async provider leaves it pending, a webhook would
+complete it later" shape — see "Commerce" above.
+
+### Client/Server Component boundary bug pattern
+
+`SignalCard` (`src/components/signals/signal-card.tsx`) needs `"use
+client"` because it attaches an inline `onClick` (`stopPropagation()`) to
+a nested `<Link>`. Without it, the component type-checks and builds fine,
+and even renders fine on every page where the list happens to be
+empty — the crash ("Event handlers cannot be passed to Client Component
+props") only appears once a Server Component actually renders it with
+real data. This is a general trap worth remembering: an event handler
+passed as a prop from a Server Component context fails at *request* time,
+not build time, and can hide behind an empty-state branch in
+manual/spot-checked testing. E2E tests must exercise the populated-list
+path, not just the "no results yet" empty state, for exactly this reason.
 
 ## Testing
 
@@ -223,7 +343,21 @@ there, not by inlining new math into `ranking-service.ts`.
   `password123`) plus one published free product, idempotently, against
   whatever `DATABASE_URL` the run points at (CI's ephemeral Postgres included).
   It does not depend on `prisma/seed.ts` — don't make e2e specs depend on that
-  seed's data either; add to `global-setup.ts` instead.
+  seed's data either; add to `global-setup.ts` instead. Phase 3 added one
+  fixed `EconomicEvent`/`NewsArticle`/`NewsCategory`/`DataSource` fixture the
+  same way.
+- The fixed e2e accounts and fixtures are upserted, not recreated per run —
+  specs that assert on their alert-subscription/toggle state must not assume
+  a starting direction (e.g. `AlertSubscribeButton`'s "subscribed" vs.
+  "not subscribed"), since a prior run may have already flipped it. Check
+  the current state first and assert the flip, not a fixed target state
+  (see `calendar.spec.ts`).
+- A plain `<form action={serverAction}>` with no redirect and no pending-state
+  UI (e.g. `signals/new`'s publish form) resolves its `click()` as soon as the
+  event dispatches — Playwright does not wait for the action's round trip.
+  Follow it with `await page.waitForLoadState("networkidle")` before asserting
+  on data the action just wrote, or the very next navigation can race the
+  mutation's commit (the write still succeeds — it just isn't visible yet).
 - File-upload steps are skipped in `product-lifecycle.spec.ts` — CI has no
   MinIO/S3 service, so presigned uploads have nowhere to land. The wizard's
   Next button on those steps is exercised (so a broken upload step's UI would
@@ -234,6 +368,11 @@ there, not by inlining new math into `ranking-service.ts`.
 - `npm run dev` / `npm run build` / `npm run test` (Vitest) / `npm run test:e2e`
   (Playwright) / `npm run typecheck` / `npm run lint`
 - `npm run db:migrate` (dev migration), `npm run db:seed`, `npm run db:studio`
+- `npm run worker:email` / `worker:calendar-sync` / `worker:news-sync` /
+  `worker:market-data-sync` / `worker:event-reminder` — long-running BullMQ
+  workers (each `tsx src/lib/queue/workers/*.ts`); `npm run sync:trigger`
+  enqueues one calendar+news+market-data sync pass and exits, for wiring to
+  an external cron.
 - `docker compose up` starts Postgres, Redis, and MinIO for local dev — copy
   `.env.example` to `.env` first.
 
@@ -251,10 +390,23 @@ there, not by inlining new math into `ranking-service.ts`.
   edge case, not a security issue (their review still needs their own purchase
   to be "verified," which they get for free as the owner, so it'd read oddly
   but isn't exploitable for anything).
-- News/Analysis/Community/Guides/Tutorials/Developer-Resources are stub
-  ("coming soon") pages so nav links aren't dead — no content model behind them.
+- Analysis/Community/Guides/Tutorials/Developer-Resources are still stub
+  ("coming soon") pages — News and Signals became real in Phase 3.
 - The `/admin`, `/seller`, `/dashboard` redirect-to-sign-in for an
   authenticated-but-unauthorized user is a UX nit (looks like "not logged in"
   when it's really "wrong role") — a dedicated 403 page would be a cheap fix.
 - "Developer announcements" (a seller broadcasting an update to favoriters
   beyond the automatic price-change/new-version notifications) isn't built.
+- Calendar/news sync (`runCalendarSync`/`runNewsSync`) has no in-process
+  scheduler — see "Phase 3" above. Something external needs to enqueue these
+  on a cadence (cron hitting `npm run sync:trigger`, or a platform scheduler).
+- `runMarketDataSync()` is a wired-but-empty stub — no `MarketPrice` schema
+  exists yet. See its doc comment before building the Market Dashboard's
+  price widgets against it.
+- Calendar/event/article/signal timestamps display in UTC only, not the
+  viewer's local timezone (see "Phase 3" above) — a known simplification,
+  not an oversight.
+- No real payment provider is wired up for signal subscriptions either — same
+  `PAYMENT_PROVIDER=manual` gap as marketplace checkout. When a real provider
+  is wired in, prefer Pesapal or an M-Pesa Till integration over Stripe for
+  this market, per product direction.

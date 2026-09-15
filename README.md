@@ -27,7 +27,30 @@ against a real production build. Full rationale in CLAUDE.md.
   profile & payout settings.
 - **Admins** (`/admin`): moderation queue (claim → approve/reject-with-reason/
   suspend/feature), user role & ban management, review moderation, category
-  management, marketplace settings (commission, ranking weights).
+  management, marketplace settings (commission, ranking weights), plus Phase
+  3's calendar/news/news-categories/signal-providers/signals/data-sources
+  management.
+- **Economic calendar** (`/calendar`): Today/Tomorrow/This Week/Next Week/
+  custom-date presets, filters by currency/country/impact/category
+  (saveable as a signed-in user's default), per-currency (`/calendar/[currency]`)
+  and per-event (`/calendar/event/[id]`) pages with historical observations
+  and an event/currency alert subscribe button. Backed by a swappable
+  provider architecture (`manual` today, a `licensed-feed` stub for later)
+  synced via a BullMQ job — see CLAUDE.md's "Phase 3" section.
+- **Forex news** (`/news`): source-attributed summaries (never full-article
+  copies), filterable by category/breaking, with a per-category alert
+  subscribe button on each article.
+- **Forex signals** (`/signals`): become a provider, publish BUY/SELL/WATCH
+  calls with entry/stop/take-profit and reasoning, a public provider profile
+  with a self-reported-vs-admin-verified performance distinction, and
+  FREE/paid subscriptions billed through the same payment abstraction as
+  marketplace checkout.
+- **Alerts** (`/dashboard/alerts`): subscribe to economic events, currencies,
+  signal providers, or news categories from anywhere in the app; economic
+  event reminders fire 30 minutes ahead via a scheduled job.
+- **Market intelligence dashboard** (`/intelligence`): a modular overview
+  combining upcoming high-impact events, latest news, and newest marketplace
+  products in one place.
 
 ## Local development
 
@@ -79,6 +102,11 @@ against a real production build. Full rationale in CLAUDE.md.
 | `npm run db:seed`       | Seed demo vendor, product, calendar event   |
 | `npm run db:studio`     | Open Prisma Studio                          |
 | `npm run worker:email`  | Run the BullMQ email worker                 |
+| `npm run worker:calendar-sync` | Run the economic calendar sync worker |
+| `npm run worker:news-sync` | Run the news sync worker                 |
+| `npm run worker:market-data-sync` | Run the market data sync worker (stub) |
+| `npm run worker:event-reminder` | Run the scheduled event-reminder worker |
+| `npm run sync:trigger`  | Enqueue one calendar+news+market-data sync pass and exit |
 
 ## Docker
 

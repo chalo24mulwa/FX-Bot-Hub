@@ -18,7 +18,7 @@ export const PRIMARY_NAV: NavGroup[] = [
       { label: "MT5 EAs", href: "/marketplace?platform=MT5&type=EA" },
       { label: "MT4 Indicators", href: "/marketplace?platform=MT4&type=INDICATOR" },
       { label: "MT5 Indicators", href: "/marketplace?platform=MT5&type=INDICATOR" },
-      { label: "Signals", href: "/marketplace?type=SIGNAL" },
+      { label: "Signal Tools", href: "/marketplace?type=SIGNAL" },
       { label: "Popular", href: "/marketplace?sort=popular" },
       { label: "New Releases", href: "/marketplace?sort=newest" },
       { label: "Top Rated", href: "/marketplace?sort=rating" },
@@ -30,8 +30,10 @@ export const PRIMARY_NAV: NavGroup[] = [
   {
     label: "Market Intelligence",
     links: [
+      { label: "Dashboard", href: "/intelligence" },
       { label: "Economic Calendar", href: "/calendar" },
       { label: "Forex News", href: "/news" },
+      { label: "Forex Signals", href: "/signals" },
       { label: "Market Analysis", href: "/analysis" },
     ],
   },

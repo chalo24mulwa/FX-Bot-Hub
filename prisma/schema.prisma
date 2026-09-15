@@ -44,6 +44,11 @@ model User {
   notifications      Notification[]
   auditLogs          AuditLog[]      @relation("AuditActor")
 
+  signalProviderProfile SignalProviderProfile?
+  signalSubscriptions   SignalSubscription[]
+  alerts                Alert[]
+  calendarPreference    CalendarPreference?
+
   @@map("users")
 }
 
@@ -534,11 +539,18 @@ model License {
   @@map("licenses")
 }
 
+// Shared by product Subscription and SignalSubscription. Phase 3's spec
+// spells the third state "CANCELLED" for signal subscriptions specifically
+// — reusing this enum (already "CANCELED", American spelling, established
+// in Phase 2) instead of adding a near-duplicate enum for one spelling
+// difference. PAUSED added here for signal subscriptions (a subscriber
+// pausing without cancelling); product Subscription just never sets it.
 enum SubscriptionStatus {
   ACTIVE
   CANCELED
   EXPIRED
   PAST_DUE
+  PAUSED
 }
 
 model Subscription {
@@ -573,6 +585,10 @@ enum NotificationType {
   PRICE_CHANGE
   NEW_VERSION
   PRODUCT_UPDATE
+  SIGNAL_PUBLISHED
+  SIGNAL_CLOSED
+  ECONOMIC_EVENT_ALERT
+  NEWS_ALERT
 }
 
 model Notification {
@@ -613,29 +629,307 @@ model AuditLog {
 // ---------- Economic calendar ----------
 
 enum EventImpact {
+  HOLIDAY
   LOW
   MEDIUM
   HIGH
+  OTHER
+}
+
+enum EventCategory {
+  CENTRAL_BANK
+  EMPLOYMENT
+  INFLATION
+  GDP
+  MANUFACTURING
+  RETAIL
+  HOUSING
+  CONSUMER
+  POLITICS
+  OTHER
 }
 
 model EconomicEvent {
-  id         String      @id @default(cuid())
-  externalId String?     @unique // id from upstream data provider, for de-duplication on sync
-  country    String
-  currency   String
-  title      String
-  impact     EventImpact
-  eventTime  DateTime
-  actual     String?
-  forecast   String?
-  previous   String?
-  source     String // e.g. "manual", "provider:xyz"
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  id          String        @id @default(cuid())
+  externalId  String?       @unique // id from upstream data provider, for de-duplication on sync
+  country     String
+  currency    String
+  title       String
+  impact      EventImpact
+  category    EventCategory @default(OTHER)
+  eventTime   DateTime
+  actual      String?
+  forecast    String?
+  previous    String?
+  // Free-text context shown on the event detail page — not a data feed
+  // field, filled in by whoever creates/edits the event (ManualProvider
+  // today; an admin editing the row later).
+  description String?       @db.Text
+  source      String // e.g. "manual", "provider:xyz" — matches DataSource.providerKey
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
   @@index([eventTime])
   @@index([currency, eventTime])
+  @@index([impact, eventTime])
+  @@index([category, eventTime])
   @@map("economic_events")
+}
+
+// Per-user saved calendar filter preferences (currencies/countries/impacts/
+// categories to default to) — a DB row rather than localStorage so it
+// follows the user across devices, consistent with the rest of the app's
+// state.
+model CalendarPreference {
+  id         String          @id @default(cuid())
+  userId     String          @unique
+  currencies String[]        @default([])
+  countries  String[]        @default([])
+  impacts    EventImpact[]   @default([])
+  categories EventCategory[] @default([])
+  updatedAt  DateTime        @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("calendar_preferences")
+}
+
+// ---------- Forex news ----------
+
+enum ArticleStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model NewsCategory {
+  id       String        @id @default(cuid())
+  name     String        @unique
+  slug     String        @unique
+  articles NewsArticle[]
+
+  @@map("news_categories")
+}
+
+// Summaries + attribution only — never full copied article bodies (see
+// CLAUDE.md's data-sourcing rule). `sourceUrl` is where a reader goes for
+// the complete piece.
+model NewsArticle {
+  id          String        @id @default(cuid())
+  slug        String        @unique
+  externalId  String?       @unique // for de-duplication on sync, like EconomicEvent
+  title       String
+  summary     String        @db.Text
+  sourceName  String
+  sourceUrl   String
+  imageUrl    String? // only ever a licensed/permitted image — see ingestion notes
+  currency    String? // optional related currency, for filtering (e.g. "USD")
+  categoryId  String?
+  tags        String[]      @default([])
+  breaking    Boolean       @default(false)
+  status      ArticleStatus @default(DRAFT)
+  publishedAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  category NewsCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([status, publishedAt])
+  @@index([currency, status, publishedAt])
+  @@map("news_articles")
+}
+
+// ---------- Forex signals ----------
+
+enum SignalDirection {
+  BUY
+  SELL
+  WATCH
+}
+
+enum SignalStatus {
+  ACTIVE
+  CLOSED
+  CANCELLED
+}
+
+enum SignalTimeframe {
+  M1
+  M5
+  M15
+  M30
+  H1
+  H4
+  D1
+  W1
+}
+
+enum SignalPricingType {
+  FREE
+  SUBSCRIPTION
+}
+
+// Distinct from SellerProfile: a user can sell marketplace products,
+// publish signals, both, or neither — these are separate capabilities with
+// separate verification. `verified` is admin-controlled and gates the
+// "Verified performance" badge; everything else on a provider's stats is
+// self-reported until an admin flips it (see CLAUDE.md — never compute a
+// misleading verified badge from unverified data).
+model SignalProviderProfile {
+  id           String            @id @default(cuid())
+  userId       String            @unique
+  slug         String            @unique
+  displayName  String
+  avatarUrl    String?
+  bio          String?           @db.Text
+  tradingStyle String?
+  markets      String[]          @default([])
+  pricingType  SignalPricingType @default(FREE)
+  priceCents   Int               @default(0)
+  currency     String            @default("USD")
+  verified     Boolean           @default(false)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  signals       Signal[]
+  subscriptions SignalSubscription[]
+
+  @@map("signal_provider_profiles")
+}
+
+model Signal {
+  id             String          @id @default(cuid())
+  providerId     String
+  instrument     String // e.g. "EURUSD"
+  direction      SignalDirection
+  status         SignalStatus    @default(ACTIVE)
+  entryZoneLow   Float?
+  entryZoneHigh  Float?
+  stopLoss       Float?
+  takeProfit     Float[]         @default([])
+  timeframe      SignalTimeframe
+  reasonMarkdown String?         @db.Text
+  resultPips     Float? // filled when status -> CLOSED; null while ACTIVE
+  publishedAt    DateTime        @default(now())
+  closedAt       DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  provider SignalProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@index([providerId, publishedAt])
+  @@index([status, publishedAt])
+  @@index([instrument, publishedAt])
+  @@map("signals")
+}
+
+model SignalSubscription {
+  id                String             @id @default(cuid())
+  userId            String
+  providerId        String
+  status            SubscriptionStatus @default(ACTIVE)
+  currentPeriodEnd  DateTime?
+  cancelAtPeriodEnd Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  user     User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider SignalProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, providerId])
+  @@map("signal_subscriptions")
+}
+
+// ---------- User alerts ----------
+
+enum AlertType {
+  ECONOMIC_EVENT
+  CURRENCY
+  SIGNAL_PROVIDER
+  PRODUCT
+  NEWS_TOPIC
+}
+
+enum AlertChannel {
+  IN_APP
+  EMAIL
+  PUSH // not implemented yet — see src/features/alerts/dispatch-service.ts
+}
+
+// Polymorphic by convention, uniformly via `targetId` (required — every
+// alert type has a concrete target: a currency code for CURRENCY, an
+// EconomicEvent id for ECONOMIC_EVENT, a SignalProviderProfile id for
+// SIGNAL_PROVIDER, a Product id for PRODUCT, a NewsCategory id for
+// NEWS_TOPIC). Deliberately no FK to any of those tables: a target row
+// being deleted shouldn't cascade-delete the subscription — "notify me
+// about EURUSD" shouldn't vanish just because one EconomicEvent row
+// mentioning EURUSD was removed. Also: a nullable field can't cleanly
+// participate in a compound unique constraint for findUnique/upsert
+// lookups (Postgres NULLs aren't equal to each other), which is the other
+// reason this is required rather than optional.
+model Alert {
+  id        String         @id @default(cuid())
+  userId    String
+  type      AlertType
+  targetId  String
+  channels  AlertChannel[] @default([IN_APP])
+  createdAt DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type, targetId])
+  @@index([type, targetId])
+  @@map("alerts")
+}
+
+// ---------- Data sync architecture ----------
+
+enum DataSourceKind {
+  CALENDAR
+  NEWS
+  MARKET_DATA
+}
+
+enum SyncStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+// Admin-manageable registry of where calendar/news/market data comes from.
+// `providerKey` matches a provider adapter's key (see
+// src/services/calendar/providers, src/services/news/providers) so an admin
+// can enable/disable or reconfigure a source without a deploy.
+model DataSource {
+  id             String         @id @default(cuid())
+  name           String
+  kind           DataSourceKind
+  providerKey    String
+  enabled        Boolean        @default(true)
+  config         Json?
+  lastSyncAt     DateTime?
+  lastSyncStatus SyncStatus?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([kind, providerKey])
+  @@map("data_sources")
+}
+
+// One row per background job run — gives admins visibility into sync
+// failures instead of only finding out when the calendar looks stale.
+model SyncLog {
+  id             String     @id @default(cuid())
+  jobName        String // "calendarSync" | "newsSync" | "marketDataSync"
+  status         SyncStatus
+  startedAt      DateTime   @default(now())
+  finishedAt     DateTime?
+  itemsProcessed Int?
+  itemsFailed    Int        @default(0)
+  error          String?    @db.Text
+
+  @@index([jobName, startedAt])
+  @@map("sync_logs")
 }
 
 // ---------- Marketplace configuration ----------
