@@ -96,7 +96,14 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
           categoryId: data.categoryId || undefined,
           shortSummary: data.shortSummary,
           description: data.description,
-          features: data.features,
+          // The textarea keeps every line (including a blank trailing one
+          // from pressing Enter after the last feature) so typing feels
+          // natural — trim/filter only here, at submission time, matching
+          // formDataToProductInput()'s same treatment for the single-page
+          // edit form. An empty string fails the schema's min(1) per
+          // feature; sending one straight from a raw split() is what was
+          // producing an opaque, production-masked validation error.
+          features: data.features.map((f) => f.trim()).filter(Boolean),
           pricingType: "ONE_TIME",
           priceCents: 0,
           currency: "USD",

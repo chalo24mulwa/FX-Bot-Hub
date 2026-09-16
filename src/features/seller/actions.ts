@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { ZodError, type ZodType } from "zod";
 import { requirePermission } from "@/lib/authorization";
 import { db } from "@/lib/db";
 import {
@@ -12,6 +13,25 @@ import {
 } from "@/lib/validations/product";
 import * as productService from "@/server/services/product-service";
 import * as reviewService from "@/features/reviews/review-service";
+
+/**
+ * `schema.parse()` throwing a raw ZodError straight out of a Server Action
+ * doesn't survive the client/server boundary as a readable message — it
+ * renders as an opaque "Minified React error #441" in production (the
+ * error gets treated as an unexpected Server Components error, not a
+ * normal thrown Error, so Next.js masks it) and a wall of JSON in dev.
+ * Catch it here and re-throw a plain Error with the first issue's message,
+ * which both `product-wizard.tsx` and `product-form.tsx` already display
+ * via `err instanceof Error ? err.message : ...`.
+ */
+function parseOrThrowFriendly<T>(schema: ZodType<T>, input: unknown): T {
+  const result = schema.safeParse(input);
+  if (!result.success) {
+    const [issue] = (result.error as ZodError).issues;
+    throw new Error(issue ? `${issue.path.join(".")}: ${issue.message}` : "Invalid product data.");
+  }
+  return result.data;
+}
 
 function formDataToProductInput(formData: FormData) {
   const tags = String(formData.get("tags") ?? "")
@@ -46,7 +66,7 @@ function formDataToProductInput(formData: FormData) {
 
 export async function createProductAction(formData: FormData) {
   const session = await requirePermission("product:create");
-  const input = createProductSchema.parse(formDataToProductInput(formData));
+  const input = parseOrThrowFriendly(createProductSchema, formDataToProductInput(formData));
   const product = await productService.createDraftProduct(session.user.id, input);
   revalidatePath("/seller/products");
   redirect(`/seller/products/${product.id}`);
@@ -54,7 +74,7 @@ export async function createProductAction(formData: FormData) {
 
 export async function updateProductAction(productId: string, formData: FormData) {
   const session = await requirePermission("product:edit_own");
-  const input = updateProductSchema.parse(formDataToProductInput(formData));
+  const input = parseOrThrowFriendly(updateProductSchema, formDataToProductInput(formData));
   const updated = await productService.updateOwnProduct(session.user.id, productId, input);
   if (!updated) throw new Error("Product not found or not owned by you.");
   revalidatePath(`/seller/products/${productId}`);
@@ -65,13 +85,13 @@ export async function updateProductAction(productId: string, formData: FormData)
 
 export async function createProductFromDataAction(input: CreateProductInput) {
   const session = await requirePermission("product:create");
-  const parsed = createProductSchema.parse(input);
+  const parsed = parseOrThrowFriendly(createProductSchema, input);
   return productService.createDraftProduct(session.user.id, parsed);
 }
 
 export async function updateProductFromDataAction(productId: string, input: UpdateProductInput) {
   const session = await requirePermission("product:edit_own");
-  const parsed = updateProductSchema.parse(input);
+  const parsed = parseOrThrowFriendly(updateProductSchema, input);
   const updated = await productService.updateOwnProduct(session.user.id, productId, parsed);
   if (!updated) throw new Error("Product not found or not owned by you.");
   return updated;
