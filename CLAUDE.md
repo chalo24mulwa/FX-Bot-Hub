@@ -777,21 +777,33 @@ replaces it, and no user, password, or role was touched by any migration.
   a literal never-expires cookie. Verified with a raw HTTP sign-in (`curl`,
   bypassing the fact that `document.cookie` can't read this — it's
   `HttpOnly`) showing `Expires` exactly one year out.
-- **Google account linking** (`signIn` callback in `src/lib/auth.ts`):
-  Google was already a registered provider before this change (conditional
-  on `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET`); what was missing was *safe*
-  linking when a Google sign-in's email matches an existing
-  credentials-registered account. Deliberately does **not** use Auth.js's
-  own `allowDangerousEmailAccountLinking` (it trusts any provider's email
-  claim, unverified) — instead, the callback checks Google's own ID-token
-  `email_verified` claim (independent proof the requester controls that
-  email) and, if true and no Google `Account` row is linked yet, manually
-  creates that `Account` row pointing at the existing `User` *before*
-  returning — so Auth.js's own subsequent adapter lookup finds it and logs
-  the person into their existing account (same id, same role, same
-  everything) instead of hitting its built-in "OAuthAccountNotLinked"
-  guard or creating a duplicate. An unverified Google email that doesn't
-  already have a linked account is refused, not silently accepted.
+- **Google account linking** (`signIn` callback in `src/lib/auth.ts`, deciding
+  via the pure `decideGoogleAccountLinking()` in `src/lib/auth-linking.ts` —
+  unit-tested there with no DB/Auth.js dependency, same "pure decision, I/O
+  shell around it" split as `detectFieldChanges`/`shouldDispatchHighImpactAlert`
+  elsewhere in this codebase): Google was already a registered provider
+  before this change (conditional on `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET`);
+  what was missing was *safe* linking when a Google sign-in's email matches
+  an existing credentials-registered account. Deliberately does **not** use
+  Auth.js's own `allowDangerousEmailAccountLinking` (it trusts any
+  provider's email claim, unverified) — instead, the callback checks
+  Google's own ID-token `email_verified` claim (independent proof the
+  requester controls that email) and, if true and no Google `Account` row
+  is linked yet, manually creates that `Account` row pointing at the
+  existing `User` *before* returning — so Auth.js's own subsequent adapter
+  lookup finds it and logs the person into their existing account (same
+  id, same role, same everything) instead of hitting its built-in
+  "OAuthAccountNotLinked" guard or creating a duplicate. An unverified
+  Google email that doesn't already have a linked account is refused, not
+  silently accepted. The redirect-to-Google half of this (button →
+  `/api/auth/signin/google` → Google's real authorization server with the
+  configured `client_id`) was verified by temporarily setting a
+  placeholder `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET`, confirming Google's
+  own server received a correctly-formed request (it responded with its
+  own "invalid_client" — expected, since the placeholder isn't a real
+  registered app) — then reverting `.env` immediately after. Completing an
+  actual Google sign-in needs a real Google Cloud OAuth client, which this
+  environment doesn't have.
 - **Forgot password** (`src/features/auth/password-reset-service.ts`,
   `src/lib/security/password-reset-token.ts`): a new `PasswordResetToken`
   table (migration `20260916104108_password_reset_tokens`) — deliberately

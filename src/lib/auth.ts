@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { checkRateLimit, clientIp } from "@/lib/security/rate-limit";
+import { decideGoogleAccountLinking } from "@/lib/auth-linking";
 import type { UserRole } from "@prisma/client";
 
 declare module "next-auth" {
@@ -118,7 +119,6 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
           where: { email: user.email },
           include: { accounts: { select: { provider: true } } },
         });
-        if (existing?.bannedAt) return false;
 
         // Safe account linking for Google specifically: Google's own OAuth
         // flow already proved this person controls `user.email` (its ID
@@ -128,24 +128,29 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
         // email, rather than either (a) creating a confusing second
         // account with the same email, or (b) relying on Auth.js's own
         // `allowDangerousEmailAccountLinking`, which trusts ANY provider's
-        // email claim with no such verification. Deliberately does NOT
-        // require our own User.emailVerified to already be set first — no
-        // existing credentials-registered account has that set today, so
-        // requiring it would make linking impossible for exactly the
-        // accounts this feature exists to help. Manually inserting the
-        // Account row here (before Auth.js's own adapter logic runs) means
-        // the adapter's subsequent `getUserByAccount` lookup finds it and
-        // signs the person into the existing user, instead of hitting its
-        // built-in "OAuthAccountNotLinked" guard for a new email/provider
-        // combination.
-        if (existing && account?.provider === "google") {
+        // email claim with no such verification. The decision itself
+        // (link / proceed / reject) is a pure function in
+        // src/lib/auth-linking.ts, unit-tested there — this block is only
+        // the I/O that decision acts on.
+        if (account?.provider === "google") {
           const emailVerified = (profile as { email_verified?: boolean } | undefined)?.email_verified;
-          const alreadyLinked = existing.accounts.some((a) => a.provider === "google");
+          const decision = decideGoogleAccountLinking(
+            existing ? { id: existing.id, bannedAt: existing.bannedAt, linkedProviders: existing.accounts.map((a) => a.provider) } : null,
+            emailVerified
+          );
 
-          if (emailVerified && !alreadyLinked) {
+          if (decision.kind === "reject") return false;
+
+          if (decision.kind === "link") {
+            // Manually inserting the Account row here (before Auth.js's
+            // own adapter logic runs) means the adapter's subsequent
+            // `getUserByAccount` lookup finds it and signs the person into
+            // the existing user, instead of hitting its built-in
+            // "OAuthAccountNotLinked" guard for a new email/provider
+            // combination.
             await db.account.create({
               data: {
-                userId: existing.id,
+                userId: decision.userId,
                 type: account.type,
                 provider: account.provider,
                 providerAccountId: account.providerAccountId,
@@ -160,16 +165,12 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
             });
             // Google independently verified this email; reflect that on
             // our own record too (harmless if it was already set).
-            if (!existing.emailVerified) {
+            if (existing && !existing.emailVerified) {
               await db.user.update({ where: { id: existing.id }, data: { emailVerified: new Date() } });
             }
-          } else if (!emailVerified && !alreadyLinked) {
-            // Google reports this email as unverified (rare, but possible
-            // for some account types) and it's not already linked — refuse
-            // rather than silently sign the requester into someone else's
-            // existing account on an unproven email claim.
-            return false;
           }
+        } else if (existing?.bannedAt) {
+          return false;
         }
       }
       return true;
