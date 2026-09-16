@@ -11,6 +11,7 @@ const DASHBOARD_NAV = [
   { label: "Signal Subscriptions", href: "/dashboard/subscriptions" },
   { label: "Alerts", href: "/dashboard/alerts" },
   { label: "Notifications", href: "/dashboard/notifications" },
+  { label: "Security", href: "/dashboard/security" },
 ];
 
 export default async function UserDashboardLayout({ children }: { children: React.ReactNode }) {

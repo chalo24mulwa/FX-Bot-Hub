@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn, getProviders } from "next-auth/react";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Button } from "@/components/ui/button";
 import { GoogleIcon } from "@/components/auth/google-icon";
 
@@ -105,9 +106,8 @@ export default function SignUpPage() {
             <label htmlFor="sign-up-password" className="text-sm font-medium text-slate-700">
               Password
             </label>
-            <Input
+            <PasswordInput
               id="sign-up-password"
-              type="password"
               placeholder="At least 8 characters"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

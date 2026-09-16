@@ -8,9 +8,9 @@ test("a user can become a seller and land straight on the seller dashboard", asy
   const email = `e2e-become-seller-${Date.now()}@fxbotmarket.local`;
 
   await page.goto("/auth/sign-up");
-  await page.getByPlaceholder("Name").fill("Future Seller");
-  await page.getByPlaceholder("Email").fill(email);
-  await page.getByPlaceholder("Password").fill("password123");
+  await page.getByLabel("Name").fill("Future Seller");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill("password123");
   await page.getByRole("button", { name: "Sign up" }).click();
   await page.waitForURL(/\/auth\/sign-in$/);
 

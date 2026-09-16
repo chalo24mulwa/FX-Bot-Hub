@@ -5,9 +5,9 @@ test("a buyer can request a refund, an admin can approve it, and entitlement is 
   const email = `e2e-refund-buyer-${Date.now()}@fxbotmarket.local`;
 
   await page.goto("/auth/sign-up");
-  await page.getByPlaceholder("Name").fill("E2E Refund Buyer");
-  await page.getByPlaceholder("Email").fill(email);
-  await page.getByPlaceholder("Password").fill("password123");
+  await page.getByLabel("Name").fill("E2E Refund Buyer");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill("password123");
   await page.getByRole("button", { name: "Sign up" }).click();
   await page.waitForURL(/\/auth\/sign-in$/);
   await signIn(page, email);

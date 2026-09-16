@@ -757,6 +757,77 @@ behavior was removed.
   param adds a computed `local: {date, time}` field per event without
   changing the canonical UTC `eventTime`.
 
+## Authentication enhancement: Google sign-in, forgot password, password toggle
+
+Extends the existing Auth.js setup (Credentials + Google, PrismaAdapter,
+JWT sessions — see "Architecture at a glance" above) — nothing here
+replaces it, and no user, password, or role was touched by any migration.
+
+- **Google account linking** (`signIn` callback in `src/lib/auth.ts`):
+  Google was already a registered provider before this change (conditional
+  on `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET`); what was missing was *safe*
+  linking when a Google sign-in's email matches an existing
+  credentials-registered account. Deliberately does **not** use Auth.js's
+  own `allowDangerousEmailAccountLinking` (it trusts any provider's email
+  claim, unverified) — instead, the callback checks Google's own ID-token
+  `email_verified` claim (independent proof the requester controls that
+  email) and, if true and no Google `Account` row is linked yet, manually
+  creates that `Account` row pointing at the existing `User` *before*
+  returning — so Auth.js's own subsequent adapter lookup finds it and logs
+  the person into their existing account (same id, same role, same
+  everything) instead of hitting its built-in "OAuthAccountNotLinked"
+  guard or creating a duplicate. An unverified Google email that doesn't
+  already have a linked account is refused, not silently accepted.
+- **Forgot password** (`src/features/auth/password-reset-service.ts`,
+  `src/lib/security/password-reset-token.ts`): a new `PasswordResetToken`
+  table (migration `20260916104108_password_reset_tokens`) — deliberately
+  separate from Auth.js's own `VerificationToken` adapter table (that one
+  is for a magic-link/passwordless Email provider this app doesn't use,
+  and stores its token in plaintext, which a reset flow shouldn't do).
+  Only a SHA-256 hash of the token is ever stored; the raw token exists
+  only in the emailed link. Single-use (consumed in the same transaction
+  that updates the password, which also invalidates every other
+  outstanding token for that user) and expires after 1 hour.
+  `POST /api/auth/forgot-password` always returns the same generic
+  response regardless of whether the email matched a resettable account
+  (no password, banned, or unknown emails all produce the identical
+  response and no observable side effect) — never branch that response on
+  the lookup result, or the endpoint becomes an email-enumeration oracle.
+- **Change password** (signed-in, `/dashboard/security`,
+  `src/features/auth/actions.ts`'s `changePasswordAction`) is a separate,
+  simpler path from the above — always requires the current password (no
+  mailed token), rate-limited per user. A Google-only account (no
+  `password` set) sees an explanatory message instead of a broken form.
+- **Password visibility toggle** (`src/components/ui/password-input.tsx`)
+  wraps the existing `Input` primitive — used everywhere a password field
+  appears (sign-in, sign-up, reset-password, change-password) instead of
+  each page rolling its own. The toggle button is a real, keyboard-
+  reachable `<button>` with a dynamic `aria-label`/`title` ("Show
+  password"/"Hide password"), not a `tabIndex={-1}` decoration.
+- **A real, previously-hidden e2e regression was found and fixed in the
+  same pass**: the sign-in/sign-up redesign (an earlier change) replaced
+  literal `placeholder="Email"`/`"Password"` text with a proper
+  `<label>` + descriptive placeholder (`"you@example.com"`, `"Your
+  password"`), but every e2e spec that signs in or signs up — including
+  the shared `signIn()` helper in `e2e/helpers.ts`, used by most of the
+  suite — still matched on the old placeholder text via
+  `getByPlaceholder("Email"/"Password")`, which silently stopped matching
+  anything. This had never been caught because the full suite wasn't run
+  again after that redesign until this change's own verification pass.
+  Fixed by switching every one of those selectors to `getByLabel(...)`
+  (the semantically correct, more robust anchor now that real `<label>`
+  elements exist) — and then fixing a *second*, self-inflicted issue from
+  that same change: `getByLabel("Password")` ambiguously matched both the
+  password `<input>` and the new visibility-toggle button's `aria-label="Show
+  password"` (both contain "password" as a case-insensitive substring),
+  requiring `{ exact: true }` wherever a bare "Password"/"New password"
+  label is queried alongside a toggle button or another field whose label
+  contains it. **Lesson**: a placeholder is copy, not a contract — prefer
+  `getByLabel`/`getByRole` in tests over `getByPlaceholder` so a future
+  redesign's copy changes don't silently break test coverage the same way
+  again; and re-run the *full* e2e suite after any shared-page redesign,
+  not just the specs that seem related.
+
 ## Testing
 
 - `npm run test` (Vitest) — pure-logic unit tests only (authorization matrix,

@@ -25,8 +25,9 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts Account[]
-  sessions Session[]
+  accounts            Account[]
+  sessions            Session[]
+  passwordResetTokens PasswordResetToken[]
 
   profile       Profile?
   sellerProfile SellerProfile?
@@ -119,6 +120,29 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verification_tokens")
+}
+
+// "Forgot password" flow — deliberately a separate model from
+// VerificationToken above (Auth.js's own adapter table, meant for a
+// magic-link/passwordless Email provider we don't use) rather than
+// overloading it, and deliberately stores only a SHA-256 hash of the
+// token, never the raw value — a DB read alone can never be replayed to
+// reset a password, only the exact emailed link can. Single-use: consumed
+// by setting `usedAt` in the same transaction that updates the password
+// (see resetPassword() in src/features/auth/password-reset-service.ts),
+// which also invalidates any other outstanding tokens for that user.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 // Role hierarchy (low -> high privilege), enforced centrally in

@@ -97,12 +97,67 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
       : []),
   ],
   callbacks: {
-    async signIn({ user, account }) {
+    async signIn({ user, account, profile }) {
       // Credentials already checked bannedAt in authorize(); this covers
       // OAuth sign-ins against an existing (possibly since-banned) user.
       if (account?.provider !== "credentials" && user?.email) {
-        const existing = await db.user.findUnique({ where: { email: user.email } });
+        const existing = await db.user.findUnique({
+          where: { email: user.email },
+          include: { accounts: { select: { provider: true } } },
+        });
         if (existing?.bannedAt) return false;
+
+        // Safe account linking for Google specifically: Google's own OAuth
+        // flow already proved this person controls `user.email` (its ID
+        // token asserts `email_verified`) — that independent proof is what
+        // makes it safe to attach this Google identity to whatever
+        // existing account (credentials or otherwise) already owns that
+        // email, rather than either (a) creating a confusing second
+        // account with the same email, or (b) relying on Auth.js's own
+        // `allowDangerousEmailAccountLinking`, which trusts ANY provider's
+        // email claim with no such verification. Deliberately does NOT
+        // require our own User.emailVerified to already be set first — no
+        // existing credentials-registered account has that set today, so
+        // requiring it would make linking impossible for exactly the
+        // accounts this feature exists to help. Manually inserting the
+        // Account row here (before Auth.js's own adapter logic runs) means
+        // the adapter's subsequent `getUserByAccount` lookup finds it and
+        // signs the person into the existing user, instead of hitting its
+        // built-in "OAuthAccountNotLinked" guard for a new email/provider
+        // combination.
+        if (existing && account?.provider === "google") {
+          const emailVerified = (profile as { email_verified?: boolean } | undefined)?.email_verified;
+          const alreadyLinked = existing.accounts.some((a) => a.provider === "google");
+
+          if (emailVerified && !alreadyLinked) {
+            await db.account.create({
+              data: {
+                userId: existing.id,
+                type: account.type,
+                provider: account.provider,
+                providerAccountId: account.providerAccountId,
+                access_token: account.access_token,
+                refresh_token: account.refresh_token,
+                expires_at: account.expires_at,
+                token_type: account.token_type,
+                scope: account.scope,
+                id_token: account.id_token,
+                session_state: account.session_state as string | undefined,
+              },
+            });
+            // Google independently verified this email; reflect that on
+            // our own record too (harmless if it was already set).
+            if (!existing.emailVerified) {
+              await db.user.update({ where: { id: existing.id }, data: { emailVerified: new Date() } });
+            }
+          } else if (!emailVerified && !alreadyLinked) {
+            // Google reports this email as unverified (rare, but possible
+            // for some account types) and it's not already linked — refuse
+            // rather than silently sign the requester into someone else's
+            // existing account on an unproven email claim.
+            return false;
+          }
+        }
       }
       return true;
     },

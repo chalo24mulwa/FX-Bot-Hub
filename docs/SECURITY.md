@@ -26,6 +26,18 @@ living summary that should stay current as the app changes.
   immediately on `updateSession()` — see `CLAUDE.md`'s RBAC section for
   why this exists (an admin changing a role/ban shouldn't require the
   affected user to sign out and back in to take effect).
+- **Google account linking** only trusts Google's own `email_verified`
+  claim (proof the requester controls the email), never
+  `allowDangerousEmailAccountLinking` (which would trust *any* provider's
+  unverified email claim) — see `CLAUDE.md`'s "Authentication enhancement"
+  section for the full reasoning.
+- **Password reset tokens** (`PasswordResetToken`) are stored as a SHA-256
+  hash only, never in plaintext; single-use (consumed atomically with the
+  password update); expire after 1 hour. `POST /api/auth/forgot-password`
+  never reveals whether an email is registered — same response either way.
+- **Password visibility toggle** (`src/components/ui/password-input.tsx`)
+  is client-side display only — it never changes what's submitted or
+  logged, only what's rendered in the field.
 
 ## Authorization / RBAC
 

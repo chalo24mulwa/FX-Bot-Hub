@@ -29,9 +29,9 @@ test("checking out twice with the same idempotency key returns the same order, n
   const email = `e2e-idempotency-buyer-${Date.now()}@fxbotmarket.local`;
 
   await page.goto("/auth/sign-up");
-  await page.getByPlaceholder("Name").fill("E2E Idempotency Buyer");
-  await page.getByPlaceholder("Email").fill(email);
-  await page.getByPlaceholder("Password").fill("password123");
+  await page.getByLabel("Name").fill("E2E Idempotency Buyer");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill("password123");
   await page.getByRole("button", { name: "Sign up" }).click();
   await page.waitForURL(/\/auth\/sign-in$/);
   await signIn(page, email);

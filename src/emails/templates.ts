@@ -12,6 +12,17 @@ const wrap = (title: string, bodyHtml: string) => `
   </div>
 `;
 
+export function buildPasswordResetEmail(resetUrl: string): EmailTemplate {
+  return {
+    subject: "Reset your fx Bot Hub password",
+    html: wrap(
+      "Reset your password",
+      `<p>We received a request to reset your password. This link expires in 1 hour and can only be used once.</p><p><a href="${resetUrl}">Reset your password</a></p><p>If you didn't request this, you can safely ignore this email — your password won't change.</p>`
+    ),
+    text: `Reset your password: ${resetUrl}\n\nThis link expires in 1 hour and can only be used once. If you didn't request this, ignore this email — your password won't change.`,
+  };
+}
+
 export function buildWelcomeEmail(name: string): EmailTemplate {
   return {
     subject: "Welcome to fx Bot Hub",

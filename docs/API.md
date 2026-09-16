@@ -42,6 +42,17 @@ reading source.
 - `POST /api/auth/register` — create a credentials account. Rate-limited
   (5/15min). As of Phase 5, sign-in itself (`authorize()` in
   `src/lib/auth.ts`) is also rate-limited, by both email and IP.
+- `POST /api/auth/forgot-password` — body `{ email }`. Rate-limited by
+  both email (3/15min) and IP (10/5min). Always returns the same generic
+  `{ message }` regardless of whether the email matched a resettable
+  account — never branch this response on that lookup (see CLAUDE.md's
+  "Authentication enhancement" section).
+- `POST /api/auth/reset-password` — body `{ token, password }`. Rate-
+  limited by IP (10/5min). `token` is the raw value from the emailed
+  link; an invalid, expired, or already-used token returns `400` with a
+  generic "invalid or has expired" message (this one *can* reveal
+  token validity, unlike forgot-password above, since the caller already
+  has to have the emailed link to reach this point).
 
 ## Products — `/api/products`
 

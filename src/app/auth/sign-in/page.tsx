@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn, getProviders } from "next-auth/react";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Button } from "@/components/ui/button";
 import { GoogleIcon } from "@/components/auth/google-icon";
 
@@ -83,12 +84,16 @@ export default function SignInPage() {
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="sign-in-password" className="text-sm font-medium text-slate-700">
-              Password
-            </label>
-            <Input
+            <div className="flex items-center justify-between">
+              <label htmlFor="sign-in-password" className="text-sm font-medium text-slate-700">
+                Password
+              </label>
+              <Link href="/auth/forgot-password" className="text-sm font-medium text-slate-500 hover:text-slate-900 hover:underline">
+                Forgot password?
+              </Link>
+            </div>
+            <PasswordInput
               id="sign-in-password"
-              type="password"
               placeholder="Your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}

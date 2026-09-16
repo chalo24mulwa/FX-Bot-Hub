@@ -8,9 +8,9 @@ test("a user can become a signal provider, publish a signal, and a buyer can sub
   const instrument = "EURUSD";
 
   await page.goto("/auth/sign-up");
-  await page.getByPlaceholder("Name").fill("E2E Signal Provider");
-  await page.getByPlaceholder("Email").fill(email);
-  await page.getByPlaceholder("Password").fill("password123");
+  await page.getByLabel("Name").fill("E2E Signal Provider");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill("password123");
   await page.getByRole("button", { name: "Sign up" }).click();
   await page.waitForURL(/\/auth\/sign-in$/);
 

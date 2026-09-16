@@ -68,8 +68,8 @@ test("cross-entity search API returns tagged results across products and news", 
 
 test("a rate-limited sign-in attempt with a wrong password still denies access without crashing", async ({ page }) => {
   await page.goto("/auth/sign-in");
-  await page.getByPlaceholder("Email").fill(E2E_BUYER);
-  await page.getByPlaceholder("Password").fill("definitely-wrong-password");
+  await page.getByLabel("Email").fill(E2E_BUYER);
+  await page.getByLabel("Password", { exact: true }).fill("definitely-wrong-password");
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/auth\/sign-in/);
 });

@@ -12,7 +12,7 @@ development; it already has working defaults for the Docker Compose stack.
 | `REDIS_URL` | No | `redis://localhost:6379` | Backs caching, rate limiting, and every BullMQ queue. The app degrades (not crashes) if unreachable — see `docs/OBSERVABILITY.md`. |
 | `AUTH_SECRET` | **Yes** | — | Auth.js session/JWT signing secret. Generate with `npx auth secret`. Rotating it invalidates every existing session. |
 | `NEXTAUTH_URL` | Recommended in prod | — | The app's own canonical URL. Auth.js needs this (with `trustHost: true`, already set in `src/lib/auth.ts`) for any deployment that isn't Vercel. |
-| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | No | unset | Google sign-in registers automatically only when **both** are set (see `src/lib/auth.ts`). Redirect URI to register in Google Cloud Console: `<your-url>/api/auth/callback/google`. |
+| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | No | unset | **Server-only — never exposed to the client.** Google sign-in registers automatically only when **both** are set (see `src/lib/auth.ts`), and the "Continue with Google" button on the sign-in/sign-up pages only renders when it's actually registered. Redirect URI to register in Google Cloud Console: `<your-url>/api/auth/callback/google`. A Google sign-in whose email matches an existing credentials account is safely linked to it (not duplicated) — see CLAUDE.md's "Authentication enhancement" section. |
 | `STORAGE_ENDPOINT` | No | unset (falls back to AWS default) | S3-compatible endpoint — set for MinIO/R2/DigitalOcean Spaces; leave unset for real AWS S3. |
 | `STORAGE_REGION` | No | `us-east-1` | |
 | `STORAGE_BUCKET` | No | `fx-bot-market` | |
