@@ -20,12 +20,25 @@ declare module "next-auth" {
   }
 }
 
+// "Stay signed in on this device until you sign out" — Auth.js's own
+// default (30 days, undocumented here before) already sets a real
+// `Expires` on the session cookie (not a browser-session-only cookie), so
+// closing/restarting the browser was never actually the problem; 30 days
+// of *inactivity* was. `updateAge` (unchanged, Auth.js's own 24h default)
+// re-issues the cookie with a fresh full `maxAge` window on every request
+// at least a day after the last one, so any user who opens the site at
+// least this often never sees that expiry — this makes that sliding
+// window a year instead, which for a marketplace (not a banking app)
+// comfortably reads as "logged in until I sign out" for real usage
+// patterns without literally never expiring an unattended device.
+const SESSION_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
+
 export const { handlers, auth, signIn, signOut, unstable_update: updateSession } = NextAuth({
   adapter: PrismaAdapter(db),
   // A Credentials provider forces JWT sessions (Auth.js cannot persist
   // credentials-based sessions via the DB adapter) — the adapter still
   // manages Users/Accounts, which is what makes Google sign-in below work.
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt", maxAge: SESSION_MAX_AGE_SECONDS },
   pages: { signIn: "/auth/sign-in" },
   // Required for self-hosted production deployments (Docker, behind a
   // reverse proxy — anything that isn't Vercel, which sets this

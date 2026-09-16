@@ -763,6 +763,20 @@ Extends the existing Auth.js setup (Credentials + Google, PrismaAdapter,
 JWT sessions — see "Architecture at a glance" above) — nothing here
 replaces it, and no user, password, or role was touched by any migration.
 
+- **Session lifetime** (`SESSION_MAX_AGE_SECONDS` in `src/lib/auth.ts`,
+  `session.maxAge`): explicitly set to 1 year, up from Auth.js's undeclared
+  30-day default. "Stay signed in until I sign out, even after closing the
+  browser" was already half-true before this — Auth.js's JWT-strategy
+  session cookie always carries a real `Expires` (verified directly against
+  `@auth/core`'s source: `cookieExpires = now + session.maxAge`, not a
+  browser-session-only cookie), and re-issues that cookie with a fresh full
+  window on any request past `updateAge` (unchanged, 24h) since the last
+  one — so closing/reopening the browser was never the gap. The 30-day
+  default was: a user who didn't open the site for 30+ consecutive days got
+  signed out. A year comfortably covers realistic usage without landing on
+  a literal never-expires cookie. Verified with a raw HTTP sign-in (`curl`,
+  bypassing the fact that `document.cookie` can't read this — it's
+  `HttpOnly`) showing `Expires` exactly one year out.
 - **Google account linking** (`signIn` callback in `src/lib/auth.ts`):
   Google was already a registered provider before this change (conditional
   on `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET`); what was missing was *safe*
