@@ -25,11 +25,16 @@ export function Header() {
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-6">
-        <Link href="/" className="shrink-0 text-lg font-bold tracking-tight text-slate-900">
-          FX{" "}
-          <span className="bg-gradient-to-r from-blue-600 via-teal-500 to-emerald-500 bg-clip-text text-transparent">
-            BOT
-          </span>{" "}
+        <Link
+          href="/"
+          className="group shrink-0 inline-flex items-center gap-1.5 text-lg font-bold tracking-tight text-slate-900"
+        >
+          <span className="inline-flex items-center rounded-md bg-gradient-to-br from-blue-600 via-violet-500 to-emerald-500 px-1.5 py-0.5 text-xs font-black italic text-white shadow-sm transition-transform group-hover:scale-105 motion-reduce:transition-none">
+            fx
+          </span>
+          <span className="bg-gradient-to-r from-indigo-600 via-violet-500 to-emerald-500 bg-clip-text italic text-transparent">
+            Bot
+          </span>
           <span className="text-amber-600">Hub</span>
         </Link>
 

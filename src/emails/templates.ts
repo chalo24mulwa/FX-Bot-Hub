@@ -8,15 +8,15 @@ const wrap = (title: string, bodyHtml: string) => `
   <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
     <h2>${title}</h2>
     ${bodyHtml}
-    <p style="color:#64748b;font-size:12px;margin-top:32px;">FX BOT Hub</p>
+    <p style="color:#64748b;font-size:12px;margin-top:32px;">fx Bot Hub</p>
   </div>
 `;
 
 export function buildWelcomeEmail(name: string): EmailTemplate {
   return {
-    subject: "Welcome to FX BOT Hub",
-    html: wrap("Welcome to FX BOT Hub", `<p>Hi ${name}, your account is ready. Browse the marketplace to find your first EA or indicator.</p>`),
-    text: `Hi ${name}, welcome to FX BOT Hub. Your account is ready.`,
+    subject: "Welcome to fx Bot Hub",
+    html: wrap("Welcome to fx Bot Hub", `<p>Hi ${name}, your account is ready. Browse the marketplace to find your first EA or indicator.</p>`),
+    text: `Hi ${name}, welcome to fx Bot Hub. Your account is ready.`,
   };
 }
 
@@ -38,7 +38,7 @@ export function buildProductRejectedEmail(productName: string, reason: string | 
 
 export function buildOrderPaidEmail(orderId: string, ordersUrl: string): EmailTemplate {
   return {
-    subject: "Your FX BOT Hub order is confirmed",
+    subject: "Your fx Bot Hub order is confirmed",
     html: wrap(
       "Order confirmed",
       `<p>Order #${orderId.slice(0, 8)} is paid. Your purchases are ready to download.</p><p><a href="${ordersUrl}">View your orders</a></p>`
@@ -82,7 +82,7 @@ export function buildDownloadAvailableEmail(productName: string, downloadUrl: st
 
 export function buildPaymentFailedEmail(orderId: string, retryUrl: string): EmailTemplate {
   return {
-    subject: "Your FX BOT Hub payment did not go through",
+    subject: "Your fx Bot Hub payment did not go through",
     html: wrap(
       "Payment failed",
       `<p>We couldn't process payment for order #${orderId.slice(0, 8)}. No charge was made.</p><p><a href="${retryUrl}">Try again</a></p>`

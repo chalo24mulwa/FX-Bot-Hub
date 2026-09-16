@@ -32,11 +32,13 @@ export default async function HomePage() {
     <main className="flex-1">
       <section className="border-b border-slate-200 bg-gradient-to-b from-slate-50 to-white">
         <div className="mx-auto max-w-6xl px-6 py-20 text-center">
-          <h1 className="text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
-            FX{" "}
-            <span className="bg-gradient-to-r from-blue-600 via-teal-500 to-emerald-500 bg-clip-text text-transparent">
-              BOT
-            </span>{" "}
+          <h1 className="inline-flex items-center justify-center gap-3 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
+            <span className="inline-flex items-center rounded-xl bg-gradient-to-br from-blue-600 via-violet-500 to-emerald-500 px-3 py-1 text-2xl font-black italic text-white shadow-md sm:text-3xl">
+              fx
+            </span>
+            <span className="bg-gradient-to-r from-indigo-600 via-violet-500 to-emerald-500 bg-clip-text italic text-transparent">
+              Bot
+            </span>
             <span className="text-amber-600">Hub</span>
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-600">

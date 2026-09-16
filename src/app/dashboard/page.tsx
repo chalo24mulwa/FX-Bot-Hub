@@ -45,7 +45,7 @@ export default async function DashboardPage() {
         <div className="mt-8 rounded-md border border-slate-200 bg-slate-50 p-4">
           <p className="font-medium text-slate-900">Have a trading tool to share?</p>
           <p className="mt-1 text-sm text-slate-600">
-            List EAs, indicators, signals, or tools on FX BOT Hub.
+            List EAs, indicators, signals, or tools on fx Bot Hub.
           </p>
           <Link href="/dashboard/become-seller" className={cn(buttonVariants({ size: "sm" }), "mt-3")}>
             Become a seller

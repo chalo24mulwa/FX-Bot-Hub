@@ -34,9 +34,9 @@ test("visiting the marketplace with a search query is tracked and browsing works
 
 test("the homepage renders correctly on a second load (cache hit path)", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "FX Bot Market" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "fx Bot Hub" })).toBeVisible();
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "FX Bot Market" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "fx Bot Hub" })).toBeVisible();
 });
 
 test("the calendar renders correctly on a second load (cache hit + Date revival path)", async ({ page }) => {

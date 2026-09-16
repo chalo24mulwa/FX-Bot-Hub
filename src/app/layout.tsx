@@ -19,13 +19,13 @@ const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: { default: "FX BOT Hub", template: "%s | FX BOT Hub" },
+  title: { default: "fx Bot Hub", template: "%s | fx Bot Hub" },
   description:
     "A marketplace for MT4/MT5 Expert Advisors, indicators, and trading signals, with an integrated economic calendar.",
   openGraph: {
     type: "website",
-    siteName: "FX BOT Hub",
-    title: "FX BOT Hub",
+    siteName: "fx Bot Hub",
+    title: "fx Bot Hub",
     description:
       "A marketplace for MT4/MT5 Expert Advisors, indicators, and trading signals.",
   },

@@ -24,7 +24,7 @@ export default async function LicensesPage() {
     <div>
       <h1 className="text-2xl font-semibold text-slate-900">Licenses</h1>
       <p className="mt-1 max-w-2xl text-sm text-slate-500">
-        Your license key is what an EA/indicator uses to verify itself against FX BOT Hub — keep it private,
+        Your license key is what an EA/indicator uses to verify itself against fx Bot Hub — keep it private,
         same as a password. Activation count tracks how many machines/terminals have used it.
       </p>
 

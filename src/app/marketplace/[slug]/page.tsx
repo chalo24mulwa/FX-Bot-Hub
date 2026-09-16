@@ -62,7 +62,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     "@type": "Product",
     name: product.name,
     description: product.shortSummary,
-    brand: { "@type": "Organization", name: product.seller.name ?? "FX BOT Hub seller" },
+    brand: { "@type": "Organization", name: product.seller.name ?? "fx Bot Hub seller" },
     aggregateRating: product.rating
       ? { "@type": "AggregateRating", ratingValue: product.rating.average, reviewCount: product.rating.count }
       : undefined,

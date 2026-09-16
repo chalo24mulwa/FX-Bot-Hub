@@ -2,7 +2,7 @@ export interface ChargeInput {
   orderId: string;
   amountCents: number;
   currency: string;
-  /** Buyer-facing description, e.g. "FX BOT Hub order #123". */
+  /** Buyer-facing description, e.g. "fx Bot Hub order #123". */
   description: string;
   customerEmail: string;
 }

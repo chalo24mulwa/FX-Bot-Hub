@@ -141,7 +141,7 @@ export async function checkoutCart(userId: string, userEmail: string, idempotenc
     orderId: order.id,
     amountCents: totalCents,
     currency,
-    description: `FX BOT Hub order #${order.id.slice(0, 8)}`,
+    description: `fx Bot Hub order #${order.id.slice(0, 8)}`,
     customerEmail: userEmail,
   });
 
