@@ -118,12 +118,35 @@ client needs them (see "Mobile app readiness" below).
 
 ## Calendar — `/api/calendar`
 
-- `GET /api/calendar` — public, filterable by `currency`/`from`/`to`,
-  capped at 200 rows. Note: the full-featured calendar UI
-  (`src/services/calendar/calendar-service.ts`'s `getEvents()`, with
-  impact/category/country filters and real pagination) is richer than
-  this route and is what the web app's own `/calendar` page actually
-  uses — this route is a simpler public read, not yet upgraded to match.
+All routes below share one query parser/response shape
+(`src/app/api/calendar/_shared.ts`) and read through the same
+`calendar-service.ts` the `/calendar` web pages use — none call an
+upstream provider directly, so a slow/down provider never slows these
+down. Every list response is `{ events: [...], pagination: {...} }` (or
+`{ events, total }` for `/upcoming` and `/date/[date]`); every event
+object includes the canonical UTC `eventTime` plus, when a `timezone`
+query param names one of the app's five supported zones (see
+`src/lib/calendar/timezone.ts`), a computed `local: { date, time }` in
+that zone.
+
+- `GET /api/calendar` / `GET /api/calendar/events` / `GET /api/calendar/range`
+  — identical contract: requires `from`/`to` (ISO dates), accepts repeated
+  `currency`/`country`/`impact`/`category` params, `page`/`pageSize`
+  (max 250), and `timezone`. Public, no auth required.
+- `GET /api/calendar/event/[id]` — a single event by its own id (not the
+  upstream provider's external id). 404 if not found. Accepts `timezone`.
+- `GET /api/calendar/upcoming?days=7` — events from now through `days`
+  ahead (max 30), same currency/impact/category filters, no `from`/`to`
+  needed. What the calendar page's client-side auto-refresh conceptually
+  mirrors (the page itself re-renders via `router.refresh()`, not this
+  route directly — see CLAUDE.md's "Calendar enhancement" section).
+- `GET /api/calendar/date/[date]` — every event on one UTC calendar day
+  (`date` is `YYYY-MM-DD`). For a viewer-local day instead, use `/range`
+  with an explicit `from`/`to` and `timezone`.
+
+All five are public GET reads — no session, no CSRF check (consistent with
+every other unauthenticated read endpoint in this app). A bad/missing
+`from`/`to` returns `400` with a message, never a raw Prisma/Zod error.
 
 ## News
 

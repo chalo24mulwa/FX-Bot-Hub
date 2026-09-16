@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTransition } from "react";
 import { cn } from "@/lib/utils";
+import { SUPPORTED_TIMEZONES, CALENDAR_TIMEZONE_COOKIE } from "@/lib/calendar/timezone";
 
 const PRESETS: { value: string; label: string }[] = [
   { value: "today", label: "Today" },
@@ -27,9 +28,11 @@ const CATEGORIES = [
 
 export function CalendarFilters({
   currencies,
+  timezone,
   savePreferencesAction,
 }: {
   currencies: string[];
+  timezone: string;
   savePreferencesAction?: (formData: FormData) => Promise<void>;
 }) {
   const router = useRouter();
@@ -46,6 +49,13 @@ export function CalendarFilters({
     const params = new URLSearchParams(searchParams.toString());
     mutate(params);
     startTransition(() => router.push(`${pathname}?${params.toString()}`));
+  }
+
+  function handleTimezoneChange(next: string) {
+    // 1 year: long enough that "change once, keep it" holds across normal
+    // browsing, short enough that a stale cookie can't outlive the app.
+    document.cookie = `${CALENDAR_TIMEZONE_COOKIE}=${next}; path=/; max-age=${365 * 86_400}; samesite=lax`;
+    updateParams((params) => params.set("tz", next));
   }
 
   function toggleMulti(key: string, value: string) {
@@ -80,6 +90,20 @@ export function CalendarFilters({
           })}
           className="rounded-full border border-slate-300 px-3 py-1 text-sm"
         />
+        <label className="ml-auto flex items-center gap-1.5 text-xs text-slate-500">
+          Timezone
+          <select
+            value={timezone}
+            onChange={(e) => handleTimezoneChange(e.target.value)}
+            className="rounded-full border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700"
+          >
+            {SUPPORTED_TIMEZONES.map((tz) => (
+              <option key={tz.id} value={tz.id}>
+                {tz.label}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <div className="flex flex-wrap items-start gap-6">
@@ -151,6 +175,7 @@ export function CalendarFilters({
           <input type="hidden" name="impacts" value={selectedImpacts.join(",")} />
           <input type="hidden" name="categories" value={selectedCategories.join(",")} />
           <input type="hidden" name="currencies" value={selectedCurrencies.join(",")} />
+          <input type="hidden" name="timezone" value={timezone} />
           <button type="submit" className="self-start text-xs text-blue-600 hover:underline">
             Save these filters as my default
           </button>

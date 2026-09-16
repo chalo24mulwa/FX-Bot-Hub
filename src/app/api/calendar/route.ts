@@ -1,23 +1,18 @@
-import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { NextRequest } from "next/server";
+import { parseCalendarQuery, respondWithEvents, respondWithError } from "./_shared";
 
-// Phase 1: reads events seeded/synced into economic_events. Phase 2 can add
-// a BullMQ job (see src/lib/queue/queues.ts -> calendarSyncQueue) that pulls
-// from a real provider and upserts by externalId.
+// GET /api/calendar?from=...&to=...&currency=USD&impact=HIGH — the base
+// calendar read endpoint (spec section 9). Same handler as
+// /api/calendar/events; kept as two paths because the spec names both.
+// Never calls a provider directly — always reads through calendar-service,
+// which is Postgres-only and paginated (see CLAUDE.md's "the app's only
+// read path for calendar data" note) — so this stays fast and available
+// even if an upstream provider is down.
 export async function GET(request: NextRequest) {
-  const params = request.nextUrl.searchParams;
-  const currency = params.get("currency") ?? undefined;
-  const from = params.get("from") ? new Date(params.get("from")!) : undefined;
-  const to = params.get("to") ? new Date(params.get("to")!) : undefined;
-
-  const events = await db.economicEvent.findMany({
-    where: {
-      currency,
-      eventTime: { gte: from, lte: to },
-    },
-    orderBy: { eventTime: "asc" },
-    take: 200,
-  });
-
-  return NextResponse.json({ events });
+  try {
+    const { query, timezone } = parseCalendarQuery(request);
+    return await respondWithEvents(query, timezone);
+  } catch (err) {
+    return respondWithError(err);
+  }
 }

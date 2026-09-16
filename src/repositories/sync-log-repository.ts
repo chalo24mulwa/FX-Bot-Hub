@@ -8,7 +8,14 @@ export async function startSyncLog(jobName: string) {
 export async function finishSyncLog(
   id: string,
   status: SyncStatus,
-  input: { itemsProcessed?: number; itemsFailed?: number; error?: string }
+  input: {
+    itemsProcessed?: number;
+    itemsFailed?: number;
+    itemsInserted?: number;
+    itemsUpdated?: number;
+    itemsCancelled?: number;
+    error?: string;
+  }
 ) {
   return db.syncLog.update({
     where: { id },

@@ -33,7 +33,7 @@ const envSchema = z.object({
 
   EMAIL_PROVIDER: z.enum(["console", "resend"]).default("console"),
   RESEND_API_KEY: z.string().optional(),
-  EMAIL_FROM: z.string().default("FX BOT Hub <no-reply@fxbotmarket.local>"),
+  EMAIL_FROM: z.string().default("fx Bot Hub <no-reply@fxbotmarket.local>"),
 
   PAYMENT_PROVIDER: z.enum(["manual", "stripe", "mpesa"]).default("manual"),
   STRIPE_SECRET_KEY: z.string().optional(),
@@ -42,6 +42,36 @@ const envSchema = z.object({
   MPESA_CONSUMER_SECRET: z.string().optional(),
   MPESA_SHORTCODE: z.string().optional(),
   MPESA_PASSKEY: z.string().optional(),
+
+  // Economic calendar data pipeline. "manual" (default) needs no
+  // credentials — admins enter/correct events directly at /admin/calendar.
+  // "authorized" activates AuthorizedCalendarProvider (src/services/
+  // calendar/providers/authorized-provider.ts), which calls a licensed
+  // economic-calendar API (Trading Economics' Calendar endpoint by
+  // default — see that file's doc comment) and requires the API_KEY below.
+  // Never scrape Forex Factory or any other site for this data — see
+  // CLAUDE.md's data-sourcing rule.
+  ECONOMIC_CALENDAR_PROVIDER: z.enum(["manual", "authorized"]).default("manual"),
+  // Server-only. Never read this from a Client Component or expose it in
+  // an API response — see src/services/calendar/providers/authorized-provider.ts.
+  ECONOMIC_CALENDAR_API_KEY: z.string().optional(),
+  ECONOMIC_CALENDAR_API_URL: z.string().url().default("https://api.tradingeconomics.com"),
+  // How far ahead/behind "now" each calendarSync run pulls — see
+  // src/services/calendar/sync-service.ts's SYNC window comment. Kept
+  // narrow by default so a sync pass stays a single bounded API call, not
+  // a full-history backfill.
+  ECONOMIC_CALENDAR_SYNC_UPCOMING_DAYS: z.coerce.number().int().min(1).max(90).default(30),
+  ECONOMIC_CALENDAR_SYNC_RECENT_DAYS: z.coerce.number().int().min(0).max(30).default(3),
+  // Informational only — there is no in-process scheduler (see CLAUDE.md's
+  // established "external cron calls a trigger script" model). This is
+  // what an external cron/scheduler SHOULD be configured to, and is used
+  // only to compute the "next sync" estimate shown at /admin/data-sources.
+  ECONOMIC_CALENDAR_SYNC_INTERVAL_MINUTES: z.coerce.number().int().min(5).default(60),
+  // Level 2 refresh: how often the calendar page's client-side auto-refresh
+  // re-fetches (src/components/calendar/calendar-auto-refresh.tsx). 0
+  // disables it. Read server-side and passed down as a prop — no need for
+  // a NEXT_PUBLIC_ var since nothing in the browser reads process.env here.
+  ECONOMIC_CALENDAR_POLL_INTERVAL_SECONDS: z.coerce.number().int().min(0).default(60),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -663,10 +663,119 @@ repeating them.
   Deliberately minimal (not a full job browser/retry UI — that's a Bull
   Board integration, flagged as a follow-up).
 
+## Calendar enhancement: automatic sync pipeline, revisions, timezones
+
+Extends Phase 3's calendar (provider abstraction, `EconomicCalendarService`,
+`runCalendarSync`) rather than replacing it — every file below is either new
+or an additive change to an existing one; no calendar data or working
+behavior was removed.
+
+- **`AuthorizedCalendarProvider`** (`src/services/calendar/providers/
+  authorized-provider.ts`) replaces the old `LicensedFeedCalendarProvider`
+  stub — this is a real, working integration against Trading Economics'
+  Calendar API (a licensed, documented commercial provider — **never Forex
+  Factory**, per the ground rule at the top of this file), gated on
+  `ECONOMIC_CALENDAR_API_KEY`. Its pure request/response mapping (Zod
+  validation, impact/category/status mapping) lives in the sibling
+  `authorized-provider-mapping.ts` specifically so it stays unit-testable
+  with no `@/lib/env` dependency — importing `@/lib/env` anywhere eagerly
+  parses `process.env` (see that file), which would otherwise force every
+  test of this pure logic to also stub `DATABASE_URL`/`AUTH_SECRET`. The
+  registry key changed from `licensed-feed` to `authorized` (nothing had
+  seeded a `DataSource` row under the old key, so this was a safe rename —
+  see `prisma/seed.ts`, which now seeds a **disabled** `authorized` row).
+  HTTP calls retry transient failures with exponential backoff
+  (`fetchWithRetry`, 3 attempts) independent of BullMQ's own job-level
+  retry (`SYNC_JOB_OPTIONS`) — the former covers one flaky response inside
+  a single job attempt, the latter covers the whole job failing outright.
+  **Not yet exercised against a live Trading Economics account** — no real
+  API key exists in this environment; it's validated against the
+  documented response shape and a mocked HTTP layer instead (see that
+  file's own doc comment and Testing below).
+- **Revision tracking**: `EconomicEventRevision` (new model, migration
+  `20260916004253_calendar_enhancement_pipeline`) logs one row per changed
+  field per sync pass — computed by the pure `detectFieldChanges()`
+  (`src/services/calendar/revision-detection.ts`, unit-tested), which also
+  decides when to populate the new `EconomicEvent.revisedPrevious` column
+  (only on a genuine revision of an already-reported `previous` value, not
+  the first time it's populated). `getEventRevisionHistory()`
+  (calendar-service.ts) is the read path; the event detail page shows it as
+  an "Update history" section.
+- **Cancellation, not deletion**: a `SCHEDULED` event (never
+  `RELEASED` — see `EconomicEventStatus`) that a provider stops returning
+  within the still-future part of the sync window is marked `CANCELLED`,
+  never deleted — `detectDisappearedEvents()` (pure, unit-tested) computes
+  the set difference. A `RELEASED` event rolling out of the window is
+  normal (it already happened) and is correctly left alone — don't
+  "fix" this into cancelling released events too; it was deliberately
+  verified both ways (see Testing below).
+- **Sync window** (`getSyncWindow()` in `sync-service.ts`) is one
+  contiguous range — `ECONOMIC_CALENDAR_SYNC_RECENT_DAYS` behind "now"
+  through `ECONOMIC_CALENDAR_SYNC_UPCOMING_DAYS` ahead — not two separate
+  provider calls, so a sync pass stays one bounded request per source.
+  `runCalendarSync()` now returns a richer `CalendarSyncResult` (inserted/
+  updated/cancelled/revisions, on top of the shared minimal `SyncResult`
+  that `newsSync`/`marketDataSync` also return — don't widen the shared
+  `SyncResult` itself, extend it, or those two jobs' return types break).
+  `SyncLog` gained `itemsInserted`/`itemsUpdated`/`itemsCancelled` columns
+  (migration `20260916005508_sync_log_breakdown_counts`) so
+  `/admin/data-sources`' new calendar status panel can show real
+  per-run counts, not just a processed/failed total.
+- **Timezone display** (`src/lib/calendar/timezone.ts`) uses the
+  platform's own `Intl.DateTimeFormat` — deliberately **not** a new
+  date-fns-tz/luxon dependency — for both formatting an instant in a zone
+  and resolving that zone's current UTC offset (DST-correct, never a
+  manually-added offset). Calendar defaults to `Africa/Nairobi`; the
+  picker persists via a `calendar_tz` cookie for everyone and additionally
+  to signed-in users' `CalendarPreference.timezone` via the existing "save
+  as default" action. `CalendarTable`'s "Time (UTC)" column is gone —
+  every caller now passes an explicit `timezone` prop (the two SEO
+  per-currency/per-week pages pass the site default; the main `/calendar`
+  page resolves the viewer's choice).
+- **Two-level refresh**: level 1 is `runCalendarSync()` itself (via the
+  existing `calendarSyncQueue`/worker — an admin can also trigger one
+  on-demand with a new "Run calendar sync now" button at
+  `/admin/data-sources`, `triggerCalendarSyncAction()`). Level 2 is
+  `CalendarAutoRefresh` (`src/components/calendar/calendar-auto-refresh.tsx`),
+  a client component that calls Next's `router.refresh()` on an interval
+  (`ECONOMIC_CALENDAR_POLL_INTERVAL_SECONDS`, default 60s, `0` disables
+  it) — this re-runs the calendar page's server components and patches
+  only the changed RSC payload, no full browser reload, no hand-rolled
+  client-side fetch/re-render. `CalendarUpdateEvent`
+  (`src/services/calendar/realtime.ts`) is an inert typed shape for a
+  future push transport (SSE/WebSocket) — nothing produces or consumes it
+  today; polling is sufficient at this scale, per the enhancement's own
+  brief not to add that complexity yet.
+- **New `/api/calendar/*` routes** (`events`, `event/[id]`, `upcoming`,
+  `date/[date]`, `range`, plus the pre-existing base `/api/calendar`
+  upgraded to the same contract) all go through one shared parser/
+  responder (`src/app/api/calendar/_shared.ts`) — a `from`/`to` range is
+  validated with Zod, never handed to Postgres unchecked. None of these
+  call a provider directly; they're the same Postgres-only read path
+  (`calendar-service.ts`) the pages use, so a slow/down upstream provider
+  can never make one of these requests slow. An optional `timezone` query
+  param adds a computed `local: {date, time}` field per event without
+  changing the canonical UTC `eventTime`.
+
 ## Testing
 
 - `npm run test` (Vitest) — pure-logic unit tests only (authorization matrix,
   upload validation, ranking score math). Nothing here touches Postgres/Redis.
+  The calendar enhancement's pure logic follows this exactly —
+  `revision-detection.test.ts` and `authorized-provider-mapping.test.ts`
+  cover field-diffing, revision recording decisions, disappearance
+  detection, Zod validation/rejection, and impact/category/currency
+  mapping, all with no DB or network access. **The full sync pipeline
+  against a real database** (insert, revision + `revisedPrevious`,
+  duplicate prevention on a no-op re-sync, cancellation vs. a `RELEASED`
+  event correctly staying untouched, and provider-failure data
+  preservation with real retry/backoff) was verified once, end-to-end,
+  with a one-off script that mocked `global.fetch` and ran
+  `runCalendarSync()` against this environment's real Postgres — not
+  committed (per the "nothing here touches Postgres" rule above), and not
+  yet run against a live Trading Economics account (no real API key
+  exists here). Re-verify against a real key/sandbox before flipping
+  `ECONOMIC_CALENDAR_PROVIDER=authorized` in production.
 - `npm run test:e2e` (Playwright) — **always validates against a production
   build** (`playwright.config.ts`'s `webServer` runs `npm run build && npm run
   start`), not `next dev`. This matters: the `trustHost` bug above only
@@ -802,3 +911,33 @@ repeating them.
   environment separation — see `docs/DEPLOYMENT.md` for what exists today
   and what adding either would need. Not fabricated here since there's no
   real target hosting provider configured in this project.
+- `AuthorizedCalendarProvider` (calendar enhancement) has never made a
+  request against a live Trading Economics account — this environment has
+  no real `ECONOMIC_CALENDAR_API_KEY`. It's validated against the
+  documented response shape, unit-tested with mocked data, and exercised
+  end-to-end (insert/revision/dedup/cancellation/failure) against a real
+  Postgres database with a mocked HTTP layer — see "Testing" above. Get a
+  real key and re-verify before enabling it in production.
+- `AuthorizedCalendarProvider.getHistoricalData()` is a best-effort
+  client-side filter over a bounded 2-year window, not a confirmed
+  provider-native historical-lookup endpoint (Trading Economics keys
+  history by country/indicator, not currency/title the way this app's
+  `CalendarProvider` interface asks for it) — see that method's own doc
+  comment. Firm up once a real account confirms the actual endpoint shape.
+- There is no in-process scheduler for `calendarSync` (same external-cron
+  model as the rest of the sync jobs — see "Phase 3" above); "next sync" on
+  `/admin/data-sources` is only an estimate based on
+  `ECONOMIC_CALENDAR_SYNC_INTERVAL_MINUTES`, not a guarantee. Use the new
+  "Run calendar sync now" button for an immediate sync instead of waiting.
+- The calendar's timezone picker (`/calendar`) persists via a cookie and,
+  for signed-in users, `CalendarPreference.timezone` — but the page
+  doesn't yet read a signed-in user's *other* saved preferences
+  (currencies/impacts/categories) back on load either; the "save as
+  default" action has always been write-only (see the `CalendarPreference`
+  model comment). Timezone follows that same pre-existing pattern rather
+  than fixing it — a broader fix is a separate, deliberate change.
+- `CalendarUpdateEvent` (`src/services/calendar/realtime.ts`) is an inert
+  type with no producer or transport — see the "Two-level refresh" note
+  above. Wiring an actual SSE/WebSocket layer to it is future work, not
+  started here, per the enhancement's own brief not to add that complexity
+  until polling stops being sufficient.

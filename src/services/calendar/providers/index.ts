@@ -1,6 +1,6 @@
 import type { CalendarProvider } from "./types";
 import { ManualCalendarProvider } from "./manual-provider";
-import { LicensedFeedCalendarProvider } from "./licensed-feed-provider";
+import { AuthorizedCalendarProvider } from "./authorized-provider";
 
 export type { CalendarProvider, CalendarEventInput } from "./types";
 
@@ -10,7 +10,7 @@ export type { CalendarProvider, CalendarEventInput } from "./types";
 // sync/admin code itself.
 const CALENDAR_PROVIDERS: Record<string, CalendarProvider> = {
   manual: new ManualCalendarProvider(),
-  "licensed-feed": new LicensedFeedCalendarProvider(),
+  authorized: new AuthorizedCalendarProvider(),
 };
 
 export function getCalendarProvider(key: string): CalendarProvider | undefined {

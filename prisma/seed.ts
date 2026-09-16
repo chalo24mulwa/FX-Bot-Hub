@@ -154,6 +154,16 @@ async function main() {
       update: {},
       create: { name: "Manual news", kind: "NEWS", providerKey: "manual", enabled: true },
     }),
+    // Calendar-pipeline enhancement: seeded disabled — an admin flips it on
+    // at /admin/data-sources once a real ECONOMIC_CALENDAR_API_KEY is set
+    // (see AuthorizedCalendarProvider's doc comment). Seeding it at all
+    // means the row — and the "Run calendar sync now" flow — is visible
+    // and testable before any real credentials exist.
+    db.dataSource.upsert({
+      where: { kind_providerKey: { kind: "CALENDAR", providerKey: "authorized" } },
+      update: {},
+      create: { name: "Authorized calendar feed", kind: "CALENDAR", providerKey: "authorized", enabled: false },
+    }),
   ]);
 
   const centralBanks = await db.newsCategory.upsert({

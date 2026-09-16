@@ -46,12 +46,23 @@ against a real production build. Full rationale in CLAUDE.md.
   management, and Phase 4's finance dashboard, refunds, payouts, licenses,
   and security-event log.
 - **Economic calendar** (`/calendar`): Today/Tomorrow/This Week/Next Week/
-  custom-date presets, filters by currency/country/impact/category
-  (saveable as a signed-in user's default), per-currency (`/calendar/[currency]`)
-  and per-event (`/calendar/event/[id]`) pages with historical observations
-  and an event/currency alert subscribe button. Backed by a swappable
-  provider architecture (`manual` today, a `licensed-feed` stub for later)
-  synced via a BullMQ job — see CLAUDE.md's "Phase 3" section.
+  custom-date presets, filters by currency/country/impact/category, and a
+  timezone picker (UTC/Nairobi/London/New York/Tokyo, defaulting to
+  Africa/Nairobi — saveable as a signed-in user's default alongside the
+  other filters), per-currency (`/calendar/[currency]`) and per-event
+  (`/calendar/event/[id]`) pages with historical observations, an "Update
+  history" of every provider revision, and an event/currency alert
+  subscribe button. Backed by a swappable provider architecture (`manual`,
+  and a real `AuthorizedCalendarProvider` integration against a licensed
+  feed — Trading Economics by default) synced via a BullMQ job that
+  detects and logs forecast/previous/actual revisions and marks
+  disappeared-but-still-upcoming events cancelled rather than deleting
+  anything; a `/admin/data-sources` panel shows sync status and can
+  trigger a sync on demand. The calendar page also auto-refreshes
+  client-side without a full reload. A matching `/api/calendar/*` REST
+  surface (`events`, `event/[id]`, `upcoming`, `date/[date]`, `range`)
+  serves the same data for external/mobile use — see CLAUDE.md's "Phase 3"
+  and "Calendar enhancement" sections.
 - **Forex news** (`/news`): source-attributed summaries (never full-article
   copies), filterable by category/breaking, with a per-category alert
   subscribe button on each article.

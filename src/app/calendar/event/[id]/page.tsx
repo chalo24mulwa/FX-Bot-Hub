@@ -1,10 +1,18 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getEvent, getHistoricalData } from "@/services/calendar/calendar-service";
+import { getEvent, getHistoricalData, getEventRevisionHistory } from "@/services/calendar/calendar-service";
+import { resolveTimezone, formatInTimezone, CALENDAR_TIMEZONE_COOKIE, SUPPORTED_TIMEZONES } from "@/lib/calendar/timezone";
 import { Badge } from "@/components/ui/badge";
 import { AlertSubscribeButton } from "@/components/alerts/alert-subscribe-button";
+
+const STATUS_STYLES: Record<string, string> = {
+  CANCELLED: "bg-slate-100 text-slate-500 border-slate-300 line-through",
+  POSTPONED: "bg-amber-50 text-amber-700 border-amber-200",
+  RELEASED: "bg-emerald-50 text-emerald-700 border-emerald-200",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -24,11 +32,16 @@ export async function generateMetadata({ params }: EventDetailPageProps): Promis
 
 export default async function EventDetailPage({ params }: EventDetailPageProps) {
   const { id } = await params;
-  const [event, session] = await Promise.all([getEvent(id), auth()]);
+  const [event, session, cookieStore] = await Promise.all([getEvent(id), auth(), cookies()]);
   if (!event) notFound();
 
-  const [history, isSubscribedToEvent, isSubscribedToCurrency] = await Promise.all([
+  const timezone = resolveTimezone(cookieStore.get(CALENDAR_TIMEZONE_COOKIE)?.value);
+  const tzLabel = SUPPORTED_TIMEZONES.find((tz) => tz.id === timezone)?.label ?? timezone;
+  const { date, time } = formatInTimezone(event.eventTime, timezone);
+
+  const [history, revisions, isSubscribedToEvent, isSubscribedToCurrency] = await Promise.all([
     getHistoricalData(event.currency, event.title),
+    getEventRevisionHistory(event.id),
     session?.user ? db.alert.findUnique({ where: { userId_type_targetId: { userId: session.user.id, type: "ECONOMIC_EVENT", targetId: event.id } } }).then(Boolean) : Promise.resolve(false),
     session?.user ? db.alert.findUnique({ where: { userId_type_targetId: { userId: session.user.id, type: "CURRENCY", targetId: event.currency } } }).then(Boolean) : Promise.resolve(false),
   ]);
@@ -47,9 +60,12 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
         <Badge>{event.currency}</Badge>
         <Badge>{event.impact}</Badge>
         <Badge>{event.category.replace("_", " ")}</Badge>
+        {event.status !== "SCHEDULED" && <Badge className={STATUS_STYLES[event.status]}>{event.status}</Badge>}
       </div>
       <p className="mt-1 text-sm text-slate-500">
-        {event.country} · {event.eventTime.toISOString().replace("T", " ").slice(0, 16)} UTC
+        {event.country} · {date} {time} ({tzLabel})
+        {event.unit && ` · Unit: ${event.unit}`}
+        {event.frequency && ` · ${event.frequency}`}
       </p>
 
       {event.description && <p className="mt-4 text-slate-700">{event.description}</p>}
@@ -66,8 +82,19 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
         <div>
           <p className="text-xs text-slate-400">Previous</p>
           <p className="text-lg font-semibold text-slate-900">{event.previous ?? "–"}</p>
+          {event.revisedPrevious && (
+            <p className="mt-0.5 text-xs text-amber-600">Revised from {event.revisedPrevious}</p>
+          )}
         </div>
       </div>
+
+      {event.sourceUrl && (
+        <p className="mt-3 text-xs text-slate-400">
+          <a href={event.sourceUrl} target="_blank" rel="noopener noreferrer nofollow" className="text-blue-600 hover:underline">
+            View this release at the source
+          </a>
+        </p>
+      )}
 
       {session?.user && (
         <div className="mt-6 flex flex-wrap gap-2">
@@ -114,6 +141,25 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
         )}
       </section>
 
+      {revisions.length > 0 && (
+        <section className="mt-10">
+          <h2 className="text-lg font-semibold text-slate-900">Update history</h2>
+          <ul className="mt-3 space-y-1.5 text-sm text-slate-600">
+            {revisions.map((r) => (
+              <li key={r.id} className="flex flex-wrap items-baseline gap-x-1.5">
+                <span className="text-xs text-slate-400">{r.changedAt.toLocaleString()}</span>
+                <span>
+                  <span className="font-medium text-slate-700">{r.fieldChanged}</span>
+                  {" changed "}
+                  {r.oldValue !== null && <>from <span className="font-medium">{r.oldValue}</span> </>}
+                  to <span className="font-medium">{r.newValue ?? "–"}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <section className="mt-8">
         <h2 className="text-sm font-semibold text-slate-900">Related instruments</h2>
         <div className="mt-2 flex flex-wrap gap-1.5">
@@ -124,7 +170,7 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
       </section>
 
       <section className="mt-8 text-xs text-slate-400">
-        <p>Source: {event.source === "manual" ? "FX BOT Hub editorial team" : event.source}</p>
+        <p>Source: {event.source === "manual" ? "fx Bot Hub editorial team" : event.source}</p>
         <p className="mt-2 max-w-xl">
           Economic events can affect markets but do not guarantee a particular market movement. This
           information is provided for reference only and is not trading advice.

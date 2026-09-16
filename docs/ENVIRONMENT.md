@@ -23,10 +23,17 @@ development; it already has working defaults for the Docker Compose stack.
 | `NEXT_PUBLIC_APP_URL` | Recommended | `http://localhost:3000` | Used to build absolute URLs in the sitemap, emails, and Open Graph tags. |
 | `EMAIL_PROVIDER` | No | `console` | `console` logs instead of sending — fine for local dev, **must** be `resend` (or a future real provider) in production or no emails are actually delivered. |
 | `RESEND_API_KEY` | Required if `EMAIL_PROVIDER=resend` | unset | |
-| `EMAIL_FROM` | No | `FX Bot Market <no-reply@fxbotmarket.local>` | Must be a verified sending domain/address with your email provider in production. |
+| `EMAIL_FROM` | No | `fx Bot Hub <no-reply@fxbotmarket.local>` | Must be a verified sending domain/address with your email provider in production. |
 | `PAYMENT_PROVIDER` | No | `manual` | **`manual` must never be set in production** — it marks every order paid instantly with no real charge. See the PRODUCTION REQUIREMENT note in `CLAUDE.md` and the Phase 5 hard-stop on `/api/payments/webhook` when this is misconfigured. Switch to `stripe` or `mpesa` once one is actually implemented (currently typed stubs — see `src/lib/payments/`). |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Required once Stripe is implemented | unset | Not yet wired to a real Stripe integration — see `src/lib/payments/stripe-provider.ts`. |
 | `MPESA_CONSUMER_KEY` / `MPESA_CONSUMER_SECRET` / `MPESA_SHORTCODE` / `MPESA_PASSKEY` | Required once M-Pesa is implemented | unset | Not yet wired to a real Safaricom Daraja integration — see `src/lib/payments/mpesa-provider.ts`. Per product direction, prefer M-Pesa Till / a direct bank-linking integration over Stripe for this market when this is built out. |
+| `ECONOMIC_CALENDAR_PROVIDER` | No | `manual` | `manual` needs no credentials (admins enter events at `/admin/calendar`). Switch to `authorized` — and enable the `authorized` DataSource row at `/admin/data-sources` — only once `ECONOMIC_CALENDAR_API_KEY` is a real, licensed key. |
+| `ECONOMIC_CALENDAR_API_KEY` | Required once `ECONOMIC_CALENDAR_PROVIDER=authorized` | unset | **Server-only — never exposed to the browser, a Client Component, or any API response.** See `src/services/calendar/providers/authorized-provider.ts`. |
+| `ECONOMIC_CALENDAR_API_URL` | No | `https://api.tradingeconomics.com` | The licensed calendar API's base URL. Only Trading Economics' documented response shape is currently mapped (`RawEventSchema` in `authorized-provider.ts`) — pointing this at a different provider means updating that mapping too. |
+| `ECONOMIC_CALENDAR_SYNC_UPCOMING_DAYS` | No | `30` | How many days ahead of "now" each `calendarSync` run requests. |
+| `ECONOMIC_CALENDAR_SYNC_RECENT_DAYS` | No | `3` | How many days behind "now" each `calendarSync` run requests — catches actual/previous revisions on events that already released. |
+| `ECONOMIC_CALENDAR_SYNC_INTERVAL_MINUTES` | No | `60` | **Informational only** — there is no in-process scheduler (see `CLAUDE.md`'s established external-cron model). This is what your cron/scheduler should be set to; used only to estimate "next sync" at `/admin/data-sources`. |
+| `ECONOMIC_CALENDAR_POLL_INTERVAL_SECONDS` | No | `60` | How often the calendar page's client-side auto-refresh re-fetches without a full reload. `0` disables it. |
 
 ## Secrets checklist before a production deploy
 
@@ -34,6 +41,7 @@ development; it already has working defaults for the Docker Compose stack.
 - [ ] `DATABASE_URL` points at the production database, uses a non-superuser role, and is not logged anywhere (see `docs/SECURITY.md`).
 - [ ] `PAYMENT_PROVIDER` is **not** `manual`.
 - [ ] `EMAIL_PROVIDER` is **not** `console`.
+- [ ] If the economic calendar must show real data, `ECONOMIC_CALENDAR_PROVIDER=authorized`, `ECONOMIC_CALENDAR_API_KEY` is a real licensed key, and the `authorized` DataSource row is enabled at `/admin/data-sources` — otherwise the calendar stays admin-managed only (`manual`), which is a legitimate choice, not a bug.
 - [ ] `RATE_LIMIT_DISABLED` is unset or `false`.
 - [ ] `NEXT_PUBLIC_*` variables contain nothing sensitive — anything in them ships to every visitor's browser.
 - [ ] Secrets are injected via your platform's secret manager (see `docs/BACKUP.md`'s "Secret management" section), not baked into a committed `.env` file or a Docker image layer.

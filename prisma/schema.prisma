@@ -942,6 +942,20 @@ enum EventCategory {
   OTHER
 }
 
+// Calendar-enhancement phase: a provider-fed event's lifecycle.
+// SCHEDULED -> RELEASED once `actual` is populated by a sync; a provider
+// can instead move it to CANCELLED/POSTPONED (see sync-service's
+// `detectStatusTransition`) rather than the row ever being deleted — see
+// the "provider failure" note on EconomicEvent below. Manual events start
+// and stay SCHEDULED/RELEASED at the admin's discretion; nothing
+// auto-cancels a manually-entered row.
+enum EconomicEventStatus {
+  SCHEDULED
+  RELEASED
+  CANCELLED
+  POSTPONED
+}
+
 model EconomicEvent {
   id          String        @id @default(cuid())
   externalId  String?       @unique // id from upstream data provider, for de-duplication on sync
@@ -954,19 +968,60 @@ model EconomicEvent {
   actual      String?
   forecast    String?
   previous    String?
+  // The value `previous` held immediately before a provider revision
+  // overwrote it (e.g. last month's CPI print gets revised from 2.9% to
+  // 3.0% alongside this month's release) — set by the sync job, never by
+  // ManualProvider. Kept alongside `previous` (which always holds the
+  // latest value) so the UI can show "Revised from X" instead of silently
+  // swapping the number. See EconomicEventRevision for the full change log.
+  revisedPrevious String?
+  unit            String? // e.g. "%", "K", "B USD" — provider-reported, display-only
+  frequency       String? // e.g. "Monthly", "Quarterly" — provider-reported, display-only
+  status          EconomicEventStatus @default(SCHEDULED)
+  // Deep link to the provider's own page for this release, for attribution
+  // — required by most licensed-feed terms of use. Null for manual events.
+  sourceUrl       String?
+  // Last time a sync job touched this row (insert or update) — distinct
+  // from `updatedAt`, which also changes on an admin's manual edit. Used
+  // by the admin calendar dashboard to show per-event staleness and by
+  // ops to confirm a sync actually reached a given row.
+  lastSyncedAt    DateTime?
   // Free-text context shown on the event detail page — not a data feed
   // field, filled in by whoever creates/edits the event (ManualProvider
   // today; an admin editing the row later).
   description String?       @db.Text
-  source      String // e.g. "manual", "provider:xyz" — matches DataSource.providerKey
+  source      String // e.g. "manual", "authorized" — matches DataSource.providerKey
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+
+  revisions EconomicEventRevision[]
 
   @@index([eventTime])
   @@index([currency, eventTime])
   @@index([impact, eventTime])
   @@index([category, eventTime])
+  @@index([status, eventTime])
+  @@index([lastSyncedAt])
   @@map("economic_events")
+}
+
+// Append-only audit trail of what a sync (or an admin edit) changed on an
+// EconomicEvent — one row per changed field per sync pass, not one row per
+// sync. Powers the "Updated"/"Revised" badge on the calendar UI without
+// requiring the frontend to diff two snapshots itself.
+model EconomicEventRevision {
+  id           String   @id @default(cuid())
+  eventId      String
+  fieldChanged String // "forecast" | "previous" | "actual" | "eventTime" | "impact" | "status" | ...
+  oldValue     String?
+  newValue     String?
+  changedAt    DateTime @default(now())
+  provider     String // matches EconomicEvent.source at the time of the change
+
+  event EconomicEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, changedAt])
+  @@map("economic_event_revisions")
 }
 
 // Per-user saved calendar filter preferences (currencies/countries/impacts/
@@ -980,6 +1035,11 @@ model CalendarPreference {
   countries  String[]        @default([])
   impacts    EventImpact[]   @default([])
   categories EventCategory[] @default([])
+  // IANA zone id (e.g. "Africa/Nairobi"). Null means "use the site
+  // default" (Africa/Nairobi — see src/lib/calendar/timezone.ts) rather
+  // than duplicating that default here, so changing the site default
+  // doesn't require a data migration across every saved preference row.
+  timezone   String?
   updatedAt  DateTime        @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1219,6 +1279,13 @@ model SyncLog {
   finishedAt     DateTime?
   itemsProcessed Int?
   itemsFailed    Int        @default(0)
+  // Calendar-sync breakdown of itemsProcessed — null for jobs that don't
+  // report this level of detail (e.g. newsSync/marketDataSync still only
+  // set itemsProcessed/itemsFailed). Powers the admin calendar dashboard's
+  // "inserted / updated / cancelled" counts (spec section 15).
+  itemsInserted  Int?
+  itemsUpdated   Int?
+  itemsCancelled Int?
   error          String?    @db.Text
 
   @@index([jobName, startedAt])

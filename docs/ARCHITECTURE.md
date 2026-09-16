@@ -106,7 +106,8 @@ configured" rather than silently doing nothing:
 | Storage | `StorageProvider` (`src/lib/storage/`) | any S3-compatible service | — |
 | Email | `EmailProvider` (`src/lib/email/`) | `console` (dev) | `resend` (real) |
 | Search | `SearchService` (`src/lib/search/`) | Postgres full-text + trigram | — (OpenSearch/Elasticsearch swap point) |
-| Calendar/news data | `CalendarProvider`/`NewsProvider` (`src/services/calendar/providers/`, `src/services/news/providers/`) | `manual` | `licensed-feed` |
+| Calendar data | `CalendarProvider` (`src/services/calendar/providers/`) | `manual` | `authorized` (real integration, no live key in this environment — see CLAUDE.md's "Calendar enhancement" section) |
+| News data | `NewsProvider` (`src/services/news/providers/`) | `manual` | `licensed-feed` (stub) |
 | AI | `AIProvider` (`src/lib/ai/`) | — | `noop` (everything throws "not configured") |
 
 Adding a real implementation for any of these means writing a new class

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getEvents } from "@/services/calendar/calendar-service";
 import { getCustomRange } from "@/lib/calendar/date-ranges";
+import { DEFAULT_CALENDAR_TIMEZONE } from "@/lib/calendar/timezone";
 import { CalendarTable } from "@/components/calendar/calendar-table";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +32,7 @@ export default async function WeekCalendarPage({ params }: WeekCalendarPageProps
     <main className="mx-auto max-w-6xl flex-1 px-6 py-12">
       <h1 className="text-2xl font-semibold text-slate-900">Week of {date}</h1>
       <p className="mt-1 text-sm text-slate-500">{total} event{total === 1 ? "" : "s"}</p>
-      <CalendarTable events={items} />
+      <CalendarTable events={items} timezone={DEFAULT_CALENDAR_TIMEZONE} />
     </main>
   );
 }

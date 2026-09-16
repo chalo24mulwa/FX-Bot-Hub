@@ -1,6 +1,7 @@
 import type { EconomicEvent, Prisma, EventImpact, EventCategory } from "@prisma/client";
 import { db } from "@/lib/db";
 import { cacheWrap } from "@/lib/cache";
+import { listEventRevisions } from "@/repositories/economic-event-revision-repository";
 
 export interface CalendarQuery {
   from: Date;
@@ -41,6 +42,7 @@ function reviveEventDates(event: EconomicEvent): EconomicEvent {
     eventTime: new Date(event.eventTime),
     createdAt: new Date(event.createdAt),
     updatedAt: new Date(event.updatedAt),
+    lastSyncedAt: event.lastSyncedAt ? new Date(event.lastSyncedAt) : null,
   };
 }
 
@@ -87,7 +89,24 @@ export async function getEvents(query: CalendarQuery) {
 }
 
 export async function getEvent(id: string) {
-  return db.economicEvent.findUnique({ where: { id } });
+  const event = await db.economicEvent.findUnique({ where: { id } });
+  return event ? reviveEventDates(event) : null;
+}
+
+/** Named to match the calendar-pipeline spec's API surface — a thin,
+ * self-documenting wrapper over getEvents for a route handler that only
+ * needs a date range, no filters/pagination. */
+export async function getEventsByDateRange(from: Date, to: Date) {
+  return getEvents({ from, to, pageSize: MAX_PAGE_SIZE });
+}
+
+const DEFAULT_UPCOMING_DAYS = 7;
+
+/** Events from now through `days` ahead — what /api/calendar/upcoming and
+ * the client-side polling refresh (see useCalendarPolling) both read. */
+export async function getUpcomingEvents(days = DEFAULT_UPCOMING_DAYS, filters: Omit<CalendarQuery, "from" | "to"> = {}) {
+  const now = new Date();
+  return getEvents({ ...filters, from: now, to: new Date(now.getTime() + days * 86_400_000) });
 }
 
 export async function getHistoricalData(currency: string, title: string, limit = 12) {
@@ -104,6 +123,14 @@ export async function listUpcomingHighImpact(limit = 6) {
     orderBy: { eventTime: "asc" },
     take: limit,
   });
+}
+
+/** The event-history/"Updated"/"Revised" read path (spec's getEventHistory)
+ * — distinct from getHistoricalData, which reads *other* past occurrences
+ * of the same recurring release (e.g. every prior NFP print), not this
+ * row's own change log. */
+export async function getEventRevisionHistory(eventId: string, limit = 20) {
+  return listEventRevisions(eventId, limit);
 }
 
 export async function listDistinctCurrencies(): Promise<string[]> {

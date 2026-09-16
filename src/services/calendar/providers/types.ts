@@ -1,4 +1,4 @@
-import type { EventImpact, EventCategory } from "@prisma/client";
+import type { EventImpact, EventCategory, EconomicEventStatus } from "@prisma/client";
 
 /** Shape a provider returns — not the DB row. The sync service maps this
  * into EconomicEvent (upserting by externalId for dedup). */
@@ -14,6 +14,17 @@ export interface CalendarEventInput {
   forecast?: string;
   previous?: string;
   description?: string;
+  /** Provider-reported unit ("%", "K", "B USD") and release frequency
+   * ("Monthly", "Quarterly") — display-only, never required. */
+  unit?: string;
+  frequency?: string;
+  /** Deep link to the provider's own page for this release — required by
+   * most licensed-feed terms for attribution. */
+  sourceUrl?: string;
+  /** Defaults to SCHEDULED (or RELEASED, inferred from `actual` being
+   * present) by the sync service if the provider doesn't report one
+   * directly — see sync-service.ts's `inferStatus`. */
+  status?: EconomicEventStatus;
 }
 
 export interface CalendarProvider {
