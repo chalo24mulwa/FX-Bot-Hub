@@ -23,7 +23,7 @@ test("a signed-in user can open the event detail page and subscribe to a reminde
   await page.goto("/calendar");
   const row = page.getByRole("row", { name: /E2E Fixture Event/ });
   await expect(row).toBeVisible();
-  await row.getByRole("link", { name: "View" }).click();
+  await row.getByRole("link", { name: "E2E Fixture Event" }).click();
 
   await expect(page).toHaveURL(/\/calendar\/event\//);
   await expect(page.getByRole("heading", { name: "E2E Fixture Event" })).toBeVisible();

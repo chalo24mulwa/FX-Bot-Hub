@@ -60,7 +60,7 @@ const envSchema = z.object({
   // src/services/calendar/sync-service.ts's SYNC window comment. Kept
   // narrow by default so a sync pass stays a single bounded API call, not
   // a full-history backfill.
-  ECONOMIC_CALENDAR_SYNC_UPCOMING_DAYS: z.coerce.number().int().min(1).max(90).default(30),
+  ECONOMIC_CALENDAR_SYNC_UPCOMING_DAYS: z.coerce.number().int().min(1).max(90).default(90),
   ECONOMIC_CALENDAR_SYNC_RECENT_DAYS: z.coerce.number().int().min(0).max(30).default(3),
   // Informational only — there is no in-process scheduler (see CLAUDE.md's
   // established "external cron calls a trigger script" model). This is

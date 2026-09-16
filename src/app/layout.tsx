@@ -42,7 +42,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex min-h-full flex-col bg-white text-slate-900">
         <AuthSessionProvider>
           <Header />
-          <div className="flex flex-1 flex-col">{children}</div>
+          {/* min-w-0: without it, a flex column's default min-width:auto lets a
+              wide descendant (e.g. the calendar's day table) push this whole
+              chain wider than the viewport instead of scrolling within its own
+              overflow-x-auto container — a no-op for every page whose content
+              already fits, since it only removes an implicit width floor. */}
+          <div className="flex min-w-0 flex-1 flex-col">{children}</div>
           <Footer />
         </AuthSessionProvider>
       </body>

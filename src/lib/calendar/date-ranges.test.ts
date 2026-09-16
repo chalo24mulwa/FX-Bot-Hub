@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getPresetRange, getCustomRange } from "./date-ranges";
+import { getPresetRange, getCustomRange, getRangeBetween } from "./date-ranges";
 
 // Wednesday 2026-09-16 12:00 UTC as the fixed "now" for every case.
 const NOW = new Date("2026-09-16T12:00:00.000Z");
@@ -57,5 +57,33 @@ describe("getCustomRange", () => {
     const { from, to } = getCustomRange("2026-01-01", 5, 0);
     expect(from.toISOString()).toBe("2026-01-01T00:00:00.000Z");
     expect(to.toISOString()).toBe("2026-01-06T00:00:00.000Z");
+  });
+});
+
+describe("getRangeBetween", () => {
+  it("includes the entire end date, not just up to its midnight", () => {
+    const { from, to } = getRangeBetween("2026-09-13", "2026-11-14", 0);
+    expect(from.toISOString()).toBe("2026-09-13T00:00:00.000Z");
+    // Exclusive upper bound is the day AFTER Nov 14, so Nov 14's own
+    // events (any time from 00:00 to 23:59:59) are included.
+    expect(to.toISOString()).toBe("2026-11-15T00:00:00.000Z");
+  });
+
+  it("spans a single day when from and to are the same date", () => {
+    const { from, to } = getRangeBetween("2026-09-13", "2026-09-13", 0);
+    expect(from.toISOString()).toBe("2026-09-13T00:00:00.000Z");
+    expect(to.toISOString()).toBe("2026-09-14T00:00:00.000Z");
+  });
+
+  it("shifts both ends by the viewer's timezone offset", () => {
+    const { from, to } = getRangeBetween("2026-09-13", "2026-09-13", 180); // UTC+3
+    expect(from.toISOString()).toBe("2026-09-12T21:00:00.000Z");
+    expect(to.toISOString()).toBe("2026-09-13T21:00:00.000Z");
+  });
+
+  it("falls back to a single-day span instead of an inverted range when 'to' precedes 'from'", () => {
+    const { from, to } = getRangeBetween("2026-09-20", "2026-09-01", 0);
+    expect(from.toISOString()).toBe("2026-09-20T00:00:00.000Z");
+    expect(to.toISOString()).toBe("2026-09-21T00:00:00.000Z");
   });
 });

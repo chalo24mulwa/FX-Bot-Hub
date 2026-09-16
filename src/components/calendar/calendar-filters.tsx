@@ -1,7 +1,7 @@
 "use client";
 
+import { useState, useTransition } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { useTransition } from "react";
 import { cn } from "@/lib/utils";
 import { SUPPORTED_TIMEZONES, CALENDAR_TIMEZONE_COOKIE } from "@/lib/calendar/timezone";
 
@@ -26,19 +26,46 @@ const CATEGORIES = [
   "OTHER",
 ];
 
+function toIsoDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+/** First and last day of the viewer's current local month, computed
+ * client-side purely for filling in the From/To inputs — the server still
+ * does the real, timezone-aware range math (getRangeBetween) once these
+ * land as `from`/`to` query params. */
+function thisMonthRange(): { from: string; to: string } {
+  const now = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth(), 1);
+  const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  return { from: toIsoDate(from), to: toIsoDate(to) };
+}
+
+function nextNDaysRange(days: number): { from: string; to: string } {
+  const now = new Date();
+  const to = new Date(now.getTime() + days * 86_400_000);
+  return { from: toIsoDate(now), to: toIsoDate(to) };
+}
+
 export function CalendarFilters({
   currencies,
   timezone,
+  from,
+  to,
   savePreferencesAction,
 }: {
   currencies: string[];
   timezone: string;
+  from?: string;
+  to?: string;
   savePreferencesAction?: (formData: FormData) => Promise<void>;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const [rangeFrom, setRangeFrom] = useState(from ?? "");
+  const [rangeTo, setRangeTo] = useState(to ?? "");
 
   const preset = searchParams.get("preset") ?? "week";
   const selectedImpacts = searchParams.getAll("impact");
@@ -49,6 +76,27 @@ export function CalendarFilters({
     const params = new URLSearchParams(searchParams.toString());
     mutate(params);
     startTransition(() => router.push(`${pathname}?${params.toString()}`));
+  }
+
+  function applyPreset(value: string) {
+    updateParams((params) => {
+      params.set("preset", value);
+      params.delete("from");
+      params.delete("to");
+      params.delete("date");
+    });
+  }
+
+  function applyRange(rangeStart: string, rangeEnd: string) {
+    if (!rangeStart || !rangeEnd) return;
+    setRangeFrom(rangeStart);
+    setRangeTo(rangeEnd);
+    updateParams((params) => {
+      params.set("preset", "range");
+      params.set("from", rangeStart);
+      params.set("to", rangeEnd);
+      params.delete("date");
+    });
   }
 
   function handleTimezoneChange(next: string) {
@@ -69,11 +117,11 @@ export function CalendarFilters({
 
   return (
     <div className={cn("flex flex-col gap-4", isPending && "opacity-60")}>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {PRESETS.map((p) => (
           <button
             key={p.value}
-            onClick={() => updateParams((params) => params.set("preset", p.value))}
+            onClick={() => applyPreset(p.value)}
             className={cn(
               "rounded-full px-3 py-1.5 text-sm font-medium",
               preset === p.value ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -82,14 +130,23 @@ export function CalendarFilters({
             {p.label}
           </button>
         ))}
-        <input
-          type="date"
-          onChange={(e) => updateParams((params) => {
-            params.set("preset", "custom");
-            params.set("date", e.target.value);
-          })}
-          className="rounded-full border border-slate-300 px-3 py-1 text-sm"
-        />
+        <span className="h-5 w-px bg-slate-200" aria-hidden="true" />
+        <button
+          onClick={() => applyRange(toIsoDate(new Date()), thisMonthRange().to)}
+          className="rounded-full bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-200"
+        >
+          This Month
+        </button>
+        <button
+          onClick={() => {
+            const { from: f, to: t } = nextNDaysRange(90);
+            applyRange(f, t);
+          }}
+          className="rounded-full bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-200"
+        >
+          Next 3 Months
+        </button>
+
         <label className="ml-auto flex items-center gap-1.5 text-xs text-slate-500">
           Timezone
           <select
@@ -104,6 +161,32 @@ export function CalendarFilters({
             ))}
           </select>
         </label>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Custom range</span>
+        <input
+          type="date"
+          value={rangeFrom}
+          onChange={(e) => setRangeFrom(e.target.value)}
+          aria-label="Range start date"
+          className="rounded-full border border-slate-300 px-3 py-1 text-sm"
+        />
+        <span className="text-slate-400">to</span>
+        <input
+          type="date"
+          value={rangeTo}
+          onChange={(e) => setRangeTo(e.target.value)}
+          aria-label="Range end date"
+          className="rounded-full border border-slate-300 px-3 py-1 text-sm"
+        />
+        <button
+          onClick={() => applyRange(rangeFrom, rangeTo)}
+          disabled={!rangeFrom || !rangeTo}
+          className="rounded-full bg-slate-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
+        >
+          Go
+        </button>
       </div>
 
       <div className="flex flex-wrap items-start gap-6">

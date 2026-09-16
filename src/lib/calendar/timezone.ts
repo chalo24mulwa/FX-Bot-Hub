@@ -66,6 +66,7 @@ function getFormatter(timeZone: string): Intl.DateTimeFormat {
   if (cached) return cached;
   const formatter = new Intl.DateTimeFormat("en-GB", {
     timeZone,
+    weekday: "long",
     year: "numeric",
     month: "short",
     day: "2-digit",
@@ -78,12 +79,15 @@ function getFormatter(timeZone: string): Intl.DateTimeFormat {
 }
 
 /** Formats a UTC instant directly in the target zone — never a manual
- * offset add on the Date object, so DST is always correct. */
-export function formatInTimezone(date: Date, timeZone: string): { date: string; time: string } {
+ * offset add on the Date object, so DST is always correct. `date` doubles
+ * as a stable per-day grouping key (see CalendarTable) since two instants
+ * on the same viewer-local day always format to the same string. */
+export function formatInTimezone(date: Date, timeZone: string): { date: string; time: string; weekday: string } {
   const parts = getFormatter(timeZone).formatToParts(date);
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
   return {
     date: `${get("day")} ${get("month")} ${get("year")}`,
     time: `${get("hour")}:${get("minute")}`,
+    weekday: get("weekday"),
   };
 }

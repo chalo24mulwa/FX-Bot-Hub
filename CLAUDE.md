@@ -854,6 +854,82 @@ replaces it, and no user, password, or role was touched by any migration.
   again; and re-run the *full* e2e suite after any shared-page redesign,
   not just the specs that seem related.
 
+## Calendar page reorganization: day-grouped layout, real date ranges
+
+Edits the `/calendar` page and its two direct components only — no other
+page, no new data source, no architecture change. Forex Factory's calendar
+is cited here purely as a **layout** reference (day-grouped rows, compact
+columns), exactly as README.md already frames it ("structurally inspired
+by... Forex Factory Calendar (filtering)") — never as a data source; the
+ground rule against scraping it stands unchanged.
+
+- **`CalendarTable` groups events by viewer-local day** (`src/components/
+  calendar/calendar-table.tsx`), with one heading row per day instead of a
+  repeated Date cell on every row — the single most recognizable trait of
+  that reference layout. `formatInTimezone()` (`timezone.ts`) gained a
+  `weekday` field for the heading text; its existing `date` string doubles
+  as the grouping key, since two instants on the same viewer-local day
+  always format to the same string.
+- **Decluttered from 11 columns to 7** (Time/Currency/Impact/Event/Actual/
+  Forecast/Previous): dropped the separate Country column (redundant with
+  Currency for this audience), dropped the separate Deviation column
+  (replaced by coloring the Actual cell green/red against forecast —
+  Forex Factory's own convention: purely "beat vs. missed forecast," not a
+  claim about whether that's economically good), and dropped the separate
+  "Details/View" link column (the event title itself is now the link,
+  matching the stretched-link-adjacent pattern used elsewhere in this
+  codebase rather than a dedicated column for one click target). Impact
+  reads as a small colored dot + label instead of a full pill badge.
+- **A real From/To range picker** (`CalendarFilters`) replaces what was
+  actually a broken control before this change: the old single "custom"
+  date input always requested exactly a 1-day span
+  (`getCustomRange(date, 1, ...)` — the `1` was hardcoded in `page.tsx`),
+  so a multi-day/multi-month custom range was never actually reachable
+  through the UI despite `getCustomRange()` itself supporting an arbitrary
+  day count. Added `getRangeBetween(fromIso, toIso, offsetMinutes)` in
+  `date-ranges.ts` (pure, unit-tested, inclusive of both endpoints,
+  guards an inverted range) plus "This Month" and "Next 3 Months" quick
+  presets, landing as `?preset=range&from=...&to=...`.
+- **Pagination**, previously absent: a single week rarely exceeds the
+  250-row page cap `calendar-service.ts` already enforced, but a 3-month
+  range genuinely can once real provider data is flowing — silently
+  truncating at 250 with no indication would be a real correctness gap
+  for exactly the range this change adds. `page.tsx` now reads a `page`
+  query param and renders Prev/Next links preserving every other filter.
+- **`ECONOMIC_CALENDAR_SYNC_UPCOMING_DAYS` default raised from 30 to 90**
+  (still capped at 90 in `env.ts`) — so the sync window actually covers
+  the new "Next 3 Months" quick range once a real provider is enabled;
+  a no-op today since `manual`/no-credentials sync pulls nothing new
+  regardless of window size.
+- **A real, pre-existing responsive bug found and fixed in the same
+  pass**: at narrow widths the whole page scrolled horizontally, not just
+  the table — a classic flex-column min-content propagation issue
+  (`src/app/layout.tsx`'s root wrapper `<div className="flex flex-1
+  flex-col">` had no `min-w-0`, so a wide flex-item descendant's
+  min-content size pushed the *entire* chain wider than the viewport
+  instead of stopping at the table's own `overflow-x-auto` container).
+  Fixed with `min-w-0` on that one shared wrapper (inert on every other
+  page — it only removes an implicit width floor that only matters when
+  content would otherwise force overflow) plus `w-full min-w-0` on the
+  calendar page's own `<main>`, which turned out to be necessary too:
+  a stretched flex-column item's cross-axis width isn't reliably capped
+  by `min-width: 0` alone without an explicit `width` to stretch *to*.
+- **Provider research** (the brief asked to look before changing
+  anything): Trading Economics (already the `AuthorizedCalendarProvider`
+  integration — see "Calendar enhancement" above) supports arbitrary
+  `d1`/`d2` date ranges including 3+ months, so no second provider
+  integration was added — one already exists and already fits. Financial
+  Modeling Prep's `economic_calendar` endpoint and Finnhub's `/calendar/
+  economic` are the closest viable alternatives if Trading Economics
+  access/pricing doesn't work out (both take explicit `from`/`to`
+  params); Investing.com and Forex Factory itself have no official public
+  API, so scraping either would carry the same legal exposure this
+  project's ground rule already rules out. **"Live and real" data still
+  needs a real API key** — this environment has none (see "Known
+  follow-ups"); nothing here fabricates placeholder numbers pretending to
+  be real. The only rows visible right now are the pre-existing
+  admin/e2e-fixture ones.
+
 ## Testing
 
 - `npm run test` (Vitest) — pure-logic unit tests only (authorization matrix,

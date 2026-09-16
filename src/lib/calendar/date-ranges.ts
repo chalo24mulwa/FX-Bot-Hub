@@ -74,6 +74,27 @@ export function getCustomRange(startDateIso: string, days: number, offsetMinutes
   };
 }
 
+/**
+ * An explicit From/To range picker (viewer-local calendar days, both
+ * inclusive of the selected day — matching what a user expects when they
+ * pick "Sep 13" through "Nov 14": events on Nov 14 itself are included,
+ * not excluded). Guards against an inverted/empty range (`to` before
+ * `from`) by falling back to a single-day span rather than handing the
+ * DB a query where `to < from`.
+ */
+export function getRangeBetween(fromDateIso: string, toDateIso: string, offsetMinutes: number): DateRange {
+  const [fy, fm, fd] = fromDateIso.split("-").map(Number);
+  const [ty, tm, td] = toDateIso.split("-").map(Number);
+  const localFrom = new Date(Date.UTC(fy, (fm ?? 1) - 1, fd ?? 1));
+  const localToInclusive = new Date(Date.UTC(ty, (tm ?? 1) - 1, td ?? 1));
+  const localToExclusive = addDays(localToInclusive < localFrom ? localFrom : localToInclusive, 1);
+
+  return {
+    from: toUtcInstant(localFrom, offsetMinutes),
+    to: toUtcInstant(localToExclusive, offsetMinutes),
+  };
+}
+
 /** Last 7 days through next 14 days from now — used by SEO currency/detail
  * pages that don't need a viewer-local offset. Defaults `now` internally
  * (rather than requiring the caller to pass `new Date()`) so the impure
