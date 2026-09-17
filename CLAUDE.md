@@ -946,6 +946,106 @@ ground rule against scraping it stands unchanged.
   be real. The only rows visible right now are the pre-existing
   admin/e2e-fixture ones.
 
+## Homepage hero: live market-data chart
+
+Replaces only the homepage's hero `<section>` (`src/app/page.tsx`) with an
+interactive instrument chart — nothing else on the homepage, and no other
+page, was touched. New, self-contained infrastructure under
+`src/lib/market-data/` and `src/app/api/market-data/`, following the same
+provider-abstraction pattern as payments/storage/email/calendar (see
+"Provider abstractions" above) rather than reusing the unrelated
+`DataSourceKind.MARKET_DATA` / `runMarketDataSync` periodic-bulk-sync stub
+— that one is a scheduled batch job with no instrument model; this is an
+interactive, on-demand/streaming path with its own `Instrument` cache
+model, deliberately kept separate.
+
+- **`MarketDataProvider`** (`src/lib/market-data/types.ts`): `searchSymbols`/
+  `resolveSymbol`/`getHistoricalBars`/`getLatestQuote`/`subscribeBars`/
+  `unsubscribeBars`. **`TwelveDataProvider`** (`src/lib/market-data/
+  providers/twelvedata-provider.ts`) is the real implementation — Twelve
+  Data (https://twelvedata.com/docs), covering forex/metals/stocks with
+  historical OHLC, symbol search, and a real-time WebSocket feed, gated on
+  `MARKET_DATA_API_KEY` (never Forex Factory/TradingView/Google/Yahoo
+  Finance scraping — same rule as the calendar provider). Every method
+  throws a clear "not configured" error until a real key is set; the chart
+  catches this and renders an explicit "Live market data isn't connected
+  yet" panel instead of fabricating prices — this environment has no real
+  key, so that's the state it's in right now (see "Known follow-ups").
+  **Not yet exercised against a live Twelve Data account** — validated
+  against the documented response shape (`twelvedata-mapping.ts`,
+  unit-tested) and exercised end-to-end (search → asset-class mapping →
+  instrument-cache upsert/dedup, historical-bar ordering, quote mapping)
+  with a mocked HTTP layer against this environment's real Postgres, the
+  same technique and caveat as `AuthorizedCalendarProvider` — re-verify
+  against a real key before enabling in production.
+- **Pure logic split out for testability**, same reasoning as
+  `authorized-provider-mapping.ts`/`revision-detection.ts`: `twelvedata-
+  mapping.ts` (Zod-validated request/response mapping, asset-class
+  inference — metals/commodities like XAU/USD are recognized by a known
+  base-currency-code list, since Twelve Data's `instrument_type` doesn't
+  distinguish them from real forex pairs), `tick-aggregator.ts` (turns the
+  WebSocket's raw price ticks into OHLC candle updates via interval
+  bucketing — Twelve Data's stream pushes ticks, not bars), and
+  `subscription-registry.ts` (generic ref-counted subscribe/unsubscribe
+  bookkeeping, deciding *when* to open/close the shared upstream
+  connection, not *how*). All three are unit-tested with no network/DB.
+- **No raw WebSocket proxy to the browser**: this app has no custom Node
+  server (`next dev`/`next start` only), so `/api/market-data/stream`
+  (`route.ts`) is a Server-Sent Events endpoint instead — a `ReadableStream`
+  response, same "server-streaming where supported" allowance the brief
+  itself named. The browser holds one same-origin `EventSource`;
+  `TwelveDataProvider` is the only thing that ever opens a connection to
+  Twelve Data itself, server-side, sharing one upstream WebSocket
+  connection per process across every subscriber (ref-counted — see
+  `subscription-registry.ts`) rather than one per browser tab. Changing
+  instrument/timeframe closes the previous `EventSource` before opening
+  the next (browser's own SSE `close()` → the route's `request.signal`
+  `abort` handler → `provider.unsubscribeBars()`), so no orphaned
+  subscription is left running — literally the brief's own "resolve →
+  load → subscribe → unsubscribe previous" sequence. Reconnection is the
+  browser's native `EventSource` retry behavior (no custom client-side
+  reconnect loop); the shared upstream WebSocket separately reconnects
+  with exponential backoff and re-subscribes every retained symbol (see
+  `TwelveDataStream` in `twelvedata-provider.ts`).
+- **`Instrument` model** (`prisma/schema.prisma`, migration
+  `20260917061029_market_data_instruments`) is a lazily-populated cache of
+  instruments a search/resolve call already returned — never a bulk-loaded
+  full catalogue (`src/lib/market-data/instrument-cache.ts`'s
+  `upsertInstrumentsBestEffort()`, fire-and-forget off the search route's
+  request path, same "never on the critical path" posture as
+  `enqueueEmail`). `/api/market-data/search` is also rate-limited and
+  Redis-cached briefly (`cacheWrap`, 30s) — a user typing doesn't re-hit
+  the provider per keystroke.
+- **`/api/market-data/{search,resolve,bars,quote,stream}`** are the only
+  read path; the chart never calls Twelve Data directly. `bars` defaults
+  to a per-interval bounded lookback (2 days for 1m up to 10 years for
+  1M) when no explicit `from`/`to` is given — never one unbounded
+  history request — and caches that default-range response briefly
+  (15-60s depending on interval). All five are rate-limited by IP
+  (`checkRateLimit`, same fail-open posture as the rest of the app).
+- **`HeroChart`** (`src/components/market/hero-chart.tsx`, Client
+  Component) uses `lightweight-charts` — TradingView's free, MIT-licensed
+  charting library (`npm install lightweight-charts`, zero new `npm audit`
+  findings), **not** TradingView's separate paid Advanced Charting
+  Library/Datafeed API the brief named as the preference. That library
+  isn't distributed via npm and needs an approved licensing agreement with
+  TradingView, which this environment doesn't have; `lightweight-charts`
+  covers every requested capability (candlestick/line/area, zoom, crosshair
+  OHLC readout, live updates) except drawing tools/indicators, which the
+  brief's own "Future features" section says not to build yet anyway.
+  Renders candlestick/line/area (toggle), 9 timeframes (1m-1M), an
+  instrument search (`InstrumentSearch`, debounced, grouped by asset
+  class), a few quick-select symbol chips, and price/change/%change in the
+  header — all wired through the API routes above, never a
+  provider/env import in a Client Component.
+- **`AssetClass`** (`FOREX`/`METAL`/`COMMODITY`/`STOCK`/`INDEX`/`OTHER`)
+  matches the brief's grouping; `COMMODITY` exists in the schema/type for
+  a future non-metal commodity provider (e.g. oil/agricultural) but
+  nothing maps into it yet — Twelve Data's documented symbol_search shape
+  doesn't distinguish one from `METAL`/`OTHER` without live-account
+  verification, so it's left unmapped rather than guessed (see
+  `twelvedata-mapping.ts`'s doc comment).
+
 ## Testing
 
 - `npm run test` (Vitest) — pure-logic unit tests only (authorization matrix,
@@ -1134,3 +1234,27 @@ ground rule against scraping it stands unchanged.
   above. Wiring an actual SSE/WebSocket layer to it is future work, not
   started here, per the enhancement's own brief not to add that complexity
   until polling stops being sufficient.
+- **`TwelveDataProvider` (homepage hero chart) has never made a request
+  against a live Twelve Data account** — this environment has no real
+  `MARKET_DATA_API_KEY`. Same situation and same caution as
+  `AuthorizedCalendarProvider`: mapping is unit-tested against the
+  documented shape and exercised end-to-end against a real Postgres with
+  a mocked HTTP layer, not a live account. Before enabling it in
+  production: get a real key, re-verify, and confirm the specific Twelve
+  Data plan's license actually permits displaying/redistributing its data
+  publicly on this site (see "Homepage hero" above and its brief's own
+  licensing requirement).
+- Hero chart drawing tools, technical indicators, watchlists, a market
+  overview page, and per-instrument pages aren't built — the architecture
+  (`MarketDataProvider`, `Instrument` model, `/api/market-data/*`) is
+  designed so they can be added later without rewriting this, per the
+  brief's own "future features, don't build yet" instruction.
+- `npm run build` currently fails in any environment with no Redis
+  running (confirmed pre-existing on the commit before the hero-chart
+  work — not caused by it) — Turbopack's static-prerender step crashes
+  on an unhandled Redis-unreachable rejection reachable from
+  `/auth/forgot-password`, despite `src/lib/redis.ts`'s documented
+  "fails fast and quietly" intent. CI always provisions Redis, so this
+  hasn't surfaced there. Flagged as a separate follow-up task; until
+  fixed, verify a production build against an environment with Redis
+  running (`docker compose up` provides one).

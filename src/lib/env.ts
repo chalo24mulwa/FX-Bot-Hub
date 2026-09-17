@@ -72,6 +72,20 @@ const envSchema = z.object({
   // disables it. Read server-side and passed down as a prop — no need for
   // a NEXT_PUBLIC_ var since nothing in the browser reads process.env here.
   ECONOMIC_CALENDAR_POLL_INTERVAL_SECONDS: z.coerce.number().int().min(0).default(60),
+
+  // Live market-data chart (homepage hero) — src/lib/market-data/. Separate
+  // from the calendar/news/market-data DataSource sync architecture above;
+  // this is an interactive, on-demand provider used directly by API routes,
+  // not a scheduled job. "twelvedata" (default) needs the API key below;
+  // there is no "manual"/no-credential option here — without a real key the
+  // hero chart shows an explicit "not configured" state rather than
+  // fabricating prices (see src/lib/market-data/providers/twelvedata-provider.ts).
+  MARKET_DATA_PROVIDER: z.enum(["twelvedata"]).default("twelvedata"),
+  // Server-only. Never read this from a Client Component, an API response,
+  // or an SSE payload — see src/lib/market-data/providers/twelvedata-provider.ts.
+  MARKET_DATA_API_KEY: z.string().optional(),
+  MARKET_DATA_API_URL: z.string().url().default("https://api.twelvedata.com"),
+  MARKET_DATA_WS_URL: z.string().url().default("wss://ws.twelvedata.com/v1/quotes/price"),
 });
 
 export type Env = z.infer<typeof envSchema>;

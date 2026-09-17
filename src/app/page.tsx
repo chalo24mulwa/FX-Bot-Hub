@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { ProductCard } from "@/components/marketplace/product-card";
+import { HeroChart } from "@/components/market/hero-chart";
 import { cn } from "@/lib/utils";
 import { db } from "@/lib/db";
 import { listFeaturedProducts, listNewestProducts } from "@/server/services/product-service";
@@ -31,7 +32,7 @@ export default async function HomePage() {
   return (
     <main className="flex-1">
       <section className="border-b border-slate-200 bg-gradient-to-b from-slate-50 to-white">
-        <div className="mx-auto max-w-6xl px-6 py-20 text-center">
+        <div className="mx-auto max-w-6xl px-6 py-12 text-center sm:py-16">
           <h1 className="inline-flex items-center justify-center gap-3 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
             <span className="inline-flex items-center rounded-xl bg-gradient-to-br from-blue-600 via-violet-500 to-emerald-500 px-3 py-1 text-2xl font-black italic text-white shadow-md sm:text-3xl">
               fx
@@ -42,8 +43,8 @@ export default async function HomePage() {
             <span className="text-amber-600">Hub</span>
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-600">
-            Expert Advisors, indicators, and trading signals for MT4 &amp; MT5 — plus an
-            economic calendar to trade around.
+            Expert Advisors, indicators, and trading signals for MT4 &amp; MT5 — plus a live market
+            chart and economic calendar to trade around.
           </p>
           <div className="mt-8 flex justify-center gap-3">
             <Link href="/marketplace" className={cn(buttonVariants({ size: "lg" }))}>
@@ -52,6 +53,10 @@ export default async function HomePage() {
             <Link href="/calendar" className={cn(buttonVariants({ variant: "outline", size: "lg" }))}>
               Economic calendar
             </Link>
+          </div>
+
+          <div className="mx-auto mt-10 max-w-4xl text-left">
+            <HeroChart defaultSymbol="EUR/USD" />
           </div>
         </div>
       </section>

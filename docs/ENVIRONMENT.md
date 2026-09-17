@@ -34,6 +34,10 @@ development; it already has working defaults for the Docker Compose stack.
 | `ECONOMIC_CALENDAR_SYNC_RECENT_DAYS` | No | `3` | How many days behind "now" each `calendarSync` run requests — catches actual/previous revisions on events that already released. |
 | `ECONOMIC_CALENDAR_SYNC_INTERVAL_MINUTES` | No | `60` | **Informational only** — there is no in-process scheduler (see `CLAUDE.md`'s established external-cron model). This is what your **full-window** cron/scheduler should be set to (e.g. hourly, via `npm run sync:trigger`); used only to estimate "next sync" at `/admin/data-sources`. For faster same-day actual-value pickup, also point a second, more frequent cron (e.g. every 5-15 min) at `npm run sync:trigger:calendar-today`, which syncs only today's window — see `runCalendarSync`'s `windowOverride` in `src/services/calendar/sync-service.ts`. Both cadences log to the same `SyncLog` table, tagged `calendarSync`/`calendarSyncToday` respectively. |
 | `ECONOMIC_CALENDAR_POLL_INTERVAL_SECONDS` | No | `60` | How often the calendar page's client-side auto-refresh re-fetches without a full reload. `0` disables it. |
+| `MARKET_DATA_PROVIDER` | No | `twelvedata` | Homepage hero chart's live-data provider (`src/lib/market-data/`) — separate from `ECONOMIC_CALENDAR_PROVIDER` above; there is no `manual` option here. Without a real API key below, the chart shows an explicit "not configured" state — it never fabricates prices. |
+| `MARKET_DATA_API_KEY` | Required for live chart data | unset | **Server-only — never exposed to the browser.** See `src/lib/market-data/providers/twelvedata-provider.ts`. A real, licensed Twelve Data key (or a compatible provider's, if `MARKET_DATA_API_URL`/`_WS_URL` are pointed elsewhere and a new provider adapter is added). |
+| `MARKET_DATA_API_URL` | No | `https://api.twelvedata.com` | The REST API base URL. Only Twelve Data's documented response shape is currently mapped (`twelvedata-mapping.ts`). |
+| `MARKET_DATA_WS_URL` | No | `wss://ws.twelvedata.com/v1/quotes/price` | The real-time price WebSocket endpoint the server (never the browser) connects to for live ticks — see `/api/market-data/stream`. |
 
 ## Secrets checklist before a production deploy
 
@@ -42,6 +46,7 @@ development; it already has working defaults for the Docker Compose stack.
 - [ ] `PAYMENT_PROVIDER` is **not** `manual`.
 - [ ] `EMAIL_PROVIDER` is **not** `console`.
 - [ ] If the economic calendar must show real data, `ECONOMIC_CALENDAR_PROVIDER=authorized`, `ECONOMIC_CALENDAR_API_KEY` is a real licensed key, and the `authorized` DataSource row is enabled at `/admin/data-sources` — otherwise the calendar stays admin-managed only (`manual`), which is a legitimate choice, not a bug.
+- [ ] If the homepage hero chart must show live prices, `MARKET_DATA_API_KEY` is a real, licensed Twelve Data key — otherwise the chart renders its explicit "not configured" state, which is a legitimate choice, not a bug. Verify your Twelve Data plan actually permits displaying/redistributing its data on the site before enabling this in production.
 - [ ] `RATE_LIMIT_DISABLED` is unset or `false`.
 - [ ] `NEXT_PUBLIC_*` variables contain nothing sensitive — anything in them ships to every visitor's browser.
 - [ ] Secrets are injected via your platform's secret manager (see `docs/BACKUP.md`'s "Secret management" section), not baked into a committed `.env` file or a Docker image layer.

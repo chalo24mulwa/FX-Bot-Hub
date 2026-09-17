@@ -1332,3 +1332,54 @@ model MarketplaceSettings {
 
   @@map("marketplace_settings")
 }
+
+// ---------- Live market-data chart (homepage hero) ----------
+
+// Distinct from DataSourceKind/MARKET_DATA above — that enum drives the
+// unrelated periodic-bulk-sync stub (runMarketDataSync, still a wired
+// no-op — see its own doc comment). This is the interactive,
+// on-demand/streaming path behind the homepage hero chart: a
+// MarketDataProvider (src/lib/market-data/) resolved per request, never a
+// scheduled job. Kept as a separate model rather than reusing DataSource
+// because an Instrument row is catalogue metadata a user searches/selects,
+// not a sync source an admin enables/disables.
+enum AssetClass {
+  FOREX
+  METAL
+  COMMODITY
+  STOCK
+  INDEX
+  OTHER
+}
+
+// A lazily-populated cache of instruments the provider has already
+// resolved (via search or direct lookup) — never bulk-loaded from the
+// provider's full catalogue up front (see MarketDataProvider.searchSymbols
+// in src/lib/market-data/types.ts). Lets the hero chart's default
+// instrument and repeat searches skip a provider round-trip, without
+// pretending to be a complete symbol list.
+model Instrument {
+  id             String     @id @default(cuid())
+  // Matches a MarketDataProvider's own `key` (src/lib/market-data/providers) —
+  // one instrument catalogue can span multiple providers if one is added later.
+  providerKey    String
+  // The provider's own symbol string (e.g. Twelve Data's "EUR/USD", "AAPL").
+  externalSymbol String
+  // User-facing symbol, not always identical to externalSymbol (kept
+  // separate so a future provider with different symbol conventions
+  // doesn't change what's displayed).
+  displaySymbol  String
+  name           String
+  assetClass     AssetClass
+  exchange       String?
+  currency       String?
+  enabled        Boolean    @default(true)
+  lastSyncedAt   DateTime   @default(now())
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@unique([providerKey, externalSymbol])
+  @@index([assetClass])
+  @@index([displaySymbol])
+  @@map("instruments")
+}
