@@ -107,12 +107,24 @@ deploy:
   write and test it explicitly; none exist in this repo today since none
   has been needed yet.
 
+## Alternative: shared hosting (no Docker/root access)
+
+`docs/DEPLOY_HOSTINGER.md` covers deploying to a shared hosting plan
+(confirmed against Hostinger specifically, for fxbothub.com) instead of
+the Docker/VPS path above — a different shape (external managed
+Postgres/Redis, a CloudLinux-managed Node process instead of a
+container, no persistent background workers yet) driven by what that
+kind of hosting can actually run, not a preference over the Docker path.
+
 ## See also
 
 - `docs/ENVIRONMENT.md` — every environment variable, required vs.
   optional, and the pre-deploy secrets checklist.
 - `docs/DATABASE.md` — migration workflow and connection-pooling guidance
   for serverless vs. long-lived-server deployment targets.
+- `docs/DEPLOY_HOSTINGER.md` — shared-hosting deployment path (no
+  Docker/root), for hosts like Hostinger that can't run the Docker path
+  above directly.
 - `docs/BACKUP.md` — what to back up and how to restore.
 - `docs/SECURITY.md` — what to verify before shipping.
 - `docs/OBSERVABILITY.md` — health checks, logging, and queue monitoring.

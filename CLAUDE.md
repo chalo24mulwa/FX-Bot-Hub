@@ -1282,8 +1282,23 @@ state it's designed to show instead.
   a batch (see "Phase 5" above for why).
 - No deploy job exists in CI, and there's no staging/production
   environment separation — see `docs/DEPLOYMENT.md` for what exists today
-  and what adding either would need. Not fabricated here since there's no
-  real target hosting provider configured in this project.
+  and what adding either would need.
+- **Real target hosting now exists**: `fxbothub.com` is on a Hostinger
+  shared hosting plan (confirmed via SSH — CloudLinux, no root/Docker, no
+  local Postgres/Redis service). `docs/DEPLOY_HOSTINGER.md` covers the
+  concrete setup (Node.js App + Git auto-deploy via hPanel, external
+  Postgres/Redis) — a genuinely different shape from the Docker/VPS path
+  `docs/DEPLOYMENT.md` otherwise documents, not a preference. **Known
+  gap, deliberately scoped**: nothing runs the BullMQ workers
+  (`npm run worker:*`) continuously on this plan, so calendar/news sync,
+  email sending, event reminders, and subscription renewals are enqueued
+  but never consumed once `REDIS_URL` is set — the web app itself
+  (marketplace, auth, checkout, calendar reads, the hero chart) is
+  unaffected. Two ways to close it, not yet decided/built: adapt the
+  worker scripts to a "drain the queue and exit" mode triggerable by
+  hPanel's cron (no `crontab` CLI access over SSH on this plan — use its
+  web UI), or move those specific processes to a host that can run a
+  persistent one (a small VPS, a serverless cron+queue service, etc.).
 - `AuthorizedCalendarProvider` (calendar enhancement) has never made a
   request against a live Trading Economics account — this environment has
   no real `ECONOMIC_CALENDAR_API_KEY`. It's validated against the
