@@ -46,3 +46,9 @@ next-env.d.ts
 
 # docker
 docker-compose.override.yml
+
+# TradingView's Advanced Charting Library — a private, license-gated
+# distribution (see CLAUDE.md's "TradingView Advanced Charting Library"
+# section), not an open-source/npm dependency. Never commit it; each
+# environment that needs it places its own copy here.
+/public/charting_library/

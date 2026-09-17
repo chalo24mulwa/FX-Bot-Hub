@@ -1065,6 +1065,67 @@ model, deliberately kept separate.
   verification, so it's left unmapped rather than guessed (see
   `twelvedata-mapping.ts`'s doc comment).
 
+## TradingView Advanced Charting Library (in progress, not yet wired in)
+
+Preparatory work for swapping the homepage hero chart's engine from
+`lightweight-charts` to TradingView's actual Advanced Charting Library,
+once its files are available in this project — **not done yet**, and the
+homepage still renders the existing `HeroChart` (`lightweight-charts`,
+see "Homepage hero" above). Don't wire `TradingViewChart` into any page
+until the library is actually present and this has been visually verified
+— mounting it against a missing script is exactly the "library-missing"
+state it's designed to show instead.
+
+- TradingView doesn't have a public, fetchable "Datafeed API" of its own
+  — the Advanced Charting Library is a free, approval-gated JS charting
+  widget TradingView distributes as a private GitHub repo once an
+  application is approved (never via npm). Its "Datafeed" is a JS
+  *interface* (`onReady`/`searchSymbols`/`resolveSymbol`/`getBars`/
+  `subscribeBars`/`unsubscribeBars`) that the integrating site implements,
+  backed by its own real data source — "redistribution permission" from
+  TradingView is about displaying their chart widget/branding, not a
+  license to pull TradingView's own market data. **Never treat TradingView
+  itself as a data source** — that's exactly the scraping/redistribution
+  the ground rule at the top of this file already forbids; this Datafeed
+  is backed by `TwelveDataProvider` (the same provider and
+  `/api/market-data/*` routes the existing hero chart already uses), not
+  by anything fetched from TradingView.
+- **`src/components/market/tradingview/create-datafeed.ts`** implements
+  that interface entirely against this app's own same-origin
+  `/api/market-data/*` routes (REST for search/resolve/bars, SSE for
+  `subscribeBars`/`unsubscribeBars` — identical transport to
+  `HeroChart`'s, just reshaped into the Datafeed callback contract instead
+  of driven imperatively). Pure request/response mapping (resolution
+  string ↔ `BarInterval`, `InstrumentSummary` ↔ TradingView's search/symbol
+  shapes, seconds ↔ milliseconds for bar timestamps) is split into
+  `resolution-mapping.ts`, unit-tested with no DOM/network — same "pure
+  logic, I/O shell around it" split as `twelvedata-mapping.ts`.
+  `minmov`/`pricescale` default to a 5-decimal forex convention (correct
+  for most forex pairs, an approximation elsewhere) since Twelve Data's
+  symbol search doesn't return a decimal-places field — a known
+  simplification, not a silent guess, see that function's own doc
+  comment.
+- **`types.ts`** hand-declares the small slice of TradingView's public
+  `IBasicDataFeed`/`LibrarySymbolInfo`/etc. shapes this adapter needs —
+  not copied from the library's own `charting_library.d.ts` (which ships
+  inside the license-gated repo, not present in this project). Once the
+  real library is added, prefer importing its actual types over these.
+- **`tradingview-chart.tsx`** loads the library's own script tag at
+  runtime from a configurable `libraryPath` (default `/charting_library/`)
+  and mounts `new TradingView.widget({ datafeed: createDatafeed(), ... })`
+  — if the script 404s or `window.TradingView` never appears, it shows an
+  explicit "Charting Library not installed" message instead of a blank
+  chart or a crash, the same honest-degradation posture as `HeroChart`'s
+  "not configured" state for a missing API key.
+- **To finish this**: get the library files from TradingView (private
+  GitHub repo, granted after their approval process) and place them at
+  `public/charting_library/` (gitignored — a license-gated third-party
+  asset, not something to commit; each environment that needs it adds its
+  own copy). Then decide whether `TradingViewChart` replaces `HeroChart`
+  on the homepage outright or becomes a separate opt-in view, verify it
+  renders/streams correctly, and update this section once it's actually
+  wired in.
+
 ## Testing
 
 - `npm run test` (Vitest) — pure-logic unit tests only (authorization matrix,
