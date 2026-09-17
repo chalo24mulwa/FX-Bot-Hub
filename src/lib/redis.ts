@@ -29,3 +29,30 @@ redis.on("error", (err) => {
 if (process.env.NODE_ENV !== "production") {
   globalThis.__redis = redis;
 }
+
+// commandTimeout (2000ms, above) is tuned for BullMQ and only starts
+// counting once a command is actually dispatched over a live connection —
+// when Redis is unreachable outright (not just slow), ioredis's own
+// connect/retryStrategy overhead runs *before* that, so a caller relying
+// solely on commandTimeout can still wait well past 2s. Cache reads
+// (src/lib/cache.ts) already race against this shorter, independent
+// budget instead; rate limiting (src/lib/security/rate-limit.ts) uses it
+// too, for the same reason — both exist to make a request faster/safer,
+// not to add multi-second latency when their backing store is down.
+export const REDIS_FAST_TIMEOUT_MS = 250;
+
+export function withRedisTimeout<T>(promise: Promise<T>, ms: number = REDIS_FAST_TIMEOUT_MS): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("redis operation timed out")), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}

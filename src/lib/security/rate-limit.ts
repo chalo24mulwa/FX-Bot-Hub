@@ -1,4 +1,4 @@
-import { redis } from "@/lib/redis";
+import { redis, withRedisTimeout } from "@/lib/redis";
 import { env } from "@/lib/env";
 
 export class RateLimitError extends Error {
@@ -27,7 +27,15 @@ export interface RateLimitOptions {
  * Fails OPEN: if Redis is unreachable, the request is allowed rather than
  * blocked — rate limiting is a defense-in-depth layer, and a Redis outage
  * should degrade abuse protection, not take down registration/login with
- * it. This mirrors the fallback in src/lib/cache.ts.
+ * it. This mirrors the fallback in src/lib/cache.ts, including racing the
+ * Redis calls against withRedisTimeout()'s short, independent budget
+ * (src/lib/redis.ts) rather than only the shared client's own 2000ms
+ * commandTimeout — the same "fails open but not slowly" reasoning
+ * documented there: a fully-unreachable Redis otherwise leaves every
+ * rate-limited request waiting out ioredis's own connect/retry overhead
+ * on top of that 2000ms before falling back, which is a real,
+ * user-visible loading delay on every request this guards, not just a
+ * rate-limiting nicety.
  *
  * Set RATE_LIMIT_DISABLED=true to bypass entirely in tests/CI; never set
  * that in production.
@@ -38,9 +46,9 @@ export async function checkRateLimit(key: string, options: RateLimitOptions): Pr
   const redisKey = `ratelimit:${options.bucket}:${key}`;
   let count: number;
   try {
-    count = await redis.incr(redisKey);
+    count = await withRedisTimeout(redis.incr(redisKey));
     if (count === 1) {
-      await redis.expire(redisKey, options.windowSeconds);
+      await withRedisTimeout(redis.expire(redisKey, options.windowSeconds));
     }
   } catch (err) {
     console.warn(`[rate-limit] Redis unavailable, failing open for "${options.bucket}":`, err);
@@ -48,7 +56,7 @@ export async function checkRateLimit(key: string, options: RateLimitOptions): Pr
   }
 
   if (count > options.limit) {
-    const ttl = await redis.ttl(redisKey).catch(() => options.windowSeconds);
+    const ttl = await withRedisTimeout(redis.ttl(redisKey)).catch(() => options.windowSeconds);
     throw new RateLimitError(ttl > 0 ? ttl : options.windowSeconds);
   }
 }

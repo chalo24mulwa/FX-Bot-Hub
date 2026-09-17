@@ -564,6 +564,25 @@ repeating them.
   was the signal to keep looking rather than declare victory; (2) when a
   fix doesn't resolve the failure it was aimed at, don't just try a
   different fix for the same theory — go find the *actual* cause.
+- **`checkRateLimit()` had the same "slow fallback" bug as `cacheWrap()`,
+  found later** (while reloading the local dev host during the
+  market-data-chart work — every request through it, not just the new
+  routes, was taking ~2.3-2.8s to respond with Redis down locally): it
+  awaited `redis.incr()`/`redis.expire()`/`redis.ttl()` directly, relying
+  only on the shared client's 2000ms `commandTimeout`, which doesn't even
+  start counting until a command is dispatched over a live connection —
+  when Redis is unreachable outright (not just slow), ioredis's own
+  connect/retry overhead runs first. Fixed by extracting `cacheWrap()`'s
+  short-timeout race into a shared `withRedisTimeout()` helper
+  (`src/lib/redis.ts`, default 250ms) and using it in both `cache.ts` and
+  `rate-limit.ts` — cut a Redis-down request from ~2.3-2.8s to ~500-590ms
+  (two sequential 250ms-budgeted calls — `checkRateLimit`'s own
+  incr/expire plus the route's separate `cacheWrap` lookup — stacking
+  rather than 2000ms+ per call). **Lesson**: this exact bug class
+  (fail-open relying on a timeout tuned for a different caller) isn't a
+  one-time fix scoped to wherever it was first found — check every other
+  caller of the same shared client for the same assumption once you find
+  it once.
 - **Sign-in rate-limit correctness**: the first version of the Phase 5
   sign-in rate-limit fix checked the limit *before* verifying the
   password, so every successful sign-in also counted against it — this
