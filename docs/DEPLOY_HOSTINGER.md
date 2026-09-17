@@ -35,24 +35,27 @@ Shared hosting can't run this app's full stack directly:
      `domains/fxbothub.com/fxbothub-app` (**not** `public_html` directly —
      see the `DO_NOT_UPLOAD_HERE` marker Hostinger already placed there)
    - Application startup file: `.next/standalone/server.js` (this is what
-     `next.config.ts`'s `output: "standalone"` produces — see
-     `npm run build:standalone` below)
+     `next.config.ts`'s `output: "standalone"` produces — `npm run build`
+     now also copies `public/`/`.next/static/` into it automatically,
+     see step 4)
    - Application URL: `fxbothub.com`
 4. **hPanel → the domain → Git**: connect
-   `https://github.com/chalo24mulwa/FX-Bot-Hub` on branch `main`. If it
-   offers a custom deploy/build script field, use:
-   ```bash
-   npm ci
-   npm run build:standalone
-   npx prisma migrate deploy
-   touch tmp/restart.txt
-   ```
-   (`touch tmp/restart.txt` is the standard Passenger convention for
-   telling it to reload the app after a deploy — if hPanel exposes its
-   own "Restart" action/webhook instead, use that.) If the Git panel only
-   supports a raw `git pull` with no script step, the build/restart steps
-   need to run manually (over SSH) after each pull instead — tell me
-   which one you see and I'll adjust this doc.
+   `https://github.com/chalo24mulwa/FX-Bot-Hub` on branch `main`.
+   **Confirmed by inspecting an actual deploy** (not speculation): there
+   is no custom build-script field — Hostinger's pipeline is fixed as
+   `npm install` (which runs this repo's own `postinstall` → `prisma
+   generate`) then `npm run build`. `npm run build` triggers the repo's
+   `postbuild` script automatically (npm's standard lifecycle hook —
+   see `scripts/hostinger-postbuild.mjs`), which copies `public/` and
+   `.next/static/` into `.next/standalone/` the way Next.js's standalone
+   output needs — no extra configuration needed on Hostinger's side for
+   that part.
+   **Not automatic**: running `npx prisma migrate deploy` after a schema
+   change, and restarting the app process to pick up a new build (check
+   hPanel's Node.js panel for a "Restart"/redeploy action, or the
+   Passenger convention of `touch tmp/restart.txt` in the app root) —
+   both need to be done manually (or ask me to run them over SSH) after
+   a deploy that changes the schema or needs the new build live.
 5. **hPanel → the domain → Node.js → Environment variables**: set these
    directly in hPanel (never commit them, never paste real secrets into
    chat — see `docs/ENVIRONMENT.md` for the full reference):
@@ -76,6 +79,25 @@ Shared hosting can't run this app's full stack directly:
    ```bash
    npx prisma migrate deploy
    ```
+
+## Status for fxbothub.com specifically
+
+- ✅ `DATABASE_URL` — Neon project `red-moon-78624956`, `production`
+  branch. Schema fully migrated (`npx prisma migrate deploy`, all 15
+  migrations applied) — see step 6 below for re-running this after
+  future schema changes. Neon's own onboarding demo table
+  (`playing_with_neon`) was dropped first — it isn't part of this app's
+  schema.
+- ✅ `AUTH_SECRET` / `NEXTAUTH_URL` / `NEXT_PUBLIC_APP_URL` — set
+  directly in Hostinger's build env file (`hbuilds/config/.env`, over
+  SSH) after a deploy failed on a missing `AUTH_SECRET`. **Also add
+  these three in hPanel's own Environment Variables panel** if you
+  haven't already — that panel is presumably what regenerates this file,
+  so a value only added over SSH may not survive the next time you edit
+  env vars there.
+- ⬜ `REDIS_URL`, `NEXT_PUBLIC_STORAGE_PUBLIC_BASE_URL`,
+  `PAYMENT_PROVIDER`, `EMAIL_PROVIDER` — not set yet, see the table
+  above.
 
 ## Known gap: background workers and sync jobs
 
