@@ -33,7 +33,7 @@ export default async function HomePage() {
     <main className="flex-1">
       <section className="border-b border-slate-200 bg-gradient-to-b from-slate-50 to-white">
         <div className="mx-auto max-w-6xl px-6 py-12 text-center sm:py-16">
-          <div className="mx-auto max-w-4xl text-left">
+          <div className="mx-auto max-w-5xl text-left">
             <HeroChart defaultSymbol="EUR/USD" />
           </div>
 

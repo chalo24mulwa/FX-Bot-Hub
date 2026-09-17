@@ -13,6 +13,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import { InstrumentSearch } from "./instrument-search";
+import { ChartDrawingLayer } from "./chart-drawing-layer";
 import { TIMEFRAME_OPTIONS } from "@/lib/market-data/timeframes";
 import type { AssetClass, Bar, BarInterval, InstrumentSummary } from "@/lib/market-data/types";
 import { cn } from "@/lib/utils";
@@ -75,10 +76,10 @@ export function HeroChart({ defaultSymbol = "EUR/USD" }: { defaultSymbol?: strin
   useEffect(() => {
     if (!containerRef.current) return;
     const chart = createChart(containerRef.current, {
-      layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: "#475569" },
-      grid: { vertLines: { color: "#eef2f7" }, horzLines: { color: "#eef2f7" } },
-      rightPriceScale: { borderColor: "#e2e8f0" },
-      timeScale: { borderColor: "#e2e8f0", timeVisible: true, secondsVisible: false },
+      layout: { background: { type: ColorType.Solid, color: "#000000" }, textColor: "#cbd5e1" },
+      grid: { vertLines: { color: "#1e293b" }, horzLines: { color: "#1e293b" } },
+      rightPriceScale: { borderColor: "#334155" },
+      timeScale: { borderColor: "#334155", timeVisible: true, secondsVisible: false },
       crosshair: { mode: CrosshairMode.Normal },
       autoSize: true,
     });
@@ -292,25 +293,26 @@ export function HeroChart({ defaultSymbol = "EUR/USD" }: { defaultSymbol?: strin
         </div>
       </div>
 
-      <div className="relative h-[320px] w-full sm:h-[400px] lg:h-[460px]">
-        <div ref={containerRef} className="h-full w-full" />
+      <div className="relative h-[360px] w-full sm:h-[440px] lg:h-[520px]">
+        <div ref={containerRef} className="h-full w-full bg-black" />
+        {status === "ready" && <ChartDrawingLayer />}
         {status === "not-configured" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/95 px-6 text-center">
-            <p className="text-sm font-medium text-slate-700">Live market data isn&apos;t connected yet</p>
-            <p className="max-w-sm text-xs text-slate-500">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/95 px-6 text-center">
+            <p className="text-sm font-medium text-slate-200">Live market data isn&apos;t connected yet</p>
+            <p className="max-w-sm text-xs text-slate-400">
               This chart is fully wired up, but no market-data provider credentials are configured in this environment.
               Set MARKET_DATA_API_KEY to show real live prices.
             </p>
           </div>
         )}
         {status === "error" && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-white/95 px-6 text-center">
-            <p className="text-sm font-medium text-red-600">Couldn&apos;t load chart data</p>
-            {errorMessage && <p className="max-w-sm text-xs text-slate-500">{errorMessage}</p>}
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/95 px-6 text-center">
+            <p className="text-sm font-medium text-red-400">Couldn&apos;t load chart data</p>
+            {errorMessage && <p className="max-w-sm text-xs text-slate-400">{errorMessage}</p>}
           </div>
         )}
         {status === "loading" && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white/60">
+          <div className="absolute inset-0 flex items-center justify-center bg-black/60">
             <p className="text-xs text-slate-400">Loading chart…</p>
           </div>
         )}

@@ -1065,6 +1065,42 @@ model, deliberately kept separate.
   verification, so it's left unmapped rather than guessed (see
   `twelvedata-mapping.ts`'s doc comment).
 
+## Hero chart: dark theme, wider layout, and scratch annotations
+
+Small, additive follow-ups to the homepage hero chart — no engine swap,
+no architecture change:
+
+- **Dark theme**: `HeroChart`'s `createChart()` options now use a black
+  `layout.background`, light `textColor`, and dark grid/border colors
+  (`hero-chart.tsx`) — only the chart's own plot area, not the
+  surrounding card/header, which stays light. The "not configured"/
+  "error"/"loading" overlays were updated to match (dark background,
+  light text) so they don't look like a stray white box on the new black
+  canvas.
+- **Wider container**: the homepage's wrapper around `<HeroChart>`
+  changed from `max-w-4xl` to `max-w-5xl` (`src/app/page.tsx`) — closer
+  to the hero section's own `max-w-6xl` bound, reducing the side gaps,
+  without going edge-to-edge.
+- **`ChartDrawingLayer`** (`src/components/market/chart-drawing-layer.tsx`)
+  adds pencil/line/text annotation tools + a color palette, as a plain
+  `<canvas>` absolutely positioned on top of the chart — entirely
+  independent of `lightweight-charts`, which has no drawing-tools API of
+  its own (this is exactly the kind of thing TradingView's paid Advanced
+  Charting Library would provide natively — see the section below for why
+  that isn't in use here yet). Needs an explicit `z-10`: lightweight-charts'
+  own internal canvases apparently set their own z-index, so a sibling
+  overlay with the default `z-index: auto` renders *underneath* them
+  despite being later in the DOM — a real bug hit and fixed while
+  building this, not a hypothetical. Only mounts once `status === "ready"`
+  (real chart data loaded). Pointer events pass through to the chart
+  underneath (`pointer-events-none`) unless a draw tool (not "cursor") is
+  selected, so normal pan/zoom/crosshair still works by default.
+  **Annotations are client-side/session-only** — there's no backend model
+  for them, so they're lost on reload; a deliberate scope cut for a first
+  pass. The canvas's pixel size tracks the chart container via
+  `ResizeObserver`, but existing strokes don't rescale with it — also a
+  known, acceptable simplification for scratch annotations, not a bug.
+
 ## TradingView Advanced Charting Library (in progress, not yet wired in)
 
 Preparatory work for swapping the homepage hero chart's engine from
