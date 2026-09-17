@@ -58,7 +58,18 @@ Shared hosting can't run this app's full stack directly:
    a deploy that changes the schema or needs the new build live.
 5. **hPanel → the domain → Node.js → Environment variables**: set these
    directly in hPanel (never commit them, never paste real secrets into
-   chat — see `docs/ENVIRONMENT.md` for the full reference):
+   chat — see `docs/ENVIRONMENT.md` for the full reference).
+   **Do not wrap values in quotes** — Hostinger's env loader (backed by
+   `~/domains/<domain>/hbuilds/config/.env`, at least via SSH) does not
+   strip surrounding `'` or `"` characters the way a typical dotenv
+   parser does; a value entered as `"https://fxbothub.com"` is read back
+   literally including the quote marks, which silently breaks anything
+   that parses it strictly (`new URL(...)` in `src/app/layout.tsx` threw
+   `ERR_INVALID_URL` on exactly this — a real deploy failure this
+   caused). A value like `DATABASE_URL` that's just checked for
+   non-emptiness (`z.string().min(1)`) won't fail the *build* the same
+   way, but is silently broken at *runtime* instead — worth
+   double-checking specifically, since that failure mode is quieter.
 
    | Variable | Value |
    | --- | --- |
@@ -90,11 +101,14 @@ Shared hosting can't run this app's full stack directly:
   schema.
 - ✅ `AUTH_SECRET` / `NEXTAUTH_URL` / `NEXT_PUBLIC_APP_URL` — set
   directly in Hostinger's build env file (`hbuilds/config/.env`, over
-  SSH) after a deploy failed on a missing `AUTH_SECRET`. **Also add
-  these three in hPanel's own Environment Variables panel** if you
-  haven't already — that panel is presumably what regenerates this file,
-  so a value only added over SSH may not survive the next time you edit
-  env vars there.
+  SSH) after a deploy failed on a missing `AUTH_SECRET`. The first
+  attempt at this quoted the values (`KEY="value"`), which caused a
+  second deploy failure (`ERR_INVALID_URL` — see the quoting note
+  above); rewritten unquoted and re-verified. **Also add these three in
+  hPanel's own Environment Variables panel** if you haven't already —
+  that panel is presumably what regenerates this file, so a value only
+  added over SSH may not survive the next time you edit env vars there.
+  If you do add them there, don't wrap them in quotes either.
 - ⬜ `REDIS_URL`, `NEXT_PUBLIC_STORAGE_PUBLIC_BASE_URL`,
   `PAYMENT_PROVIDER`, `EMAIL_PROVIDER` — not set yet, see the table
   above.
