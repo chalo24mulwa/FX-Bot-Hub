@@ -44,6 +44,22 @@ function mapBarToSeriesPoint(bar: Bar, chartType: ChartType) {
   return { time: bar.time as UTCTimestamp, value: bar.close };
 }
 
+/** Forex/metal pairs quote to 5 decimal places (pip-level) — the default
+ * precision:2/minMove:0.01 lightweight-charts otherwise assumes only
+ * leaves room for a couple of coarse price-axis ticks across a typical
+ * EUR/USD range, showing repeated rounded labels like "1.15" instead of
+ * distinct ones. A smaller minMove lets the price scale compute finer
+ * "nice" tick steps, which is also what produces smaller, denser
+ * horizontal grid lines — there's no separate grid-density option in
+ * lightweight-charts, it's entirely derived from the price format.
+ * Stocks/indices keep the standard 2-decimal convention. */
+function getPriceFormat(assetClass: AssetClass | null): { type: "price"; precision: number; minMove: number } {
+  if (assetClass === "FOREX" || assetClass === "METAL" || assetClass === "COMMODITY") {
+    return { type: "price", precision: 5, minMove: 0.00001 };
+  }
+  return { type: "price", precision: 2, minMove: 0.01 };
+}
+
 /**
  * Homepage hero chart — live instrument chart backed by
  * MarketDataProvider via /api/market-data/* (see src/lib/market-data/).
@@ -123,6 +139,7 @@ export function HeroChart({ defaultSymbol = "EUR/USD" }: { defaultSymbol?: strin
         seriesRef.current = null;
       }
       const bars: Bar[] = barsData.bars ?? [];
+      const priceFormat = getPriceFormat(assetClass);
       if (chartType === "candlestick") {
         const series = chart!.addSeries(CandlestickSeries, {
           upColor: "#16a34a",
@@ -130,11 +147,12 @@ export function HeroChart({ defaultSymbol = "EUR/USD" }: { defaultSymbol?: strin
           borderVisible: false,
           wickUpColor: "#16a34a",
           wickDownColor: "#dc2626",
+          priceFormat,
         });
         series.setData(mapBarsToSeriesData(bars, "candlestick"));
         seriesRef.current = series;
       } else if (chartType === "line") {
-        const series = chart!.addSeries(LineSeries, { color: "#2563eb", lineWidth: 2 });
+        const series = chart!.addSeries(LineSeries, { color: "#2563eb", lineWidth: 2, priceFormat });
         series.setData(mapBarsToSeriesData(bars, "line"));
         seriesRef.current = series;
       } else {
@@ -143,6 +161,7 @@ export function HeroChart({ defaultSymbol = "EUR/USD" }: { defaultSymbol?: strin
           topColor: "rgba(37, 99, 235, 0.3)",
           bottomColor: "rgba(37, 99, 235, 0.02)",
           lineWidth: 2,
+          priceFormat,
         });
         series.setData(mapBarsToSeriesData(bars, "area"));
         seriesRef.current = series;
@@ -193,7 +212,7 @@ export function HeroChart({ defaultSymbol = "EUR/USD" }: { defaultSymbol?: strin
       eventSourceRef.current?.close();
       eventSourceRef.current = null;
     };
-  }, [symbol, interval, chartType]);
+  }, [symbol, interval, chartType, assetClass]);
 
   function selectInstrument(instrument: InstrumentSummary) {
     setSymbol(instrument.symbol);
