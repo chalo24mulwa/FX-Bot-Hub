@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildUsdPairQuery,
+  isBareCurrencyCode,
   mapAssetClass,
+  mergeWithUsdPairFirst,
   parseQuoteResponse,
   parseSymbolSearchResponse,
   parseTimeSeriesResponse,
@@ -102,6 +105,45 @@ describe("parseWsMessage", () => {
 
   it("ignores malformed JSON without throwing", () => {
     expect(parseWsMessage("not json")).toBeNull();
+  });
+});
+
+describe("isBareCurrencyCode / buildUsdPairQuery", () => {
+  it("treats a plain 3-letter code as bare", () => {
+    expect(isBareCurrencyCode("EUR")).toBe(true);
+    expect(isBareCurrencyCode("xau")).toBe(true);
+    expect(isBareCurrencyCode(" GBP ")).toBe(true);
+  });
+
+  it("does not treat an already-formatted pair or a stock ticker as bare", () => {
+    expect(isBareCurrencyCode("EUR/USD")).toBe(false);
+    expect(isBareCurrencyCode("AAPL")).toBe(false);
+    expect(isBareCurrencyCode("EU")).toBe(false);
+  });
+
+  it("builds an uppercase <code>/USD pair query", () => {
+    expect(buildUsdPairQuery("eur")).toBe("EUR/USD");
+    expect(buildUsdPairQuery(" xau ")).toBe("XAU/USD");
+  });
+});
+
+describe("mergeWithUsdPairFirst", () => {
+  const eurUsd = { symbol: "EUR/USD", name: "Euro / US Dollar", assetClass: "FOREX" as const };
+  const someStock = { symbol: "EURN", name: "Some Company", assetClass: "STOCK" as const };
+
+  it("promotes an exact USD-pair match to the front and dedupes it from the base results", () => {
+    const merged = mergeWithUsdPairFirst([someStock, eurUsd], [eurUsd], "EUR/USD");
+    expect(merged).toEqual([eurUsd, someStock]);
+  });
+
+  it("promotes even when the base results didn't already contain the pair", () => {
+    const merged = mergeWithUsdPairFirst([someStock], [eurUsd], "EUR/USD");
+    expect(merged).toEqual([eurUsd, someStock]);
+  });
+
+  it("returns the base results unchanged when the USD-pair search found no exact match", () => {
+    const merged = mergeWithUsdPairFirst([someStock], [], "EUR/USD");
+    expect(merged).toEqual([someStock]);
   });
 });
 

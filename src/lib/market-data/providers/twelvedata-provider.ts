@@ -4,6 +4,9 @@ import type { Bar, BarInterval, BarUpdate, InstrumentSummary, MarketDataProvider
 import { RefCountedSubscriptionRegistry } from "../subscription-registry";
 import { TickAggregator } from "../tick-aggregator";
 import {
+  buildUsdPairQuery,
+  isBareCurrencyCode,
+  mergeWithUsdPairFirst,
   parseQuoteResponse,
   parseSymbolSearchResponse,
   parseTimeSeriesResponse,
@@ -207,9 +210,21 @@ export class TwelveDataProvider implements MarketDataProvider {
 
   async searchSymbols(query: string): Promise<InstrumentSummary[]> {
     const { apiKey, apiUrl } = requireConfigured();
-    const url = `${apiUrl}/symbol_search?symbol=${encodeURIComponent(query)}&apikey=${encodeURIComponent(apiKey)}`;
-    const res = await fetchWithRetry(url);
-    return parseSymbolSearchResponse(await res.json());
+    const search = (q: string) =>
+      fetchWithRetry(`${apiUrl}/symbol_search?symbol=${encodeURIComponent(q)}&apikey=${encodeURIComponent(apiKey)}`)
+        .then((res) => res.json())
+        .then(parseSymbolSearchResponse);
+
+    const baseResults = await search(query);
+    if (!isBareCurrencyCode(query)) return baseResults;
+
+    // A bare 3-letter query ("EUR", "XAU") can easily miss its own
+    // most-common pair in Twelve Data's unranked ~30-result window (see
+    // mergeWithUsdPairFirst's doc comment) — also search "<code>/USD"
+    // and promote an exact match to the front.
+    const usdPairSymbol = buildUsdPairQuery(query);
+    const usdPairResults = await search(usdPairSymbol).catch(() => [] as InstrumentSummary[]);
+    return mergeWithUsdPairFirst(baseResults, usdPairResults, usdPairSymbol);
   }
 
   async resolveSymbol(symbol: string): Promise<InstrumentSummary | null> {

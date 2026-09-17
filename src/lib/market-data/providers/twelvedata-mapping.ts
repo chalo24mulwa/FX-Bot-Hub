@@ -91,6 +91,38 @@ export function parseSymbolSearchResponse(payload: unknown): InstrumentSummary[]
   }));
 }
 
+/** Twelve Data's symbol_search for a bare 3-letter code (e.g. "EUR",
+ * "XAU") returns up to ~30 results with no relevance ranking — matches
+ * across every asset type (stock tickers, warrants, ETFs...) alongside
+ * every currency pair with that base, and a common pair like "EUR/USD"
+ * can easily not make the cut at all (verified live: searching "EUR"
+ * does not return EUR/USD in the first 30 results, while searching
+ * "EUR/USD" directly returns it as the very first result). Detected
+ * here so the provider can additionally search "<code>/USD" and merge
+ * that exact match to the front — the single most useful default quote
+ * currency for a bare base-currency query, matching how most retail
+ * platforms handle this. Only fires for a plain 3-letter alphabetic
+ * query with no "/" already in it (a real pair or a stock ticker like
+ * "AAPL" is left alone). */
+export function isBareCurrencyCode(query: string): boolean {
+  return /^[A-Za-z]{3}$/.test(query.trim());
+}
+
+export function buildUsdPairQuery(query: string): string {
+  return `${query.trim().toUpperCase()}/USD`;
+}
+
+/** Merges a base search's results with an augmented "<code>/USD" search's
+ * results (see isBareCurrencyCode), promoting an exact "<code>/USD" match
+ * to the front and deduping by symbol — pure so the merge order is
+ * unit-testable without a network call. */
+export function mergeWithUsdPairFirst(baseResults: InstrumentSummary[], usdPairResults: InstrumentSummary[], usdPairSymbol: string): InstrumentSummary[] {
+  const exactMatch = usdPairResults.find((r) => r.symbol.toUpperCase() === usdPairSymbol.toUpperCase());
+  if (!exactMatch) return baseResults;
+  const rest = baseResults.filter((r) => r.symbol.toUpperCase() !== usdPairSymbol.toUpperCase());
+  return [exactMatch, ...rest];
+}
+
 // ---------- /time_series ----------
 
 const TimeSeriesRowSchema = z.object({
