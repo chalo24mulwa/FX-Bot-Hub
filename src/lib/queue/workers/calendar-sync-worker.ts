@@ -10,7 +10,7 @@ import type { CalendarSyncJobData } from "../queues";
 // trigger); the worker just runs the job and lets it fail loudly.
 export const calendarSyncWorker = new Worker<CalendarSyncJobData>(
   "calendar-sync",
-  async () => runCalendarSync(),
+  async (job) => runCalendarSync(job.data.windowOverride, job.data.jobName),
   { connection: queueConnection }
 );
 

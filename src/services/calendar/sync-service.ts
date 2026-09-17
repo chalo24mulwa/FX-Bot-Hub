@@ -36,18 +36,24 @@ export interface CalendarSyncResult extends SyncResult {
 
 /**
  * The sync window is a single contiguous range around "now" — from
- * `ECONOMIC_CALENDAR_SYNC_RECENT_DAYS` in the past (catches actual/
- * previous revisions on events that already released) through
- * `ECONOMIC_CALENDAR_SYNC_UPCOMING_DAYS` ahead (catches new/changed
- * upcoming events). One bounded range per provider per run, never the
- * whole historical table — see CLAUDE.md's calendar-service note on the
- * same principle for reads.
+ * `recentDays` in the past (catches actual/previous revisions on events
+ * that already released) through `upcomingDays` ahead (catches new/
+ * changed upcoming events). One bounded range per provider per run,
+ * never the whole historical table — see CLAUDE.md's calendar-service
+ * note on the same principle for reads. Defaults to the env-configured
+ * full window; a caller can pass a narrower override (see
+ * `CalendarSyncWindowOverride` below) for a tighter, more frequent pass.
  */
-function getSyncWindow(now: Date): { from: Date; to: Date } {
+function getSyncWindow(now: Date, windowDays: { recentDays: number; upcomingDays: number }): { from: Date; to: Date } {
   return {
-    from: new Date(now.getTime() - env.ECONOMIC_CALENDAR_SYNC_RECENT_DAYS * 86_400_000),
-    to: new Date(now.getTime() + env.ECONOMIC_CALENDAR_SYNC_UPCOMING_DAYS * 86_400_000),
+    from: new Date(now.getTime() - windowDays.recentDays * 86_400_000),
+    to: new Date(now.getTime() + windowDays.upcomingDays * 86_400_000),
   };
+}
+
+export interface CalendarSyncWindowOverride {
+  recentDays: number;
+  upcomingDays: number;
 }
 
 /**
@@ -59,9 +65,21 @@ function getSyncWindow(now: Date): { from: Date; to: Date } {
  * failure never deletes previously-synced data (see the per-source
  * try/catch below and CLAUDE.md's "provider failure" note). Called by the
  * calendarSync queue worker — see src/lib/queue/workers.
+ *
+ * `windowOverride` narrows the sync window for this one run instead of
+ * using the env-configured recent/upcoming days — intended for a
+ * tighter, more frequent external-cron pass (e.g. "today only," every
+ * few minutes, to catch same-day actual-value releases faster than a
+ * full multi-month pass needs to run) alongside a normal periodic
+ * full-window pass. `jobName` tags the SyncLog row so the two cadences
+ * are distinguishable in the admin "Recent sync runs" table — see
+ * `CalendarSyncJobData` in src/lib/queue/queues.ts.
  */
-export async function runCalendarSync(): Promise<CalendarSyncResult> {
-  const log = await startSyncLog("calendarSync");
+export async function runCalendarSync(
+  windowOverride?: CalendarSyncWindowOverride,
+  jobName = "calendarSync"
+): Promise<CalendarSyncResult> {
+  const log = await startSyncLog(jobName);
   const result: CalendarSyncResult = {
     itemsProcessed: 0,
     itemsInserted: 0,
@@ -74,7 +92,13 @@ export async function runCalendarSync(): Promise<CalendarSyncResult> {
   try {
     const sources = await listEnabledDataSources("CALENDAR");
     const now = new Date();
-    const { from, to } = getSyncWindow(now);
+    const { from, to } = getSyncWindow(
+      now,
+      windowOverride ?? {
+        recentDays: env.ECONOMIC_CALENDAR_SYNC_RECENT_DAYS,
+        upcomingDays: env.ECONOMIC_CALENDAR_SYNC_UPCOMING_DAYS,
+      }
+    );
 
     for (const source of sources) {
       const provider = getCalendarProvider(source.providerKey);

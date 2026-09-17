@@ -10,7 +10,22 @@ export interface EmailJobData {
 // Empty payloads — these jobs pull their own work list (enabled
 // DataSource rows) from the DB rather than being told what to sync, so
 // they can be triggered on a schedule or manually with no arguments.
-export type CalendarSyncJobData = Record<string, never>;
+//
+// calendarSync is the one exception: an optional `windowOverride` lets a
+// caller narrow the sync window for a single run (e.g. "just today,"
+// intended for a tighter external-cron cadence that catches same-day
+// actual-value releases faster than the full recent/upcoming window run
+// needs) instead of always using ECONOMIC_CALENDAR_SYNC_RECENT_DAYS/
+// UPCOMING_DAYS from env — see runCalendarSync in
+// src/services/calendar/sync-service.ts. `jobName` tags the resulting
+// SyncLog row distinctly (default "calendarSync") so a narrower/more
+// frequent run is visible separately from a full-window run in the
+// admin "Recent sync runs" table, without adding a second SyncLog job
+// type outside this one queue.
+export interface CalendarSyncJobData {
+  windowOverride?: { recentDays: number; upcomingDays: number };
+  jobName?: string;
+}
 export type NewsSyncJobData = Record<string, never>;
 export type MarketDataSyncJobData = Record<string, never>;
 // Same "pulls its own work list" shape: finds due Subscription rows itself.

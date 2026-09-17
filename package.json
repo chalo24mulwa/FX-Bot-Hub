@@ -18,6 +18,7 @@
     "worker:event-reminder": "tsx src/lib/queue/workers/event-reminder-worker.ts",
     "worker:subscription-renewal": "tsx src/lib/queue/workers/subscription-renewal-worker.ts",
     "sync:trigger": "tsx scripts/trigger-sync.ts",
+    "sync:trigger:calendar-today": "tsx scripts/trigger-calendar-sync-today.ts",
     "subscriptions:renew": "tsx scripts/trigger-subscription-renewal.ts",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",

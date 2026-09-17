@@ -43,3 +43,20 @@ export async function triggerCalendarSyncAction() {
   revalidatePath("/admin/data-sources");
   return { jobId: job.id };
 }
+
+/** Same queue, narrowed to today's window only — the manual-trigger
+ * equivalent of `npm run sync:trigger:calendar-today` (see that script's
+ * doc comment and runCalendarSync's `windowOverride` in
+ * src/services/calendar/sync-service.ts). Logged under a distinct
+ * SyncLog jobName so it's visible separately from a full-window run. */
+export async function triggerCalendarSyncTodayAction() {
+  const session = await requirePermission("data_source:manage");
+  const job = await calendarSyncQueue.add(
+    "manual-today",
+    { windowOverride: { recentDays: 0, upcomingDays: 1 }, jobName: "calendarSyncToday" },
+    SYNC_JOB_OPTIONS
+  );
+  await recordAuditLog({ actorId: session.user.id, action: "data_source.trigger_sync_today", entityType: "DataSource", entityId: "calendar" });
+  revalidatePath("/admin/data-sources");
+  return { jobId: job.id };
+}

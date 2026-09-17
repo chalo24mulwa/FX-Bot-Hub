@@ -732,6 +732,22 @@ behavior was removed.
   every caller now passes an explicit `timezone` prop (the two SEO
   per-currency/per-week pages pass the site default; the main `/calendar`
   page resolves the viewer's choice).
+- **Two sync cadences, same job/pipeline**: `runCalendarSync()` takes an
+  optional `windowOverride` (`{recentDays, upcomingDays}`) and `jobName`,
+  defaulting to the env-configured full window logged as `"calendarSync"`.
+  `npm run sync:trigger:calendar-today` (`scripts/trigger-calendar-sync-
+  today.ts`) enqueues the same `calendarSyncQueue`/worker with a narrowed
+  `{recentDays: 0, upcomingDays: 1}` window, logged as
+  `"calendarSyncToday"` — meant for a tighter external-cron cadence (e.g.
+  every 5-15 min) alongside a slower full-window cron
+  (`ECONOMIC_CALENDAR_SYNC_INTERVAL_MINUTES`, e.g. hourly), so a same-day
+  actual-value release is picked up faster without re-requesting the
+  whole multi-month window every time. `/admin/data-sources` also has a
+  "Sync today's events only" button next to the existing "Run calendar
+  sync now" (`triggerCalendarSyncTodayAction`) — both cadences share one
+  `SyncLog` table and are distinguishable by `jobName` in the "Recent
+  sync runs" table there. This is additive to, not a replacement for, the
+  external-cron model below — there is still no in-process scheduler.
 - **Two-level refresh**: level 1 is `runCalendarSync()` itself (via the
   existing `calendarSyncQueue`/worker — an admin can also trigger one
   on-demand with a new "Run calendar sync now" button at
@@ -998,9 +1014,13 @@ ground rule against scraping it stands unchanged.
   `worker:market-data-sync` / `worker:event-reminder` /
   `worker:subscription-renewal` — long-running BullMQ workers (each `tsx
   src/lib/queue/workers/*.ts`); `npm run sync:trigger` enqueues one
-  calendar+news+market-data sync pass and exits; `npm run subscriptions:renew`
-  enqueues one product-subscription renewal pass and exits — both for wiring
-  to an external cron (renewal wants a daily cadence, sync can run more often).
+  calendar+news+market-data sync pass (full window) and exits; `npm run
+  sync:trigger:calendar-today` enqueues a calendar-only, today-window-only
+  pass for a tighter cadence (see "Calendar enhancement" below); `npm run
+  subscriptions:renew` enqueues one product-subscription renewal pass and
+  exits — all three for wiring to an external cron (renewal wants a daily
+  cadence, full-window sync can run more often, today-only sync more often
+  still).
 - `docker compose up` starts Postgres, Redis, and MinIO for local dev — copy
   `.env.example` to `.env` first.
 
