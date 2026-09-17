@@ -33,7 +33,11 @@ export default async function HomePage() {
     <main className="flex-1">
       <section className="border-b border-slate-200 bg-gradient-to-b from-slate-50 to-white">
         <div className="mx-auto max-w-6xl px-6 py-12 text-center sm:py-16">
-          <h1 className="inline-flex items-center justify-center gap-3 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
+          <div className="mx-auto max-w-4xl text-left">
+            <HeroChart defaultSymbol="EUR/USD" />
+          </div>
+
+          <h1 className="mt-10 inline-flex items-center justify-center gap-3 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
             <span className="inline-flex items-center rounded-xl bg-gradient-to-br from-blue-600 via-violet-500 to-emerald-500 px-3 py-1 text-2xl font-black italic text-white shadow-md sm:text-3xl">
               fx
             </span>
@@ -53,10 +57,6 @@ export default async function HomePage() {
             <Link href="/calendar" className={cn(buttonVariants({ variant: "outline", size: "lg" }))}>
               Economic calendar
             </Link>
-          </div>
-
-          <div className="mx-auto mt-10 max-w-4xl text-left">
-            <HeroChart defaultSymbol="EUR/USD" />
           </div>
         </div>
       </section>
