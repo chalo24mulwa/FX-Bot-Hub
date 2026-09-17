@@ -7,7 +7,7 @@ import type { Bar, BarInterval } from "./types";
 // (the part most likely to have an off-by-one) is unit-testable without a
 // live WebSocket connection — see tick-aggregator.test.ts.
 
-const INTERVAL_SECONDS: Record<BarInterval, number> = {
+export const INTERVAL_SECONDS: Record<BarInterval, number> = {
   "1m": 60,
   "5m": 5 * 60,
   "15m": 15 * 60,

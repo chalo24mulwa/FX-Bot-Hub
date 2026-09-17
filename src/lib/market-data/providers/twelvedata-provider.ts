@@ -2,7 +2,7 @@ import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import type { Bar, BarInterval, BarUpdate, InstrumentSummary, MarketDataProvider, Quote } from "../types";
 import { RefCountedSubscriptionRegistry } from "../subscription-registry";
-import { TickAggregator } from "../tick-aggregator";
+import { INTERVAL_SECONDS, TickAggregator } from "../tick-aggregator";
 import {
   buildUsdPairQuery,
   isBareCurrencyCode,
@@ -39,6 +39,15 @@ import {
 
 const MAX_RETRY_ATTEMPTS = 3;
 const RETRY_BASE_DELAY_MS = 500;
+// A large `outputsize` (Twelve Data's free tier especially) can take
+// 20s+ per request — confirmed directly against the live API, not a
+// guess (outputsize=2000 alone, no date range, took ~22s). Native
+// `fetch` has no default timeout, so without one, one slow upstream
+// response hangs the *whole* request indefinitely (three retries each
+// potentially hanging this long), until the hosting platform's own
+// gateway eventually kills it — that's a real correctness gap, not a
+// theoretical one: it reproduced as a live 504 on this exact endpoint.
+const FETCH_TIMEOUT_MS = 12_000;
 const WS_RECONNECT_BASE_DELAY_MS = 1000;
 const WS_RECONNECT_MAX_DELAY_MS = 30_000;
 const WS_HEARTBEAT_INTERVAL_MS = 10_000;
@@ -57,7 +66,7 @@ async function fetchWithRetry(url: string): Promise<Response> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
     try {
-      const res = await fetch(url);
+      const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
       if (res.ok) return res;
       if (res.status >= 400 && res.status < 500) {
         throw new Error(`market data provider request failed (${res.status}): ${await safeText(res)}`);
@@ -235,11 +244,20 @@ export class TwelveDataProvider implements MarketDataProvider {
   async getHistoricalBars(symbol: string, interval: BarInterval, from: Date, to: Date): Promise<Bar[]> {
     const { apiKey, apiUrl } = requireConfigured();
     const tdInterval = TWELVE_DATA_INTERVAL[interval];
+    // `outputsize` is a request-size cap, not a truncation of the
+    // start_date/end_date range itself — Twelve Data still only returns
+    // bars inside that range. Sizing it to what the range can actually
+    // contain (plus headroom), rather than always requesting the max of
+    // 5000, matters for latency on their free tier: confirmed directly
+    // against the live API that a large outputsize alone (no date range)
+    // can take 20s+, while a small one responds in ~2s.
+    const expectedBars = Math.ceil((to.getTime() - from.getTime()) / (INTERVAL_SECONDS[interval] * 1000));
+    const outputSize = Math.max(50, Math.min(expectedBars + 20, 2000));
     const url =
       `${apiUrl}/time_series?symbol=${encodeURIComponent(symbol)}&interval=${tdInterval}` +
       `&start_date=${encodeURIComponent(formatDateForTwelveData(from))}` +
       `&end_date=${encodeURIComponent(formatDateForTwelveData(to))}` +
-      `&outputsize=5000&apikey=${encodeURIComponent(apiKey)}`;
+      `&outputsize=${outputSize}&apikey=${encodeURIComponent(apiKey)}`;
     const res = await fetchWithRetry(url);
     return parseTimeSeriesResponse(await res.json());
   }

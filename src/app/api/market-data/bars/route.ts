@@ -20,13 +20,21 @@ const QuerySchema = z.object({
 // explicit `from`/`to` (see CalendarPage's own from/to pattern) — this
 // route doesn't return a single unbounded history in one call, mirroring
 // EconomicCalendarService's "never scan the whole table" rule.
+//
+// Sized to keep the expected bar count for each interval in the low
+// hundreds, not thousands — confirmed directly against the live Twelve
+// Data API that request latency scales badly with bar count on its free
+// tier (outputsize=5 responded in ~2s; outputsize=2000 took ~22s;
+// outputsize=5000 combined with a wide date range took over two
+// minutes). The previous values (7 days for "5m" = ~2016 bars) were
+// picked before that was known and reliably timed out in production.
 const DEFAULT_LOOKBACK_DAYS: Record<BarInterval, number> = {
-  "1m": 2,
-  "5m": 7,
-  "15m": 14,
-  "30m": 30,
-  "1h": 90,
-  "4h": 180,
+  "1m": 0.25,
+  "5m": 1,
+  "15m": 5,
+  "30m": 10,
+  "1h": 20,
+  "4h": 80,
   "1d": 730,
   "1w": 1825,
   "1M": 3650,
