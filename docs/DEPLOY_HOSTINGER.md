@@ -80,6 +80,7 @@ Shared hosting can't run this app's full stack directly:
    | `NEXTAUTH_URL` | `https://fxbothub.com` |
    | `NEXT_PUBLIC_APP_URL` | `https://fxbothub.com` |
    | `NEXT_PUBLIC_STORAGE_PUBLIC_BASE_URL` | your object storage's public base URL (S3/R2/MinIO — required for product images to render) |
+   | `STORAGE_ENDPOINT`, `STORAGE_REGION`, `STORAGE_BUCKET`, `STORAGE_ACCESS_KEY_ID`, `STORAGE_SECRET_ACCESS_KEY`, `STORAGE_FORCE_PATH_STYLE` | your S3-compatible bucket (R2/S3/…) — **required for sellers to upload cover photos, screenshots, and product files** (uploads go browser → bucket via presigned URLs). The bucket also needs a CORS rule allowing `PUT`/`GET` from `https://fxbothub.com`, and public read on `products/*/image/*` so covers can display |
    | `PAYMENT_PROVIDER` | **not** `manual` once accepting real payments — see `docs/ENVIRONMENT.md` |
    | `EMAIL_PROVIDER` | **not** `console` — set `resend` + `RESEND_API_KEY` for real delivery |
    | `RATE_LIMIT_DISABLED` | leave unset |

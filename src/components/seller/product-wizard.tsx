@@ -9,7 +9,9 @@ import {
   updateProductFromDataAction,
   submitForReviewAction,
 } from "@/features/seller/actions";
+import { CoverPhotoPicker, useCoverPreview } from "@/components/seller/cover-photo-field";
 import {
+  uploadAndSetCover,
   uploadAndAttachScreenshot,
   uploadAndAttachDocumentationFile,
   uploadAndAttachProductFile,
@@ -71,6 +73,14 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
   const [productId, setProductId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // The cover photo is chosen on the "Basic information" step, above the
+  // product name — but a draft product (and so a productId to attach it to)
+  // doesn't exist until the end of step 5, so the file waits in memory
+  // until then. If a productId already exists (the seller went Back to
+  // change it), it uploads immediately instead.
+  const cover = useCoverPreview();
+  const [coverState, setCoverState] = useState<"idle" | "uploading" | "saved" | "failed">("idle");
+  const [coverError, setCoverError] = useState<string | null>(null);
   const [uploaded, setUploaded] = useState<{ screenshots: number; docs: number; files: number }>({
     screenshots: 0,
     docs: 0,
@@ -79,6 +89,25 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
 
   function set<K extends keyof WizardData>(key: K, value: WizardData[K]) {
     setData((d) => ({ ...d, [key]: value }));
+  }
+
+  async function saveCover(forProductId: string, file: File) {
+    setCoverState("uploading");
+    setCoverError(null);
+    try {
+      await uploadAndSetCover(forProductId, file);
+      setCoverState("saved");
+    } catch (err) {
+      setCoverState("failed");
+      setCoverError(err instanceof Error ? err.message : "Could not upload the cover photo.");
+    }
+  }
+
+  function chooseCover(file: File) {
+    cover.choose(file);
+    setCoverState("idle");
+    setCoverError(null);
+    if (productId) void saveCover(productId, file);
   }
 
   async function next() {
@@ -110,6 +139,10 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
           tags: data.tags,
         });
         setProductId(product.id);
+        // Deliberately not part of the draft's success/failure: a cover-upload
+        // problem (e.g. storage not configured) must not block listing the
+        // rest of the product — the seller can retry it from the product page.
+        if (cover.file) void saveCover(product.id, cover.file);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Could not save your product.");
         setBusy(false);
@@ -206,6 +239,19 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
 
         {step === 2 && (
           <div className="flex flex-col gap-4">
+            <CoverPhotoPicker
+              previewUrl={cover.url}
+              onFileChange={chooseCover}
+              busy={coverState === "uploading"}
+              error={coverError}
+              note={
+                coverState === "saved"
+                  ? "Cover photo saved."
+                  : cover.file && !productId
+                    ? "Will upload when your draft is saved."
+                    : null
+              }
+            />
             <label className="flex flex-col gap-1 text-sm">
               Product name
               <Input value={data.name} onChange={(e) => set("name", e.target.value)} minLength={3} maxLength={120} />
@@ -357,7 +403,26 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
         )}
 
         {step === 11 && (
-          <div>
+          <div className="flex flex-col gap-4">
+            {cover.url && (
+              <div className="relative aspect-[16/10] w-full max-w-xs overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+                {/* eslint-disable-next-line @next/next/no-img-element -- blob: preview */}
+                <img src={cover.url} alt="Cover photo" className="h-full w-full object-cover" />
+              </div>
+            )}
+            {coverState === "failed" && (
+              <p role="alert" className="text-sm text-amber-700">
+                Your cover photo didn&apos;t upload{coverError ? ` (${coverError})` : ""}.{" "}
+                <button
+                  type="button"
+                  className="underline"
+                  onClick={() => productId && cover.file && void saveCover(productId, cover.file)}
+                >
+                  Try again
+                </button>{" "}
+                — or add it later from the product page.
+              </p>
+            )}
             <p className="text-sm text-slate-600">
               Ready to submit <strong>{data.name}</strong> for review. A moderator will approve or reject it —
               you can keep editing everything (including uploads) from the product page afterwards.

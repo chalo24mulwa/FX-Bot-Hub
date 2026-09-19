@@ -1,5 +1,10 @@
 import { db } from "@/lib/db";
-import { findProducts, productDetailInclude, productListInclude } from "@/repositories/product-repository";
+import {
+  findProducts,
+  productCoverSelect,
+  productDetailInclude,
+  productListInclude,
+} from "@/repositories/product-repository";
 import { listRankedProducts } from "@/lib/ranking/ranking-service";
 import { notifyPriceChange } from "@/features/favorites/notify-favoriters";
 import { formatPriceCents } from "@/lib/utils";
@@ -131,7 +136,12 @@ export async function listSellerProducts(sellerId: string, page: number, pageSiz
       orderBy: { updatedAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
-      include: { category: true, rating: true, _count: { select: { orderItems: true, downloads: true } } },
+      include: {
+        category: true,
+        rating: true,
+        images: productCoverSelect,
+        _count: { select: { orderItems: true, downloads: true } },
+      },
     }),
     db.product.count({ where }),
   ]);
@@ -158,7 +168,7 @@ export async function listProductsForModeration(
       orderBy: { updatedAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
-      include: { seller: { select: { id: true, name: true, email: true } }, category: true },
+      include: { seller: { select: { id: true, name: true, email: true } }, category: true, images: productCoverSelect },
     }),
     db.product.count({ where }),
   ]);

@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { storage, validateUpload, type UploadKind } from "@/lib/storage";
+import { isProductKey, productKeyPrefix } from "@/lib/storage/product-keys";
 import { notifyNewVersion } from "@/features/favorites/notify-favoriters";
 
 export class AssetError extends Error {
@@ -42,7 +43,7 @@ export async function presignProductUpload({
   if (!result.ok) throw new AssetError(result.error!, 422);
 
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const storageKey = `products/${productId}/${kind}/${randomUUID()}-${safeName}`;
+  const storageKey = `${productKeyPrefix(productId, kind)}${randomUUID()}-${safeName}`;
   const uploadUrl = await storage.getSignedUploadUrl(storageKey, contentType, 300);
 
   return { uploadUrl, storageKey };
@@ -52,6 +53,37 @@ export async function attachImage(sellerId: string, productId: string, storageKe
   await assertOwnedDraftOrRejected(sellerId, productId);
   const count = await db.productImage.count({ where: { productId } });
   return db.productImage.create({ data: { productId, storageKey, altText, position: count } });
+}
+
+/**
+ * Sets a product's cover photo, replacing any existing one. The cover is
+ * `ProductImage` position 0 — the row every listing surface (product
+ * cards, detail page, cart, dashboards) reads via `images[0]`, so there is
+ * exactly one at a time and replacing it is what "change cover" means.
+ *
+ * The storage key must be one `presignProductUpload()` minted for *this*
+ * product's image kind — the attach step otherwise trusts a client-supplied
+ * string, and a cover pointing at another product's (or another kind's)
+ * object would later be deleted along with this row on replacement.
+ */
+export async function setCoverImage(sellerId: string, productId: string, storageKey: string, altText?: string) {
+  await assertOwnedDraftOrRejected(sellerId, productId);
+  if (!isProductKey(productId, "image", storageKey)) {
+    throw new AssetError("Invalid cover image upload.", 422);
+  }
+
+  const previous = await db.productImage.findMany({ where: { productId }, select: { id: true, storageKey: true } });
+  const created = await db.$transaction(async (tx) => {
+    await tx.productImage.deleteMany({ where: { productId } });
+    return tx.productImage.create({ data: { productId, storageKey, altText, position: 0 } });
+  });
+
+  // Best-effort cleanup of the replaced objects — a storage failure here
+  // must not fail a replacement that already succeeded in the database.
+  for (const old of previous) {
+    if (old.storageKey !== storageKey) void storage.deleteObject(old.storageKey).catch(() => undefined);
+  }
+  return created;
 }
 
 export async function attachScreenshot(sellerId: string, productId: string, storageKey: string, caption?: string) {

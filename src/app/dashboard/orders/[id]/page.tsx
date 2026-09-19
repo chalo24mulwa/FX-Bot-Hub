@@ -4,6 +4,8 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 import { formatPriceCents } from "@/lib/utils";
+import { ProductCover } from "@/components/marketplace/product-cover";
+import { productCoverSelect } from "@/repositories/product-repository";
 import { RequestRefundButton } from "@/components/commerce/request-refund-button";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +24,10 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
       items: {
         include: {
           product: {
-            include: { versions: { orderBy: { createdAt: "desc" }, take: 1, include: { files: true } } },
+            include: {
+              versions: { orderBy: { createdAt: "desc" }, take: 1, include: { files: true } },
+              images: productCoverSelect,
+            },
           },
           invoice: true,
         },
@@ -49,10 +54,13 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
           const files = item.product.versions[0]?.files ?? [];
           return (
             <li key={item.id} className="py-4">
-              <div className="flex items-center justify-between">
-                <Link href={`/marketplace/${item.product.slug}`} className="font-medium text-slate-900 hover:underline">
-                  {item.product.name}
-                </Link>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <ProductCover image={item.product.images[0]} name={item.product.name} compact sizes="80px" className="h-12 w-20 rounded" />
+                  <Link href={`/marketplace/${item.product.slug}`} className="font-medium text-slate-900 hover:underline">
+                    {item.product.name}
+                  </Link>
+                </div>
                 <span className="text-sm text-slate-600">
                   {formatPriceCents(item.unitPriceCents * item.quantity, order.currency)}
                 </span>

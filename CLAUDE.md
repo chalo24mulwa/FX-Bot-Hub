@@ -1162,6 +1162,55 @@ state it's designed to show instead.
   renders/streams correctly, and update this section once it's actually
   wired in.
 
+## Product cover photos
+
+Every listing can carry a cover photo, shown **above the title** wherever a
+product appears. Extends the existing `ProductImage` model (position 0 =
+the cover, already what `ProductCard` and every list query read as
+`images[0]`) — no schema change, no migration.
+
+- **Upload**: the wizard's "Basic information" step has a cover picker
+  *above* "Product name" (`CoverPhotoPicker`, `src/components/seller/
+  cover-photo-field.tsx`); the seller edit page has `CoverPhotoManager`
+  above the title/form (uploads and replaces immediately). Both use the
+  existing presign → PUT → attach flow via `uploadAndSetCover()`.
+  Wizard detail: a draft (and so a `productId`) doesn't exist until the end
+  of step 5, so the chosen file waits in memory and uploads right after the
+  draft is created — if that upload fails, the draft is **still created**
+  and the seller gets a retry link on the last step.
+- **Server**: `setCoverImage()` (`asset-service.ts`, `assetType: "cover"`
+  on `POST /api/seller/products/[id]/assets`) *replaces* the product's
+  image rows (one cover at a time) and best-effort deletes the old object.
+  It only accepts a key under `products/<thatProductId>/image/`
+  (`isProductKey`, `src/lib/storage/product-keys.ts`) — the attach step
+  otherwise trusts a client-supplied string. The older `assetType: "image"`
+  route (append-only gallery image) still exists, unused by the UI.
+- **Display**: `ProductCover` (`src/components/marketplace/
+  product-cover.tsx`) is the shared display + "No image" fallback for
+  thumbnails (cart, dashboard orders/licenses/subscriptions, seller "My
+  products", admin moderation list) and the detail-page banner (now above
+  the title; also feeds JSON-LD `image` and Open Graph). `ProductCard`
+  already had the cover-above-title layout. Queries that select their own
+  product columns use `productCoverSelect` (`product-repository.ts`).
+- **Deliberately optional**: not requiring a cover keeps listing possible
+  when storage isn't configured (as on production today) and keeps
+  `product-lifecycle.spec.ts` valid (CI has no MinIO). Cover-less products
+  show a neutral placeholder; the picker is labelled "(recommended)".
+- **Two storage fixes found while testing this** (both affect *every*
+  presigned upload, not just covers): (1) recent `@aws-sdk/client-s3`
+  bakes `x-amz-checksum-crc32=AAAAAA==` (checksum of an *empty* body) into
+  presigned PUT URLs, which S3/R2 reject for a real file —
+  `requestChecksumCalculation: "WHEN_REQUIRED"` in `s3-provider.ts` stops
+  that; (2) `next dev` couldn't display images from a localhost MinIO
+  (image optimizer's SSRF guard) — `next.config.ts` sets
+  `dangerouslyAllowLocalIP` in non-production only. **The checksum fix has
+  only been verified against a local S3 emulator (the signed URL no longer
+  carries the checksum params), not real S3/R2** — confirm with a real
+  bucket.
+- **Production needs storage configured before any upload works** — see
+  `docs/DEPLOY_HOSTINGER.md` (`STORAGE_*` + bucket CORS + public read for
+  `products/*/image/*`).
+
 ## Testing
 
 - `npm run test` (Vitest) — pure-logic unit tests only (authorization matrix,

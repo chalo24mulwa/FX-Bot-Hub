@@ -1,6 +1,7 @@
 import { listProductsForModeration } from "@/server/services/product-service";
 import { ProductModerationActions } from "@/components/admin/product-moderation-actions";
 import { Badge } from "@/components/ui/badge";
+import { ProductCover } from "@/components/marketplace/product-cover";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +63,8 @@ export default async function AdminProductsPage({ searchParams }: AdminProductsP
             {items.map((product) => (
               <tr key={product.id} className="border-b border-slate-100">
                 <td className="py-2 pr-4">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
+                    <ProductCover image={product.images[0]} name={product.name} compact sizes="80px" className="h-12 w-20 rounded" />
                     <span className="font-medium text-slate-900">{product.name}</span>
                     {product.featured && <Badge>Featured</Badge>}
                   </div>

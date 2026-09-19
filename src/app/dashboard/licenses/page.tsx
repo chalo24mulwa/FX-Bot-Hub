@@ -2,6 +2,8 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
+import { ProductCover } from "@/components/marketplace/product-cover";
+import { productCoverSelect } from "@/repositories/product-repository";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +19,7 @@ export default async function LicensesPage() {
   const licenses = await db.license.findMany({
     where: { userId: session!.user.id },
     orderBy: { issuedAt: "desc" },
-    include: { product: { select: { name: true, slug: true } }, licenseActivations: { where: { deactivatedAt: null } } },
+    include: { product: { select: { name: true, slug: true, images: productCoverSelect } }, licenseActivations: { where: { deactivatedAt: null } } },
   });
 
   return (
@@ -37,9 +39,12 @@ export default async function LicensesPage() {
           {licenses.map((license) => (
             <li key={license.id} className="py-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <Link href={`/marketplace/${license.product.slug}`} className="font-medium text-slate-900 hover:underline">
-                  {license.product.name}
-                </Link>
+                <div className="flex min-w-0 items-center gap-3">
+                  <ProductCover image={license.product.images[0]} name={license.product.name} compact sizes="80px" className="h-12 w-20 rounded" />
+                  <Link href={`/marketplace/${license.product.slug}`} className="font-medium text-slate-900 hover:underline">
+                    {license.product.name}
+                  </Link>
+                </div>
                 <Badge className={STATUS_STYLES[license.status]}>{license.status}</Badge>
               </div>
               <p className="mt-1 font-mono text-xs text-slate-500">{license.key}</p>

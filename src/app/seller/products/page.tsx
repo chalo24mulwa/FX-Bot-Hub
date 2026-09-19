@@ -2,6 +2,7 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { listSellerProducts } from "@/server/services/product-service";
 import { Badge } from "@/components/ui/badge";
+import { ProductCover } from "@/components/marketplace/product-cover";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -34,11 +35,14 @@ export default async function SellerProductsPage({ searchParams }: SellerProduct
             href={`/seller/products/${product.id}`}
             className="flex items-center justify-between gap-4 py-3 hover:bg-slate-50"
           >
-            <div>
-              <p className="font-medium text-slate-900">{product.name}</p>
-              <p className="text-xs text-slate-500">
-                {product._count.downloads} downloads · {product._count.orderItems} sales
-              </p>
+            <div className="flex min-w-0 items-center gap-3">
+              <ProductCover image={product.images[0]} name={product.name} compact sizes="80px" className="h-12 w-20 rounded" />
+              <div className="min-w-0">
+                <p className="truncate font-medium text-slate-900">{product.name}</p>
+                <p className="text-xs text-slate-500">
+                  {product._count.downloads} downloads · {product._count.orderItems} sales
+                </p>
+              </div>
             </div>
             <Badge>{product.status.replace("_", " ")}</Badge>
           </Link>

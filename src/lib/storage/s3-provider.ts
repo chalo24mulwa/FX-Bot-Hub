@@ -20,6 +20,15 @@ export class S3StorageProvider implements StorageProvider {
       region: env.STORAGE_REGION,
       endpoint: env.STORAGE_ENDPOINT,
       forcePathStyle: env.STORAGE_FORCE_PATH_STYLE,
+      // Recent AWS SDK v3 releases default to computing a CRC32 checksum for
+      // every PutObject — and for a *presigned* PUT (which has no body at
+      // signing time) that bakes the checksum of an empty payload
+      // (`x-amz-checksum-crc32=AAAAAA==`) into the URL. The browser then
+      // uploads a real file, S3/R2 compare its checksum to the signed empty
+      // one, and reject the upload. Direct-to-storage uploads (seller cover
+      // photos, screenshots, product files) all depend on presigned PUTs, so
+      // only compute checksums where an operation actually requires them.
+      requestChecksumCalculation: "WHEN_REQUIRED",
       credentials:
         env.STORAGE_ACCESS_KEY_ID && env.STORAGE_SECRET_ACCESS_KEY
           ? {

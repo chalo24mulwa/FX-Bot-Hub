@@ -6,6 +6,7 @@ import { listProductAssets } from "@/features/seller/asset-service";
 import { ProductForm } from "@/components/seller/product-form";
 import { SubmitForReviewButton } from "@/components/seller/submit-for-review-button";
 import { ProductAssetsManager } from "@/components/seller/product-assets-manager";
+import { CoverPhotoManager } from "@/components/seller/cover-photo-field";
 import { Badge } from "@/components/ui/badge";
 import { updateProductAction, submitForReviewAction } from "@/features/seller/actions";
 
@@ -29,6 +30,10 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
 
   return (
     <div>
+      <div className="mb-6">
+        <CoverPhotoManager productId={product.id} savedKey={assets.images[0]?.storageKey ?? null} />
+      </div>
+
       <div className="flex items-center gap-2">
         <h1 className="text-2xl font-semibold text-slate-900">{product.name}</h1>
         <Badge>{product.status.replace("_", " ")}</Badge>

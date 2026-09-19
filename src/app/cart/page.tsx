@@ -5,6 +5,7 @@ import { getCartWithItems } from "@/features/cart/cart-service";
 import { RemoveFromCartButton } from "@/components/marketplace/remove-from-cart-button";
 import { CheckoutButton } from "@/components/marketplace/checkout-button";
 import { formatPriceCents } from "@/lib/utils";
+import { ProductCover } from "@/components/marketplace/product-cover";
 
 export const dynamic = "force-dynamic";
 
@@ -27,11 +28,14 @@ export default async function CartPage() {
           <ul className="mt-6 divide-y divide-slate-100">
             {items.map((item) => (
               <li key={item.id} className="flex items-center justify-between gap-4 py-4">
-                <div>
-                  <Link href={`/marketplace/${item.product.slug}`} className="font-medium text-slate-900 hover:underline">
-                    {item.product.name}
-                  </Link>
-                  <p className="text-sm text-slate-500">Qty {item.quantity}</p>
+                <div className="flex min-w-0 items-center gap-4">
+                  <ProductCover image={item.product.images[0]} name={item.product.name} compact sizes="112px" className="h-16 w-28 rounded-md" />
+                  <div>
+                    <Link href={`/marketplace/${item.product.slug}`} className="font-medium text-slate-900 hover:underline">
+                      {item.product.name}
+                    </Link>
+                    <p className="text-sm text-slate-500">Qty {item.quantity}</p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="font-medium text-slate-900">

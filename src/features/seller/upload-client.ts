@@ -33,11 +33,18 @@ async function presign(productId: string, kind: UploadKind, file: File) {
 }
 
 async function putToStorage(uploadUrl: string, file: File) {
-  const res = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Type": file.type || "application/octet-stream" },
-    body: file,
-  });
+  let res: Response;
+  try {
+    res = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+      body: file,
+    });
+  } catch {
+    // A network-level failure (storage unreachable, blocked by CORS, offline)
+    // surfaces as a bare "Failed to fetch" — say what it actually means.
+    throw new Error("Couldn't reach file storage. Check your connection and try again.");
+  }
   if (!res.ok) throw new Error("Upload to storage failed.");
 }
 
@@ -45,6 +52,13 @@ export async function uploadAndAttachImage(productId: string, file: File, altTex
   const { uploadUrl, storageKey } = await presign(productId, "image", file);
   await putToStorage(uploadUrl, file);
   return attach(productId, { assetType: "image", storageKey, altText });
+}
+
+/** Uploads a product's cover photo, replacing any previous one. */
+export async function uploadAndSetCover(productId: string, file: File, altText?: string) {
+  const { uploadUrl, storageKey } = await presign(productId, "image", file);
+  await putToStorage(uploadUrl, file);
+  return attach(productId, { assetType: "cover", storageKey, altText });
 }
 
 export async function uploadAndAttachScreenshot(productId: string, file: File, caption?: string) {

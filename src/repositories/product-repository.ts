@@ -12,6 +12,14 @@ const sellerCardSelect = {
   sellerProfile: { select: { verified: true } },
 } satisfies Prisma.UserSelect;
 
+// Just the cover (ProductImage position 0) — for surfaces that select their
+// own product columns but still show the cover thumbnail next to the title.
+export const productCoverSelect = {
+  orderBy: { position: "asc" as const },
+  take: 1,
+  select: { storageKey: true, altText: true },
+} satisfies Prisma.Product$imagesArgs;
+
 export const productListInclude = {
   seller: { select: sellerCardSelect },
   category: true,

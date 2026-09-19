@@ -4,6 +4,7 @@ import Image from "next/image";
 import { getPublishedProductBySlug, incrementProductView } from "@/server/services/product-service";
 import { checkEntitlement } from "@/features/downloads/entitlement-service";
 import { Badge } from "@/components/ui/badge";
+import { ProductCover } from "@/components/marketplace/product-cover";
 import { FavoriteButton } from "@/components/marketplace/favorite-button";
 import { AddToCartButton } from "@/components/marketplace/add-to-cart-button";
 import { ContactSellerButton } from "@/components/marketplace/contact-seller-button";
@@ -32,7 +33,12 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
     title: product.name,
     description: product.shortSummary,
     alternates: { canonical: `/marketplace/${product.slug}` },
-    openGraph: { title: product.name, description: product.shortSummary, type: "website" },
+    openGraph: {
+      title: product.name,
+      description: product.shortSummary,
+      type: "website",
+      images: product.images[0] ? [getPublicUrl(product.images[0].storageKey)] : undefined,
+    },
   };
 }
 
@@ -56,12 +62,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
   ]);
 
   const latestVersion = product.versions[0];
+  // The cover photo renders above the title (top of the page) when the
+  // seller has uploaded one — see ProductCover.
+  const cover = product.images[0];
 
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
     name: product.name,
     description: product.shortSummary,
+    image: cover ? getPublicUrl(cover.storageKey) : undefined,
     brand: { "@type": "Organization", name: product.seller.name ?? "fx Bot Hub seller" },
     aggregateRating: product.rating
       ? { "@type": "AggregateRating", ratingValue: product.rating.average, reviewCount: product.rating.count }
@@ -102,6 +112,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
   return (
     <main className="mx-auto max-w-4xl flex-1 px-6 py-12">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+
+      {cover && (
+        <ProductCover
+          image={cover}
+          name={product.name}
+          priority
+          sizes="(min-width: 896px) 896px, 100vw"
+          className="mb-6 aspect-[16/9] w-full rounded-lg"
+        />
+      )}
 
       <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -185,12 +205,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
               </a>
             ))}
           </div>
-        </div>
-      )}
-
-      {product.images[0] && (
-        <div className="relative mt-6 aspect-[16/9] w-full overflow-hidden rounded-lg bg-slate-100">
-          <Image src={getPublicUrl(product.images[0].storageKey)} alt={product.name} fill className="object-cover" />
         </div>
       )}
 

@@ -4,6 +4,7 @@ import { requirePermission, withAuthorization } from "@/lib/authorization";
 import { assertSameOrigin } from "@/lib/security/csrf";
 import {
   attachImage,
+  setCoverImage,
   attachScreenshot,
   attachDocumentation,
   attachProductFile,
@@ -13,6 +14,7 @@ import {
 
 const assetSchema = z.discriminatedUnion("assetType", [
   z.object({ assetType: z.literal("image"), storageKey: z.string().min(1), altText: z.string().optional() }),
+  z.object({ assetType: z.literal("cover"), storageKey: z.string().min(1), altText: z.string().max(200).optional() }),
   z.object({ assetType: z.literal("screenshot"), storageKey: z.string().min(1), caption: z.string().optional() }),
   z.object({
     assetType: z.literal("documentation"),
@@ -57,6 +59,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       switch (body.assetType) {
         case "image": {
           const row = await attachImage(session.user.id, id, body.storageKey, body.altText);
+          return NextResponse.json(row, { status: 201 });
+        }
+        case "cover": {
+          const row = await setCoverImage(session.user.id, id, body.storageKey, body.altText);
           return NextResponse.json(row, { status: 201 });
         }
         case "screenshot": {
