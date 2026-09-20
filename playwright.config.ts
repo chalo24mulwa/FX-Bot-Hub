@@ -15,6 +15,10 @@ export default defineConfig({
     command: "npm run build && npm run start",
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
+    // The calendar page normally triggers a background sync from the live
+    // Finance Calendar API; a test run must never call an external service
+    // or change calendar rows under the specs' feet.
+    env: { ECONOMIC_CALENDAR_AUTO_SYNC: "false" },
     timeout: 120_000,
   },
 });

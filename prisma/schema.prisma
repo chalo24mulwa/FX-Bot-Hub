@@ -1002,6 +1002,12 @@ model EconomicEvent {
   unit            String? // e.g. "%", "K", "B USD" — provider-reported, display-only
   frequency       String? // e.g. "Monthly", "Quarterly" — provider-reported, display-only
   status          EconomicEventStatus @default(SCHEDULED)
+  // True for a release with a known date but no scheduled time (e.g. a
+  // central bank decision the provider lists as "All day", or a market
+  // holiday) — `eventTime` is then only a same-calendar-day anchor (noon
+  // UTC), not a real time of day, and the UI shows "All day" instead of a
+  // clock time. Provider-reported; false for manual/admin-entered events.
+  allDay          Boolean @default(false)
   // Deep link to the provider's own page for this release, for attribution
   // — required by most licensed-feed terms of use. Null for manual events.
   sourceUrl       String?

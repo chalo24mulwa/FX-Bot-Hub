@@ -50,6 +50,11 @@ function groupByDay(events: EconomicEvent[], timezone: string): Map<string, { we
     if (existing) existing.rows.push(event);
     else groups.set(date, { weekday, date, rows: [event] });
   }
+  // All-day rows (holidays, decisions with no set time) carry a noon anchor
+  // for grouping — list them first within their day, like a timed schedule's
+  // "All day" band, instead of wherever noon happens to fall. Array sort is
+  // stable, so timed rows keep their eventTime order.
+  for (const group of groups.values()) group.rows.sort((a, b) => Number(b.allDay) - Number(a.allDay));
   return groups;
 }
 
@@ -93,7 +98,7 @@ export function CalendarTable({ events, timezone }: { events: EconomicEvent[]; t
               const isCancelledOrPostponed = event.status === "CANCELLED" || event.status === "POSTPONED";
               return (
                 <tr key={event.id} className="border-b border-slate-100 hover:bg-slate-50/80">
-                  <td className="py-2 pr-3 pl-1 whitespace-nowrap text-slate-500">{time}</td>
+                  <td className="py-2 pr-3 pl-1 whitespace-nowrap text-slate-500">{event.allDay ? "All day" : time}</td>
                   <td className="py-2 pr-3 font-medium">
                     <Link href={`/calendar/${event.currency.toLowerCase()}`} className="hover:underline">
                       {event.currency}

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { after } from "next/server";
 import { cookies } from "next/headers";
 import { auth } from "@/lib/auth";
 import { getEvents, listDistinctCurrencies } from "@/services/calendar/calendar-service";
@@ -7,6 +8,8 @@ import { resolveTimezone, getTimezoneOffsetMinutes, CALENDAR_TIMEZONE_COOKIE } f
 import { CalendarTable } from "@/components/calendar/calendar-table";
 import { CalendarFilters } from "@/components/calendar/calendar-filters";
 import { CalendarAutoRefresh } from "@/components/calendar/calendar-auto-refresh";
+import { CalendarAttribution } from "@/components/calendar/calendar-attribution";
+import { runCalendarSyncIfDue } from "@/services/calendar/auto-sync";
 import { saveCalendarPreferencesAction } from "@/features/calendar/actions";
 import { track } from "@/lib/analytics/track";
 import { env } from "@/lib/env";
@@ -77,6 +80,12 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
     return `/calendar?${next.toString()}`;
   }
 
+  // Keep the calendar fresh with no scheduler: if the last sync is older than
+  // the configured interval, one background sync runs after this response is
+  // sent (never blocking it). The page itself only ever reads our own DB —
+  // see src/services/calendar/auto-sync.ts.
+  after(() => runCalendarSyncIfDue({ trigger: "page" }));
+
   void track({ type: "CALENDAR_VIEW", userId: session?.user.id, metadata: { preset: presetParam } });
 
   return (
@@ -119,7 +128,8 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
         </div>
       )}
 
-      <p className="mt-8 max-w-2xl text-xs text-slate-400">
+      <CalendarAttribution className="mt-8" />
+      <p className="mt-2 max-w-2xl text-xs text-slate-400">
         Economic events can affect markets but do not guarantee a particular market movement. Data is
         admin-managed and, where noted, sourced from third-party providers — see individual event pages for
         source attribution.

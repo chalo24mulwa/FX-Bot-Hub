@@ -1,6 +1,7 @@
 import type { CalendarProvider } from "./types";
 import { ManualCalendarProvider } from "./manual-provider";
 import { AuthorizedCalendarProvider } from "./authorized-provider";
+import { FinanceCalendarProvider } from "./financecalendar-provider";
 
 export type { CalendarProvider, CalendarEventInput } from "./types";
 
@@ -11,6 +12,7 @@ export type { CalendarProvider, CalendarEventInput } from "./types";
 const CALENDAR_PROVIDERS: Record<string, CalendarProvider> = {
   manual: new ManualCalendarProvider(),
   authorized: new AuthorizedCalendarProvider(),
+  financecalendar: new FinanceCalendarProvider(),
 };
 
 export function getCalendarProvider(key: string): CalendarProvider | undefined {

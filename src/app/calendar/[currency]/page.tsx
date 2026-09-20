@@ -3,6 +3,7 @@ import { getEvents } from "@/services/calendar/calendar-service";
 import { getRecentAndUpcomingRange } from "@/lib/calendar/date-ranges";
 import { DEFAULT_CALENDAR_TIMEZONE } from "@/lib/calendar/timezone";
 import { CalendarTable } from "@/components/calendar/calendar-table";
+import { CalendarAttribution } from "@/components/calendar/calendar-attribution";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,7 @@ export default async function CurrencyCalendarPage({ params }: CurrencyCalendarP
         {total} event{total === 1 ? "" : "s"} — last 7 days through next 14 days
       </p>
       <CalendarTable events={items} timezone={DEFAULT_CALENDAR_TIMEZONE} />
+      <CalendarAttribution className="mt-8" />
     </main>
   );
 }

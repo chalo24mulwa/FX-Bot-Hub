@@ -1,4 +1,4 @@
-import type { EventImpact } from "@prisma/client";
+import type { EconomicEvent, EventImpact } from "@prisma/client";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
@@ -7,6 +7,7 @@ import { listEnabledDataSources, markSyncResult } from "@/repositories/data-sour
 import { startSyncLog, finishSyncLog } from "@/repositories/sync-log-repository";
 import { recordEventRevisions } from "@/repositories/economic-event-revision-repository";
 import { getCalendarProvider } from "./providers";
+import type { CalendarEventInput } from "./providers/types";
 import { detectFieldChanges, detectDisappearedEvents } from "./revision-detection";
 import { dispatchEconomicEventAlert } from "@/features/alerts/dispatch-service";
 
@@ -16,6 +17,37 @@ import { dispatchEconomicEventAlert } from "@/features/alerts/dispatch-service";
  * subscribers. */
 export function shouldDispatchHighImpactAlert(wasExisting: boolean, impact: EventImpact): boolean {
   return !wasExisting && impact === "HIGH";
+}
+
+/** Pure: would writing `incoming` over `existing` change anything the sync
+ * persists? Only fields the provider actually reported (`!== undefined`) are
+ * compared — same "undefined means not reported, never overwritten" rule the
+ * update payload uses. Lets an unchanged row skip its write entirely. */
+export function needsRowUpdate(
+  existing: Pick<
+    EconomicEvent,
+    "eventTime" | "impact" | "category" | "actual" | "forecast" | "previous" | "unit" | "frequency" | "sourceUrl" | "status" | "allDay"
+  >,
+  incoming: CalendarEventInput
+): boolean {
+  if (incoming.eventTime.getTime() !== existing.eventTime.getTime()) return true;
+  if (incoming.impact !== existing.impact || incoming.category !== existing.category) return true;
+  const optionalStrings = ["actual", "forecast", "previous", "unit", "frequency", "sourceUrl"] as const;
+  for (const field of optionalStrings) {
+    if (incoming[field] !== undefined && incoming[field] !== existing[field]) return true;
+  }
+  if (incoming.status !== undefined && incoming.status !== existing.status) return true;
+  if (incoming.allDay !== undefined && incoming.allDay !== existing.allDay) return true;
+  return false;
+}
+
+/** Existing rows for a set of provider ids, in bounded `IN` batches. */
+async function findExistingByExternalId(externalIds: string[]): Promise<EconomicEvent[]> {
+  const rows: EconomicEvent[] = [];
+  for (let i = 0; i < externalIds.length; i += 500) {
+    rows.push(...(await db.economicEvent.findMany({ where: { externalId: { in: externalIds.slice(i, i + 500) } } })));
+  }
+  return rows;
 }
 
 // Shared cross-domain shape — newsSync and marketDataSync (src/services/news
@@ -110,20 +142,36 @@ export async function runCalendarSync(
       }
 
       try {
-        const events = await provider.getEvents({ from, to });
-        const returnedExternalIds = new Set<string>();
+        const events = (await provider.getEvents({ from, to })).filter((e) => e.externalId);
+        const returnedExternalIds = new Set<string>(events.map((e) => e.externalId));
         const revisionRows: Parameters<typeof recordEventRevisions>[0] = [];
 
+        // One batched read instead of a findUnique per event: a 90-day
+        // window is ~200 events, and a per-event round trip to a remote
+        // Postgres made every hourly pass cost hundreds of queries.
+        const existingRows = await findExistingByExternalId(events.map((e) => e.externalId));
+        const existingByExternalId = new Map(existingRows.map((r) => [r.externalId as string, r]));
+
+        const toCreate: CalendarEventInput[] = [];
+        const unchangedIds: string[] = [];
+
         for (const event of events) {
-          if (!event.externalId) continue;
-          returnedExternalIds.add(event.externalId);
+          const existing = existingByExternalId.get(event.externalId);
+          if (!existing) {
+            toCreate.push(event);
+            continue;
+          }
 
-          const existing = await db.economicEvent.findUnique({ where: { externalId: event.externalId } });
+          result.itemsProcessed += 1;
+          if (!needsRowUpdate(existing, event)) {
+            unchangedIds.push(existing.id);
+            continue;
+          }
+
           const diff = detectFieldChanges(existing, event);
-
-          const saved = await db.economicEvent.upsert({
-            where: { externalId: event.externalId },
-            update: {
+          await db.economicEvent.update({
+            where: { id: existing.id },
+            data: {
               eventTime: event.eventTime,
               impact: event.impact,
               category: event.category,
@@ -135,26 +183,39 @@ export async function runCalendarSync(
               ...(event.frequency !== undefined ? { frequency: event.frequency } : {}),
               ...(event.sourceUrl !== undefined ? { sourceUrl: event.sourceUrl } : {}),
               ...(event.status !== undefined ? { status: event.status } : {}),
+              ...(event.allDay !== undefined ? { allDay: event.allDay } : {}),
               ...(diff.revisedPreviousUpdate !== undefined ? { revisedPrevious: diff.revisedPreviousUpdate } : {}),
             },
-            create: { ...event, source: source.providerKey, lastSyncedAt: now },
           });
-          result.itemsProcessed += 1;
 
-          if (existing) {
-            if (diff.revisions.length > 0) {
-              result.itemsUpdated += 1;
-              revisionRows.push(
-                ...diff.revisions.map((r) => ({ eventId: saved.id, provider: source.providerKey, ...r }))
-              );
-            }
-          } else {
-            result.itemsInserted += 1;
+          if (diff.revisions.length > 0) {
+            result.itemsUpdated += 1;
+            revisionRows.push(...diff.revisions.map((r) => ({ eventId: existing.id, provider: source.providerKey, ...r })));
           }
+        }
 
-          if (shouldDispatchHighImpactAlert(!!existing, saved.impact)) {
-            void dispatchEconomicEventAlert(saved);
+        if (toCreate.length > 0) {
+          // skipDuplicates: two sync passes overlapping (or a row created
+          // between our read and this write) must not fail the whole batch —
+          // externalId is unique, so a duplicate is simply skipped.
+          await db.economicEvent.createMany({
+            data: toCreate.map((event) => ({ ...event, source: source.providerKey, lastSyncedAt: now })),
+            skipDuplicates: true,
+          });
+          result.itemsInserted += toCreate.length;
+          result.itemsProcessed += toCreate.length;
+
+          const newHighIds = toCreate.filter((e) => shouldDispatchHighImpactAlert(false, e.impact)).map((e) => e.externalId);
+          if (newHighIds.length > 0) {
+            const created = await db.economicEvent.findMany({ where: { externalId: { in: newHighIds } } });
+            for (const saved of created) void dispatchEconomicEventAlert(saved).catch(() => undefined);
           }
+        }
+
+        // Rows the provider returned unchanged still get their "last synced"
+        // stamp — one statement, not one write per row.
+        if (unchangedIds.length > 0) {
+          await db.economicEvent.updateMany({ where: { id: { in: unchangedIds } }, data: { lastSyncedAt: now } });
         }
 
         // Cancellation detection: a SCHEDULED row from this same provider,
@@ -162,30 +223,38 @@ export async function runCalendarSync(
         // provider simply stopped returning — see CLAUDE.md's "never
         // delete existing events" rule. The row stays, flagged CANCELLED,
         // not removed.
-        const previouslyScheduled = await db.economicEvent.findMany({
-          where: { source: source.providerKey, status: "SCHEDULED", eventTime: { gte: now, lte: to } },
-          select: { id: true, externalId: true },
-        });
-        const disappearedIds = detectDisappearedEvents(
-          previouslyScheduled.map((e) => e.externalId).filter((id): id is string => !!id),
-          returnedExternalIds
-        );
-        if (disappearedIds.length > 0) {
-          const disappeared = previouslyScheduled.filter((e) => e.externalId && disappearedIds.includes(e.externalId));
-          await db.economicEvent.updateMany({
-            where: { id: { in: disappeared.map((e) => e.id) } },
-            data: { status: "CANCELLED", lastSyncedAt: now },
+        // Safety guard: a provider that returns *nothing* for a multi-day
+        // window is far more likely to be down or misbehaving than to have
+        // genuinely cancelled every upcoming release — never mass-cancel on
+        // an empty response. (The Finance Calendar provider also throws on a
+        // malformed response, so that path never gets here at all.)
+        if (events.length > 0) {
+          const previouslyScheduled = await db.economicEvent.findMany({
+            where: { source: source.providerKey, status: "SCHEDULED", eventTime: { gte: now, lte: to } },
+            select: { id: true, externalId: true },
           });
-          revisionRows.push(
-            ...disappeared.map((e) => ({
-              eventId: e.id,
-              fieldChanged: "status",
-              oldValue: "SCHEDULED",
-              newValue: "CANCELLED",
-              provider: source.providerKey,
-            }))
+          const disappearedIds = detectDisappearedEvents(
+            previouslyScheduled.map((e) => e.externalId).filter((id): id is string => !!id),
+            returnedExternalIds
           );
-          result.itemsCancelled += disappeared.length;
+          if (disappearedIds.length > 0) {
+            const disappeared = previouslyScheduled.filter((e) => e.externalId && disappearedIds.includes(e.externalId));
+            await db.economicEvent.updateMany({
+              where: { id: { in: disappeared.map((e) => e.id) } },
+              data: { status: "CANCELLED", lastSyncedAt: now },
+            });
+            revisionRows.push(
+              ...disappeared.map((e) => ({
+                eventId: e.id,
+                fieldChanged: "status",
+                oldValue: "SCHEDULED",
+                newValue: "CANCELLED",
+                provider: source.providerKey,
+              }))
+            );
+            result.itemsCancelled += disappeared.length;
+          }
+
         }
 
         if (revisionRows.length > 0) {

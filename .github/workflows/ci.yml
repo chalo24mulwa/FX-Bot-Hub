@@ -38,6 +38,7 @@ jobs:
       NEXT_PUBLIC_APP_URL: "http://localhost:3000"
       EMAIL_PROVIDER: "console"
       PAYMENT_PROVIDER: "manual"
+      ECONOMIC_CALENDAR_AUTO_SYNC: "false"
 
     steps:
       - uses: actions/checkout@v4

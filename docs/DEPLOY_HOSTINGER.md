@@ -114,6 +114,29 @@ Shared hosting can't run this app's full stack directly:
   `PAYMENT_PROVIDER`, `EMAIL_PROVIDER` — not set yet, see the table
   above.
 
+## Economic calendar: live feed, no worker needed
+
+The calendar syncs itself without Redis, a worker, or cron: when
+`/calendar` is viewed and the last sync is older than an hour
+(`ECONOMIC_CALENDAR_SYNC_INTERVAL_MINUTES`), one background sync pulls
+~3 months of events from Finance Calendar into Postgres
+(`src/services/calendar/auto-sync.ts`). Visitors are always served from
+the database; the upstream is hit at most about once an hour. The very
+first sync also backfills 30 days of history. Nothing to configure — the
+Finance Calendar source registers itself.
+
+**Optional — refresh even when nobody visits the page.** Set a
+`CRON_SECRET` (16+ random characters) in hPanel's environment variables,
+redeploy, then add an hPanel **Cron Job** (web UI) running every hour or
+more often (it only syncs if a sync is actually due):
+
+```bash
+curl -fsS -H "Authorization: Bearer YOUR_CRON_SECRET" https://fxbothub.com/api/cron/calendar-sync
+```
+
+To check it manually: the same URL with `?force=1` runs a sync now and
+returns counts as JSON.
+
 ## Known gap: background workers and sync jobs
 
 Nothing currently runs `npm run worker:*` continuously on this plan, so:

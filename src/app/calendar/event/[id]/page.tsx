@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { getEvent, getHistoricalData, getEventRevisionHistory } from "@/services/calendar/calendar-service";
 import { resolveTimezone, formatInTimezone, CALENDAR_TIMEZONE_COOKIE, SUPPORTED_TIMEZONES } from "@/lib/calendar/timezone";
 import { Badge } from "@/components/ui/badge";
+import { CalendarAttribution } from "@/components/calendar/calendar-attribution";
 import { AlertSubscribeButton } from "@/components/alerts/alert-subscribe-button";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -63,7 +64,7 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
         {event.status !== "SCHEDULED" && <Badge className={STATUS_STYLES[event.status]}>{event.status}</Badge>}
       </div>
       <p className="mt-1 text-sm text-slate-500">
-        {event.country} · {date} {time} ({tzLabel})
+        {event.country} · {date} {event.allDay ? "All day" : `${time} (${tzLabel})`}
         {event.unit && ` · Unit: ${event.unit}`}
         {event.frequency && ` · ${event.frequency}`}
       </p>
@@ -171,6 +172,7 @@ export default async function EventDetailPage({ params }: EventDetailPageProps) 
 
       <section className="mt-8 text-xs text-slate-400">
         <p>Source: {event.source === "manual" ? "fx Bot Hub editorial team" : event.source}</p>
+        <CalendarAttribution className="mt-1" />
         <p className="mt-2 max-w-xl">
           Economic events can affect markets but do not guarantee a particular market movement. This
           information is provided for reference only and is not trading advice.

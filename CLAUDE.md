@@ -1211,6 +1211,91 @@ the cover, already what `ProductCard` and every list query read as
   `docs/DEPLOY_HOSTINGER.md` (`STORAGE_*` + bucket CORS + public read for
   `products/*/image/*`).
 
+## Live calendar feed: Finance Calendar (3-month window, no worker needed)
+
+The economic calendar is now fed by **Finance Calendar**
+(https://www.financecalendar.com/api/) — free, no API key, free for
+commercial use *with a visible link back*. Additive: the `CalendarProvider`
+abstraction, `runCalendarSync`, `EconomicCalendarService`, revision
+tracking and the calendar UI are all reused; nothing was replaced.
+
+- **`FinanceCalendarProvider`** (`src/services/calendar/providers/
+  financecalendar-provider.ts`, registered as `financecalendar`) + pure,
+  unit-tested `financecalendar-mapping.ts` (tests use real captured
+  payloads). It is called **only from the sync job**, never from a page or
+  API request. Verified against the live API: (1) **`limit` defaults to 100
+  and silently truncates** — a 3-month window loses its back half with no
+  error — so `limit=500` is always sent, and a response that fills it is
+  bisected; (2) ranges cap at 92 days and the default window is 93, so it's
+  split into evenly sized requests (`splitDateRange`); (3) a changed
+  response shape throws, so a sync fails loudly and cached rows stay.
+- **The feed is not a full forex-calendar feed** — be honest about it:
+  ~170 events per 90 days (~70 distinct series: major US/UK/EU/JP/CA/AU/NZ/
+  CH/CN releases, central-bank decisions, market holidays), **no
+  country/currency field** (inferred from the event name by an ordered rule
+  table; an unrecognised one is kept under currency `GLOBAL` and logged,
+  never dropped), `actual`/`consensus`/`prior` are **free text truncated by
+  the API** (e.g. "-23,000 NFP vs +80,000 expec…"), and **consensus
+  (Forecast) is only filled ~2 days before a release**, so the Forecast
+  column is mostly empty. There is no id: `externalId` is
+  `financecalendar:<event page slug>`. Market-holiday pages ("Is the Stock
+  Market Open on …") map to `impact: HOLIDAY`. Re-check the mapping if the
+  feed changes shape; `actualColor()` in `calendar-table.tsx` only colours
+  numeric actuals, so these text values render plain.
+- **`EconomicEvent.allDay`** (migration `20260920070620_calendar_event_all_day`,
+  additive `BOOLEAN NOT NULL DEFAULT false`): the feed lists central-bank
+  decisions and holidays as "All day". `eventTime` is then a noon-UTC
+  same-day anchor (never midnight — that slides to the previous day for
+  viewers west of Greenwich); `CalendarTable` shows "All day" and lists
+  those rows first within their day.
+- **Sync trigger without Redis/cron** (`src/services/calendar/auto-sync.ts`):
+  BullMQ workers and `crontab` don't exist on the Hostinger plan, so
+  `/calendar` calls `runCalendarSyncIfDue()` in `after()` (never blocking the
+  response): if a source's `lastSyncAt` is older than
+  `ECONOMIC_CALENDAR_SYNC_INTERVAL_MINUTES` (60) one sync runs. Which
+  process runs it is an **atomic compare-and-set on `DataSource.lastSyncAt`**
+  (`claimSource`) — concurrent views/instances never double-run (tested with
+  simultaneous forced triggers). A never-synced source also backfills 30
+  days of history. A failed source retries in 10 minutes, not an hour, judged
+  **per source from its own status** (another source's rows would otherwise
+  mask the failure — a real bug caught in testing).
+  `ECONOMIC_CALENDAR_AUTO_SYNC=false` turns the page trigger off —
+  **Playwright and CI set it** so tests never call the external API. The
+  client-side `CalendarAutoRefresh` (60s) means an open tab picks up a fresh
+  sync within about a minute, and *its* refresh also runs the due-check.
+- **Optional cron**: `GET/POST /api/cron/calendar-sync` with
+  `Authorization: Bearer $CRON_SECRET` (timing-safe compare, rate-limited;
+  **404 unless `CRON_SECRET` is 16+ chars** — the length is checked in the
+  route, not the env schema, so a weak value can never crash env parsing and
+  take the site down). Same due-check; `?force=1` skips it but still refuses
+  to overlap a run from the last minute.
+- **The default source registers itself** (`listCalendarSourcesEnsuringDefault`)
+  because production's `data_sources` is never seeded. Create-only — an
+  admin-disabled row is never re-enabled — and it checks real rows each time
+  (an in-memory "done" flag broke when the row was deleted under a running
+  server; found in testing).
+- **`runCalendarSync` changes** (behaviour-preserving): one batched
+  `findMany` instead of `findUnique`+`upsert` per event (an hourly pass is
+  ~2 upstream requests and ~1.5s, not hundreds of DB round trips);
+  `createMany` for new rows; unchanged rows skip their write
+  (`needsRowUpdate`, unit-tested) and only get `lastSyncedAt`; **an empty
+  provider response never triggers cancellation detection** (an outage must
+  not mass-cancel every upcoming event). Alerts/revisions/cancellation for
+  real changes are unchanged.
+- **Attribution** (`CalendarAttribution`): each provider declares
+  `attribution` on the `CalendarProvider`; the component renders one for
+  every calendar `DataSource` row (even disabled — its stored events remain
+  on the page), on the calendar, currency, week and event pages. Switching
+  providers changes the credit with no UI edit.
+- **Switching providers later** (e.g. Trading Economics): enable the
+  `authorized` row and **disable `financecalendar`** at `/admin/data-sources`.
+  Run only one at a time — providers use different `externalId` prefixes, so
+  two enabled feeds would list the same real event twice.
+- Verified against the live API + local Postgres (218 events, first run
+  1.9s, re-sync 1.4s, zero duplicates, change/revision, cancellation and
+  reappearance, empty-response guard, 500/garbage outage handling), in dev
+  *and* a production build (`next start`).
+
 ## Testing
 
 - `npm run test` (Vitest) — pure-logic unit tests only (authorization matrix,
@@ -1329,6 +1414,9 @@ the cover, already what `ProductCard` and every list query read as
 - Calendar/news sync (`runCalendarSync`/`runNewsSync`) has no in-process
   scheduler — see "Phase 3" above. Something external needs to enqueue these
   on a cadence (cron hitting `npm run sync:trigger`, or a platform scheduler).
+  **Exception: the calendar** now keeps itself fresh via a page-view-triggered,
+  DB-claimed sync (no Redis/cron) — see "Live calendar feed: Finance Calendar"
+  above. News sync still needs an external trigger.
 - `runMarketDataSync()` is a wired-but-empty stub — no `MarketPrice` schema
   exists yet. See its doc comment before building the Market Dashboard's
   price widgets against it.
