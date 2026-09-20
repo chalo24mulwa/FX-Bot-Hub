@@ -56,6 +56,17 @@ model User {
   alerts                Alert[]
   calendarPreference    CalendarPreference?
 
+  // Community (see the "Community" section at the end of this file).
+  communityPosts              CommunityPost[]
+  communityComments           CommunityComment[]
+  communityPostVotes          CommunityPostVote[]
+  communityCommentVotes       CommunityCommentVote[]
+  communityBookmarks          CommunityBookmark[]
+  communityFollows            CommunityPostFollow[]
+  communityReports            CommunityReport[]      @relation("ReportReporter")
+  communityRestrictions       CommunityRestriction[] @relation("RestrictionSubject")
+  communityRestrictionsIssued CommunityRestriction[] @relation("RestrictionIssuer")
+
   analyticsEvents AnalyticsEvent[]
 
   // Phase 5: admin user list filters by role and sorts by createdAt.
@@ -74,6 +85,10 @@ model Profile {
   location      String?
   websiteUrl    String?
   twitterHandle String?
+  // Public handle for Community profile URLs and @mentions. Null until the
+  // member first takes part in the Community (assigned lazily from their
+  // name) or picks one — never derived from their email.
+  username      String?  @unique @db.VarChar(24)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -865,6 +880,10 @@ enum NotificationType {
   SIGNAL_CLOSED
   ECONOMIC_EVENT_ALERT
   NEWS_ALERT
+  COMMUNITY_REPLY
+  COMMUNITY_MENTION
+  COMMUNITY_ACTIVITY
+  COMMUNITY_MODERATION
 }
 
 model Notification {
@@ -981,17 +1000,17 @@ enum EconomicEventStatus {
 }
 
 model EconomicEvent {
-  id          String        @id @default(cuid())
-  externalId  String?       @unique // id from upstream data provider, for de-duplication on sync
-  country     String
-  currency    String
-  title       String
-  impact      EventImpact
-  category    EventCategory @default(OTHER)
-  eventTime   DateTime
-  actual      String?
-  forecast    String?
-  previous    String?
+  id              String              @id @default(cuid())
+  externalId      String?             @unique // id from upstream data provider, for de-duplication on sync
+  country         String
+  currency        String
+  title           String
+  impact          EventImpact
+  category        EventCategory       @default(OTHER)
+  eventTime       DateTime
+  actual          String?
+  forecast        String?
+  previous        String?
   // The value `previous` held immediately before a provider revision
   // overwrote it (e.g. last month's CPI print gets revised from 2.9% to
   // 3.0% alongside this month's release) — set by the sync job, never by
@@ -1007,7 +1026,7 @@ model EconomicEvent {
   // holiday) — `eventTime` is then only a same-calendar-day anchor (noon
   // UTC), not a real time of day, and the UI shows "All day" instead of a
   // clock time. Provider-reported; false for manual/admin-entered events.
-  allDay          Boolean @default(false)
+  allDay          Boolean             @default(false)
   // Deep link to the provider's own page for this release, for attribution
   // — required by most licensed-feed terms of use. Null for manual events.
   sourceUrl       String?
@@ -1019,10 +1038,10 @@ model EconomicEvent {
   // Free-text context shown on the event detail page — not a data feed
   // field, filled in by whoever creates/edits the event (ManualProvider
   // today; an admin editing the row later).
-  description String?       @db.Text
-  source      String // e.g. "manual", "authorized" — matches DataSource.providerKey
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  description     String?             @db.Text
+  source          String // e.g. "manual", "authorized" — matches DataSource.providerKey
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
 
   revisions EconomicEventRevision[]
 
@@ -1388,4 +1407,294 @@ model Instrument {
   @@index([assetClass])
   @@index([displaySymbol])
   @@map("instruments")
+}
+
+// ---------- Community ----------
+//
+// Forum / idea-sharing platform. Reuses User (identity, role), Profile
+// (avatar, bio, username), Notification (in-app alerts) and AuditLog
+// (moderation history) — nothing here is a second account or notification
+// system. Community restrictions are deliberately separate from
+// User.bannedAt: a member can lose posting rights while keeping full use of
+// the marketplace and their account.
+
+enum CommunityPostType {
+  DISCUSSION
+  TRADING_IDEA
+  SIGNAL
+  QUESTION
+  CHART
+}
+
+enum TradeDirection {
+  BUY
+  SELL
+  NEUTRAL
+}
+
+// PUBLISHED = visible. HIDDEN = pulled from public view by a moderator
+// (reversible, author still sees it). REMOVED = deleted (by the author, or a
+// moderator) — body no longer shown; a moderator can still restore it.
+enum CommunityContentStatus {
+  PUBLISHED
+  HIDDEN
+  REMOVED
+}
+
+enum CommunityReportReason {
+  SPAM
+  SCAM
+  HARASSMENT
+  MISLEADING
+  INAPPROPRIATE
+  FAKE_CLAIM
+  OTHER
+}
+
+enum CommunityReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+// The *active* state of a member is derived from these rows (see
+// src/lib/community/restrictions.ts); "ACTIVE" is the absence of one.
+enum CommunityRestrictionState {
+  POSTING_SUSPENDED // cannot post or comment; can still read, like, bookmark
+  COMMUNITY_SUSPENDED // read-only for a period: no posting, comments, votes, reports
+  BANNED // permanent (endsAt is always null): read-only until an admin lifts it
+}
+
+// Admin-managed, so new categories never need a deploy. Seeded with the
+// launch set by the migration that created this table.
+model CommunityCategory {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String?
+  position    Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  posts CommunityPost[]
+
+  @@index([isActive, position])
+  @@map("community_categories")
+}
+
+model CommunityPost {
+  id         String            @id @default(cuid())
+  authorId   String
+  categoryId String
+  type       CommunityPostType @default(DISCUSSION)
+  title      String            @db.VarChar(180)
+  // Plain text with a small markdown subset — rendered by React, never as
+  // HTML, so it can't carry markup/script (see src/lib/community/content.ts).
+  content    String            @db.Text
+
+  // Trading-idea / signal fields. All optional: a question or discussion
+  // carries none of them. Prices are kept as validated strings ("1.0850") so
+  // a member's own precision is preserved.
+  instrument String?         @db.VarChar(20)
+  direction  TradeDirection?
+  timeframe  String?         @db.VarChar(8)
+  entryPrice String?         @db.VarChar(24)
+  stopLoss   String?         @db.VarChar(24)
+  takeProfit String?         @db.VarChar(24)
+  tags       String[]        @default([])
+
+  status     CommunityContentStatus @default(PUBLISHED)
+  isPinned   Boolean                @default(false)
+  isFeatured Boolean                @default(false)
+  isLocked   Boolean                @default(false)
+
+  // Denormalised counters (kept in step inside the same transaction as the
+  // write that changes them) so feed sorting is an index scan, not a join.
+  likeCount     Int @default(0)
+  commentCount  Int @default(0)
+  viewCount     Int @default(0)
+  bookmarkCount Int @default(0)
+
+  moderationNote String?   @db.Text
+  moderatedById  String?
+  moderatedAt    DateTime?
+  editedAt       DateTime?
+  lastActivityAt DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  author      User                  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  category    CommunityCategory     @relation(fields: [categoryId], references: [id])
+  comments    CommunityComment[]
+  votes       CommunityPostVote[]
+  bookmarks   CommunityBookmark[]
+  follows     CommunityPostFollow[]
+  attachments CommunityAttachment[]
+  reports     CommunityReport[]
+
+  @@index([status, createdAt])
+  @@index([categoryId, status, createdAt])
+  @@index([authorId, createdAt])
+  @@index([type, status, createdAt])
+  @@index([instrument])
+  @@index([status, likeCount])
+  @@index([status, commentCount])
+  @@index([isPinned, isFeatured])
+  @@index([tags], type: Gin)
+  @@map("community_posts")
+}
+
+model CommunityComment {
+  id       String  @id @default(cuid())
+  postId   String
+  authorId String
+  parentId String?
+  // 0 = top-level. Capped (see MAX_COMMENT_DEPTH) so threads stay readable
+  // on a phone; a reply to a maximum-depth comment attaches to its parent.
+  depth    Int     @default(0)
+  content  String  @db.Text
+
+  status         CommunityContentStatus @default(PUBLISHED)
+  likeCount      Int                    @default(0)
+  moderationNote String?                @db.Text
+  moderatedById  String?
+  moderatedAt    DateTime?
+  editedAt       DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  post    CommunityPost          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author  User                   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent  CommunityComment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies CommunityComment[]     @relation("CommentReplies")
+  votes   CommunityCommentVote[]
+  reports CommunityReport[]
+
+  @@index([postId, createdAt])
+  @@index([authorId, createdAt])
+  @@index([parentId])
+  @@map("community_comments")
+}
+
+// Upvote only (no downvotes): one row per member per post/comment.
+model CommunityPostVote {
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@index([postId])
+  @@map("community_post_votes")
+}
+
+model CommunityCommentVote {
+  userId    String
+  commentId String
+  createdAt DateTime @default(now())
+
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment CommunityComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@id([userId, commentId])
+  @@index([commentId])
+  @@map("community_comment_votes")
+}
+
+model CommunityBookmark {
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@index([userId, createdAt])
+  @@map("community_bookmarks")
+}
+
+// "Follow the discussion": followers are notified of new comments. Authors
+// and commenters follow automatically; anyone can opt out.
+model CommunityPostFollow {
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@index([postId])
+  @@map("community_post_follows")
+}
+
+// A chart/screenshot on a post. `storageKey` always lives under
+// community/<authorId>/ (validated on attach) in the shared object store.
+model CommunityAttachment {
+  id         String   @id @default(cuid())
+  postId     String
+  storageKey String
+  position   Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId, position])
+  @@map("community_attachments")
+}
+
+// Exactly one of postId / commentId is set (enforced in the service). The
+// unique pairs stop one member filing the same report repeatedly.
+model CommunityReport {
+  id             String                @id @default(cuid())
+  reporterId     String
+  postId         String?
+  commentId      String?
+  reason         CommunityReportReason
+  details        String?               @db.Text
+  status         CommunityReportStatus @default(OPEN)
+  resolvedById   String?
+  resolvedAt     DateTime?
+  resolutionNote String?               @db.Text
+  createdAt      DateTime              @default(now())
+
+  reporter User              @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  post     CommunityPost?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment  CommunityComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([reporterId, postId])
+  @@unique([reporterId, commentId])
+  @@index([status, createdAt])
+  @@index([postId])
+  @@index([commentId])
+  @@map("community_reports")
+}
+
+// One row per restriction ever issued — never edited or deleted, only
+// lifted (liftedAt) — so it doubles as the member's moderation history.
+// A restriction is *active* while liftedAt is null, startsAt has passed and
+// endsAt is null or in the future.
+model CommunityRestriction {
+  id         String                    @id @default(cuid())
+  userId     String
+  state      CommunityRestrictionState
+  reason     String                    @db.Text
+  startsAt   DateTime                  @default(now())
+  endsAt     DateTime? // null = permanent (always the case for BANNED)
+  issuedById String
+  liftedAt   DateTime?
+  liftedById String?
+  liftNote   String?                   @db.Text
+  createdAt  DateTime                  @default(now())
+
+  user     User @relation("RestrictionSubject", fields: [userId], references: [id], onDelete: Cascade)
+  issuedBy User @relation("RestrictionIssuer", fields: [issuedById], references: [id])
+
+  @@index([userId, liftedAt])
+  @@index([state, liftedAt])
+  @@map("community_restrictions")
 }

@@ -14,6 +14,7 @@ const ADMIN_NAV = [
   { label: "News Categories", href: "/admin/news-categories" },
   { label: "Signal Providers", href: "/admin/signal-providers" },
   { label: "Signals", href: "/admin/signals" },
+  { label: "Community", href: "/admin/community" },
   { label: "Data Sources", href: "/admin/data-sources" },
   { label: "Finance", href: "/admin/finance" },
   { label: "Refunds", href: "/admin/refunds" },

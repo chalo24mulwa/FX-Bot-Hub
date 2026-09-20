@@ -25,7 +25,9 @@ export type Action =
   | "license:manage"
   | "finance:view"
   | "security:view"
-  | "queue:view";
+  | "queue:view"
+  | "community:moderate" // hide/remove/lock/pin/feature content, review reports, restrict members
+  | "community:manage_categories";
 
 /**
  * Centralized capability matrix — the single source of truth for "who can
@@ -58,6 +60,8 @@ const PERMISSIONS: Record<Action, (role: UserRole) => boolean> = {
   "finance:view": isAdmin,
   "security:view": isAdmin,
   "queue:view": isAdmin,
+  "community:moderate": isStaff,
+  "community:manage_categories": isStaff,
 };
 
 export function can(role: UserRole, action: Action): boolean {

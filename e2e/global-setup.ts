@@ -61,7 +61,10 @@ export default async function globalSetup() {
   // the (Redis-backed, not run in CI) sync workers.
   await db.economicEvent.upsert({
     where: { externalId: "e2e-fixture-event" },
-    update: {},
+    // Re-anchor on every run: an upsert with an empty update kept the date from
+    // the first-ever run, so on a reused database the event drifted into the past
+    // and fell out of the calendar's default "this week" view.
+    update: { eventTime: new Date(Date.now() + 3 * 86_400_000) },
     create: {
       externalId: "e2e-fixture-event",
       country: "United States",

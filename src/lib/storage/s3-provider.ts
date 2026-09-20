@@ -3,10 +3,11 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env } from "@/lib/env";
-import type { PutObjectInput, StorageProvider } from "./types";
+import type { ObjectInfo, PutObjectInput, StorageProvider } from "./types";
 
 // Works against AWS S3 or any S3-compatible service (Cloudflare R2, MinIO,
 // Backblaze B2, DigitalOcean Spaces) by pointing STORAGE_ENDPOINT at it.
@@ -54,6 +55,17 @@ export class S3StorageProvider implements StorageProvider {
     await this.client.send(
       new DeleteObjectCommand({ Bucket: this.bucket, Key: key })
     );
+  }
+
+  async headObject(key: string): Promise<ObjectInfo | null> {
+    try {
+      const res = await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
+      return { sizeBytes: res.ContentLength ?? 0, contentType: res.ContentType ?? null };
+    } catch (err) {
+      const status = (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
+      if (status === 404 || (err as { name?: string }).name === "NotFound") return null;
+      throw err;
+    }
   }
 
   async getSignedDownloadUrl(key: string, expiresInSeconds = 300): Promise<string> {

@@ -1344,6 +1344,82 @@ components: `calendar-filters.tsx`, `calendar-table.tsx`,
   `calendar.spec.ts` updated and extended (sidebar groups, quick ranges,
   timezone, phone drawer).
 
+## Community platform (forum + trading ideas)
+
+A Reddit/forum-style community at `/community` — posts, threaded comments,
+trading ideas, moderation and Community-only restrictions. **Purely additive**:
+it reuses `User`/`Profile`, the RBAC layer, the shared `Notification` table,
+the storage provider and the site's existing styling; no auth, marketplace,
+payment or calendar code was changed. Code lives in `src/features/community/`
+(services, queries, server actions), `src/lib/community/` (pure logic, unit
+tested), `src/components/community/`, `src/app/community/**`,
+`src/app/admin/community/**`, `src/app/api/community/uploads/presign`.
+
+- **Data** (migration `20260921000000_community_platform`, additive only):
+  `CommunityCategory` (14 seeded by the migration, admin-extensible),
+  `CommunityPost` (type, trade fields, tags[], status, pinned/featured/locked,
+  denormalised counters, `lastActivityAt`), `CommunityComment` (parent + depth),
+  `CommunityPostVote`/`CommunityCommentVote`, `CommunityBookmark`,
+  `CommunityPostFollow`, `CommunityAttachment`, `CommunityReport`,
+  `CommunityRestriction`; plus `Profile.username` (lowercase, unique, assigned
+  lazily from the display name by `ensureUsername`) and extra
+  `NotificationType` values. No follower/following-of-members model — the
+  existing architecture had none, so profiles show posts/comments/reputation
+  only (reputation = likes received on published posts + comments).
+- **Trust boundary**: server actions are thin (`runAction` → `{ok,error}`, Redis
+  rate limit that fails open); `service.ts`/`moderation-service.ts` load every
+  target by id, treat "not yours" as "not found", and **re-derive the member's
+  Community standing from the DB on every mutation** (never from the session).
+  Anti-spam limits (`POSTING_LIMITS` in `src/config/community.ts`) are counted
+  from the database, not Redis, because production has no Redis. Counters change
+  inside transactions; duplicate votes are absorbed via `P2002`. Ids are
+  shape-checked with a regex, **not** `z.cuid()` — Zod 4's cuid pattern rejects
+  the seeded category ids (`cc_forex_trading`) and would have broken posting.
+- **Restrictions are separate from `User.bannedAt`** — a Community ban must never
+  disable the FX Bot Hub account. `CommunityRestriction` rows (reason, `startsAt`,
+  `endsAt`, moderator, `liftedAt`) resolve through the pure `resolveStanding()`
+  (BANNED > COMMUNITY_SUSPENDED > POSTING_SUSPENDED > ACTIVE; expiry is evaluated
+  at read time, no cron). `POSTING_SUSPENDED` can't post/comment but can
+  like/report/save; `COMMUNITY_SUSPENDED`/`BANNED` are read-only (save allowed).
+  A moderator can't restrict themselves or anyone of equal/higher rank. The
+  restricted member sees `restrictionMessage()` (reason + end date + "your FX Bot
+  Hub account is unaffected") instead of the composer.
+- **Moderation history is `AuditLog`** (`entityType` starts with `Community`,
+  append-only) — shown at `/admin/community/history`; there is no separate table.
+  Permissions: `community:moderate`, `community:manage_categories` (both staff).
+  Hiding a post resolves its open reports.
+- **XSS is prevented structurally**: member text is parsed to an AST (safe
+  markdown subset) and rendered as React elements — never HTML strings, never
+  `dangerouslySetInnerHTML`. Only `http(s)` links are allowed, rendered with
+  `rel="ugc nofollow noopener noreferrer"`. Search input has `%`/`_` stripped
+  before Prisma `contains` (they are LIKE wildcards).
+- **Trade ideas** are labelled "member idea · not advice"; entry/SL/TP are all
+  optional and only validated for consistency when given (BUY: SL < entry < TP,
+  SELL mirrored); R:R is computed, never stored. Questions/discussions never ask
+  for trade fields. The disclaimer (`COMMUNITY_DISCLAIMER`) is a subtle footer on
+  every Community page.
+- **Image uploads**: presign (`/api/community/uploads/presign`: same-origin check,
+  session, rate limit, `canPost`, `validateUpload` kind `image` — png/jpg/webp
+  ≤ 8 MB, **no SVG**) → browser downscales to ≤ 1920px WebP → PUT to the bucket →
+  the server `headObject()`s the key (must exist, size and content type checked,
+  key must sit under `community/<userId>/`) before a post may reference it.
+  `next/image` generates thumbnails on the fly. **Production has no storage
+  configured yet**, so the chart-image picker is disabled there
+  (`imageUploadsConfigured()`); text/trade posts work everywhere.
+- **Trending** = gravity-decay score computed in memory over a bounded 14-day
+  candidate set; like notifications only fire at milestones; view counts are
+  de-duplicated per viewer per 30 min in memory (per process — approximate on a
+  multi-instance deploy, fine at this scale).
+- **E2E** (`e2e/community.spec.ts`): registers its own members per run and never
+  bans the shared `e2e-*` accounts. It asserts on **buttons that only exist after
+  an action** (e.g. "Restore"), not on status text like "HIDDEN", which also
+  appears in the always-visible filter chips — that raced a request once. Comment
+  form fields use `cf-` ids because the comment `<li>` already owns `c-<id>`
+  (duplicate ids silently broke label association).
+- **Known gaps**: no member follow graph; ILIKE (not tsvector) search; image
+  uploads need `STORAGE_*` + bucket CORS + public read on `community/*` (see
+  `docs/DEPLOY_HOSTINGER.md`); reports have no email digest.
+
 ## Testing
 
 - `npm run test` (Vitest) — pure-logic unit tests only (authorization matrix,
@@ -1452,7 +1528,7 @@ components: `calendar-filters.tsx`, `calendar-table.tsx`,
   edge case, not a security issue (their review still needs their own purchase
   to be "verified," which they get for free as the owner, so it'd read oddly
   but isn't exploitable for anything).
-- Analysis/Community/Guides/Tutorials/Developer-Resources are still stub
+- Analysis/Guides/Tutorials/Developer-Resources are still stub
   ("coming soon") pages — News and Signals became real in Phase 3.
 - The `/admin`, `/seller`, `/dashboard` redirect-to-sign-in for an
   authenticated-but-unauthorized user is a UX nit (looks like "not logged in"
