@@ -91,3 +91,29 @@ export function formatInTimezone(date: Date, timeZone: string): { date: string; 
     weekday: get("weekday"),
   };
 }
+
+/**
+ * Human label for a calendar range, in the viewer's zone: "Sun 20 Sept – Sat 26 Sept 2026"
+ * (the year is shown once when both ends share it; a single day collapses to one date).
+ * `to` is the exclusive end instant getRangeBetween/getPresetRange produce (the next
+ * local midnight), so the label steps back 1 ms to name the last *included* day.
+ */
+export function formatRangeLabel(from: Date, to: Date, timeZone: string): string {
+  const start = formatInTimezone(from, timeZone);
+  const end = formatInTimezone(new Date(Math.max(from.getTime(), to.getTime() - 1)), timeZone);
+  if (start.date === end.date) return `${start.weekday.slice(0, 3)} ${start.date}`;
+  const [startDay, startMonth, startYear] = start.date.split(" ");
+  const endYear = end.date.split(" ")[2];
+  const startText = `${start.weekday.slice(0, 3)} ${startDay} ${startMonth}${startYear === endYear ? "" : ` ${startYear}`}`;
+  return `${startText} – ${end.weekday.slice(0, 3)} ${end.date}`;
+}
+
+/** "just now" / "12 min ago" / "3 h ago" / "2 d ago" — for the "last updated" indicator. */
+export function formatAge(from: Date, now: Date): string {
+  const minutes = Math.max(0, Math.floor((now.getTime() - from.getTime()) / 60_000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours} h ago`;
+  return `${Math.floor(hours / 24)} d ago`;
+}

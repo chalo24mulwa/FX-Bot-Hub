@@ -133,6 +133,18 @@ export async function getEventRevisionHistory(eventId: string, limit = 20) {
   return listEventRevisions(eventId, limit);
 }
 
+/** When the calendar was last refreshed from an external feed — the newest
+ * `lastSyncedAt` stamp across non-manual events (every sync pass stamps each
+ * row the provider returned, changed or not). Null before the first sync.
+ * Read straight from the indexed column; drives the "Updated …" indicator. */
+export async function getCalendarLastUpdated(): Promise<Date | null> {
+  const row = await db.economicEvent.aggregate({
+    where: { source: { not: "manual" } },
+    _max: { lastSyncedAt: true },
+  });
+  return row._max.lastSyncedAt;
+}
+
 export async function listDistinctCurrencies(): Promise<string[]> {
   return cacheWrap("calendar-currencies", CALENDAR_EVENTS_TTL_SECONDS, async () => {
     const rows = await db.economicEvent.findMany({

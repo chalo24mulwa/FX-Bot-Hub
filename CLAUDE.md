@@ -1296,6 +1296,54 @@ tracking and the calendar UI are all reused; nothing was replaced.
   reappearance, empty-response guard, 500/garbage outage handling), in dev
   *and* a production build (`next start`).
 
+## Calendar page: terminal-style layout (sticky sidebar, mobile drawer)
+
+A presentation-only redesign of `/calendar` — data, sync, API, filters' URL
+contract and routes are untouched. Modified in place, no new parallel
+components: `calendar-filters.tsx`, `calendar-table.tsx`,
+`calendar-auto-refresh.tsx`, `app/calendar/page.tsx`.
+
+- **Layout**: deep-navy page (violet/amber brand glows) → a CSS grid of
+  [260px sidebar | content]. The header sits *beside* the sidebar so the table
+  starts near the top; the light table is the readable "surface". DOM order is
+  header → filters → table so the phone order is header, Filters bar, table;
+  `lg:` grid placement (`col-start`/`row-span`) puts the sidebar on the left.
+- **One filter element, two presentations**: `CalendarFilters` renders a
+  single `<aside>` — a `fixed` off-canvas drawer below `lg`, `sticky top-[4.75rem]`
+  (under the sticky site header) at `lg+` — plus a "Filters" bar shown only
+  below `lg`. Not two copies. Drawer: Escape/backdrop/close/"Show N events"
+  close it, body scroll locks, focus moves in. The sticky footer uses
+  `-bottom-4` to cancel the aside's `p-4` (otherwise content shows through).
+- **URL is still the only state** (`preset/from/to/impact/category/currency/tz`).
+  New: a `nav=month|quarter` marker on the two quick ranges (ignored by the
+  server) so the sidebar can highlight "This Month"/"Next 3 Months" vs. a
+  hand-picked custom range without recomputing dates in the browser.
+- **Rapid-click safety** (`useCalendarParams`): each click builds on the latest
+  *intended* params (a ref advanced immediately), not the last-committed URL —
+  otherwise two quick clicks before the first navigation renders made the
+  second undo the first. Re-verified with five toggles 200 ms apart.
+- **Timezone picker moved** from the filter bar to the header
+  (`CalendarTimezoneSelect`, same cookie + `tz` behaviour). The refresh button
+  lives in `CalendarAutoRefresh` (which still owns the 60 s polling): a manual
+  refresh re-reads *our DB only* — the external feed stays governed by the
+  hourly due-check, so clicking it can't create upstream traffic.
+- **Currency list**: the 13 specified majors in order, then any other currency
+  present in the data (e.g. `GLOBAL`) — a display order, never a cap.
+- **Table**: same 7 columns/day grouping. Impact = signal bars (3/2/1) + label
+  ("High/Medium/Low"; Holiday/Other a dot); High rows get a red tint + accent,
+  Medium an amber accent. "Today" pill needs `todayDate` passed in (the sync
+  component can't read the clock during render — lint `react-hooks/purity`).
+  Header/last-updated/range label use `formatRangeLabel`/`formatAge`
+  (`timezone.ts`, unit-tested) and `getCalendarLastUpdated()` (newest
+  `lastSyncedAt` of non-manual events).
+- **Pre-existing bug fixed here**: the "This Month" range end used
+  `toISOString()` on a local-midnight date, which lands on the *previous* day for
+  anyone east of UTC — a Nairobi user's "This Month" silently dropped the
+  month's last day (5 events on 30 Sept). `toIsoDate` now formats local parts.
+- E2E: impact buttons are now "High"/"Medium" (were "HIGH"/"MEDIUM") —
+  `calendar.spec.ts` updated and extended (sidebar groups, quick ranges,
+  timezone, phone drawer).
+
 ## Testing
 
 - `npm run test` (Vitest) — pure-logic unit tests only (authorization matrix,
