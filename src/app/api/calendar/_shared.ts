@@ -98,6 +98,8 @@ export function serializeEvent(event: EconomicEvent, timezone?: string) {
     category: event.category,
     status: event.status,
     eventTime: event.eventTime.toISOString(),
+    // true = date known, time not: eventTime is then only a same-day (noon UTC) anchor.
+    allDay: event.allDay,
     ...(timezone ? { local: formatInTimezone(event.eventTime, timezone) } : {}),
     actual: event.actual,
     forecast: event.forecast,
