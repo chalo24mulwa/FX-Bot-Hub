@@ -889,6 +889,54 @@ replaces it, and no user, password, or role was touched by any migration.
   again; and re-run the *full* e2e suite after any shared-page redesign,
   not just the specs that seem related.
 
+### Auth hardening pass: production email, case-insensitive emails, stricter Google
+
+A follow-up audit (asked to "add Google sign-up and forgot-password") found both
+features already built, so this pass only closed what stopped them working or made
+them unsafe in production:
+
+- **Reset emails are sent directly** (`sendEmailNow()` in `src/jobs/send-email.ts`,
+  called with `void` from `requestPasswordReset`), not through `enqueueEmail()`.
+  The queue path needs Redis **and** a running worker; the Hostinger plan has
+  neither, so before this a reset request created a token and no email ever left the
+  server. It is fire-and-forget and never throws, so the forgot-password response
+  (and its timing) is identical whether or not the address has an account. The
+  provider is imported lazily inside it: `EMAIL_PROVIDER=resend` without a key throws
+  at construction, and that must become a logged failure, not a crash in every route
+  that imports the module. Welcome/alert/refund emails still use the queue.
+- **`ResendEmailProvider` now throws on `{ error }`.** The SDK *returns* API errors
+  (unverified domain, bad key) instead of throwing, so every failure used to look like
+  a successful send. `ConsoleEmailProvider` prints `NOT SENT` in production.
+- **Emails match case-insensitively** (`findUserByEmail()` in `src/lib/auth-email.ts`:
+  exact match first for the unique index, `mode: "insensitive"` fallback). Registration
+  stores lowercase and blocks a differently-cased duplicate; sign-in, forgot-password
+  and Google linking all use it. Without this, an account registered as `Foo@Gmail.com`
+  plus a Google sign-in (always lowercase) created a **duplicate user**. Existing
+  mixed-case rows are left as they are and still work.
+- **A brand-new Google identity with an unverified email is refused**
+  (`decideGoogleAccountLinking`), not just an unverified one matching an existing
+  account — otherwise someone could open an account under an address they don't own
+  and the real owner's own sign-up would then fail as "already exists".
+- **Google-created users match email sign-ups**: a `Profile` (Auth.js `createUser`
+  event) and `emailVerified` (set in the `jwt` callback — the raw `email_verified`
+  claim only exists there; the adapter events get a normalised profile without it).
+- **`pages.error` points at `/auth/sign-in`**, and the sign-in/sign-up pages render
+  `authErrorMessage(?error=)`, so a refused Google sign-in explains itself instead of
+  landing on Auth.js's bare error page. The pages are now server components
+  (`force-dynamic`) passing `googleEnabled` to `SignInForm`/`SignUpForm`, so the
+  Google button is in the first paint rather than popping in after a client fetch. It
+  is only shown when both `AUTH_GOOGLE_*` vars are set — production has neither yet
+  (see `docs/DEPLOY_HOSTINGER.md`).
+- **How the Google flow was tested without a Google account**: a fake OIDC provider
+  (signed RS256 ID tokens, PKCE check) plus a fetch-rewrite preload
+  (`NODE_OPTIONS=--require`) that reroutes only `accounts.google.com` /
+  `*.googleapis.com` calls to it, so Auth.js's real discovery, PKCE and ID-token
+  verification ran unchanged. The Resend SDK honours `RESEND_BASE_URL`, so a mock of
+  the Resend API captured the real email. The harness is throwaway (not committed);
+  what's committed is `e2e/auth-reset.spec.ts` (mints tokens with the app's own
+  `generateResetToken()`, since CI can't read a mailbox). **Still never run against
+  real Google or Resend accounts** — do that once the credentials exist.
+
 ## Calendar page reorganization: day-grouped layout, real date ranges
 
 Edits the `/calendar` page and its two direct components only — no other

@@ -1,7 +1,8 @@
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
+import { findUserByEmail } from "@/lib/auth-email";
 import { generateResetToken, hashResetToken, RESET_TOKEN_TTL_MS } from "@/lib/security/password-reset-token";
-import { enqueueEmail } from "@/jobs/send-email";
+import { sendEmailNow } from "@/jobs/send-email";
 import { buildPasswordResetEmail } from "@/emails/templates";
 
 const BCRYPT_ROUNDS = 12;
@@ -22,7 +23,7 @@ export class InvalidResetTokenError extends Error {
  * banned account) triggers no observable side effect at all.
  */
 export async function requestPasswordReset(email: string): Promise<void> {
-  const user = await db.user.findUnique({ where: { email } });
+  const user = await findUserByEmail(email);
   if (!user?.password || user.bannedAt) return;
 
   const { token, tokenHash } = generateResetToken();
@@ -31,7 +32,10 @@ export async function requestPasswordReset(email: string): Promise<void> {
   });
 
   const resetUrl = `${siteUrl}/auth/reset-password?token=${token}`;
-  void enqueueEmail(user.email, buildPasswordResetEmail(resetUrl));
+  // Sent directly, not queued: production has no Redis/worker, so a queued reset
+  // email would never arrive. Not awaited, so the response (and its timing) is
+  // the same whether or not an email is sent — see sendEmailNow.
+  void sendEmailNow(user.email, buildPasswordResetEmail(resetUrl));
 }
 
 /**

@@ -13,12 +13,16 @@ export class ResendEmailProvider implements EmailProvider {
   }
 
   async send(input: SendEmailInput): Promise<void> {
-    await this.client.emails.send({
+    // The Resend SDK reports API failures (unverified sender domain, bad key,
+    // rate limit…) in a returned `{ error }` instead of throwing — ignoring it
+    // made every such failure look like a successful send.
+    const { error } = await this.client.emails.send({
       from: env.EMAIL_FROM,
       to: input.to,
       subject: input.subject,
       html: input.html,
       text: input.text,
     });
+    if (error) throw new Error(`Resend rejected the email: ${error.name}: ${error.message}`);
   }
 }

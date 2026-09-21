@@ -6,10 +6,13 @@ function existingUser(overrides: Partial<ExistingUserForLinking> = {}): Existing
 }
 
 describe("decideGoogleAccountLinking", () => {
-  it("proceeds normally for a brand-new email (no existing user) regardless of email_verified", () => {
+  it("proceeds for a brand-new email (no existing user) when Google verified it", () => {
     expect(decideGoogleAccountLinking(null, true)).toEqual({ kind: "proceed" });
-    expect(decideGoogleAccountLinking(null, false)).toEqual({ kind: "proceed" });
-    expect(decideGoogleAccountLinking(null, undefined)).toEqual({ kind: "proceed" });
+  });
+
+  it("rejects a brand-new email Google has not verified (no squatting an address you may not own)", () => {
+    expect(decideGoogleAccountLinking(null, false)).toEqual({ kind: "reject" });
+    expect(decideGoogleAccountLinking(null, undefined)).toEqual({ kind: "reject" });
   });
 
   it("links a verified Google email to an existing, not-yet-linked account", () => {

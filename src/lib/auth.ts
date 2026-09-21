@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { checkRateLimit, clientIp } from "@/lib/security/rate-limit";
 import { decideGoogleAccountLinking } from "@/lib/auth-linking";
+import { findUserByEmail } from "@/lib/auth-email";
 import type { UserRole } from "@prisma/client";
 
 declare module "next-auth" {
@@ -40,7 +41,9 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
   // credentials-based sessions via the DB adapter) — the adapter still
   // manages Users/Accounts, which is what makes Google sign-in below work.
   session: { strategy: "jwt", maxAge: SESSION_MAX_AGE_SECONDS },
-  pages: { signIn: "/auth/sign-in" },
+  // `error` too: without it a failed/declined Google sign-in lands on Auth.js's
+  // unbranded built-in error page instead of our sign-in page (which explains it).
+  pages: { signIn: "/auth/sign-in", error: "/auth/sign-in" },
   // Required for self-hosted production deployments (Docker, behind a
   // reverse proxy — anything that isn't Vercel, which sets this
   // automatically). Without it, Auth.js in production rejects every
@@ -94,7 +97,7 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
           return null;
         }
 
-        const user = await db.user.findUnique({ where: { email } });
+        const user = await findUserByEmail(email);
         if (!user?.password) return recordFailure();
         if (user.bannedAt) return recordFailure();
 
@@ -110,15 +113,30 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
       ? [Google({ clientId: env.AUTH_GOOGLE_ID, clientSecret: env.AUTH_GOOGLE_SECRET })]
       : []),
   ],
+  events: {
+    // Email/password registration creates a Profile alongside the User; the
+    // adapter creates only the User for OAuth sign-ups. Give a Google-created
+    // account the same starting records so both kinds of member look alike.
+    async createUser({ user }) {
+      if (!user.id) return;
+      await db.profile.upsert({
+        where: { userId: user.id },
+        update: {},
+        create: { userId: user.id, displayName: user.name ?? user.email?.split("@")[0] ?? null },
+      });
+    },
+  },
   callbacks: {
     async signIn({ user, account, profile }) {
       // Credentials already checked bannedAt in authorize(); this covers
       // OAuth sign-ins against an existing (possibly since-banned) user.
       if (account?.provider !== "credentials" && user?.email) {
-        const existing = await db.user.findUnique({
-          where: { email: user.email },
-          include: { accounts: { select: { provider: true } } },
-        });
+        // Case-insensitive so a Google sign-in links to (rather than duplicates)
+        // an account registered as `Foo@Gmail.com`. See findUserByEmail.
+        const found = await findUserByEmail(user.email);
+        const existing = found
+          ? await db.user.findUnique({ where: { id: found.id }, include: { accounts: { select: { provider: true } } } })
+          : null;
 
         // Safe account linking for Google specifically: Google's own OAuth
         // flow already proved this person controls `user.email` (its ID
@@ -175,8 +193,14 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
       }
       return true;
     },
-    async jwt({ token, user, trigger }) {
+    async jwt({ token, user, account, profile, trigger }) {
       if (user) {
+        // Google asserts `email_verified` in the raw ID-token claims, which only reach
+        // this callback at sign-in (Auth.js hands the adapter events a normalised profile
+        // without it). Record it so a Google-created account isn't left "unverified".
+        if (account?.provider === "google" && user.id && (profile as { email_verified?: boolean } | undefined)?.email_verified) {
+          await db.user.updateMany({ where: { id: user.id, emailVerified: null }, data: { emailVerified: new Date() } });
+        }
         token.id = user.id;
         token.role = (user as { role: UserRole }).role;
         token.roleCheckedAt = Date.now();

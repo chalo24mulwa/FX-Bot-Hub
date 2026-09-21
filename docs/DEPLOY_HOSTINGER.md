@@ -111,8 +111,44 @@ Shared hosting can't run this app's full stack directly:
   added over SSH may not survive the next time you edit env vars there.
   If you do add them there, don't wrap them in quotes either.
 - ⬜ `REDIS_URL`, `NEXT_PUBLIC_STORAGE_PUBLIC_BASE_URL`,
-  `PAYMENT_PROVIDER`, `EMAIL_PROVIDER` — not set yet, see the table
-  above.
+  `PAYMENT_PROVIDER` — not set yet, see the table above.
+- ⬜ `EMAIL_PROVIDER`/`RESEND_API_KEY`/`EMAIL_FROM` (password-reset email) and
+  `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` (Google sign-in) — not set yet, see
+  "Sign in with Google and password-reset email" below.
+
+## Sign in with Google and password-reset email
+
+Both features are built and tested, but each needs **credentials that only you
+can create** — until they're set, Google sign-in stays hidden and reset emails
+are logged as "NOT SENT" instead of delivered. Nothing else in the app depends
+on them.
+
+**Google sign-in** (adds the "Continue with Google" button on Sign in and Sign up):
+
+1. Google Cloud Console → *APIs & Services → Credentials → Create credentials →
+   OAuth client ID → Web application*.
+2. **Authorized redirect URI**: `https://fxbothub.com/api/auth/callback/google`
+   (exactly — scheme, host and path; add `http://localhost:3000/api/auth/callback/google`
+   as a second entry if you also want to test locally).
+3. Configure the OAuth consent screen (app name, support email, `fxbothub.com`).
+4. Add to hPanel's environment variables (no quotes) and redeploy:
+   `AUTH_GOOGLE_ID` = the client ID, `AUTH_GOOGLE_SECRET` = the client secret.
+   The secret is read on the server only; it never reaches the browser.
+
+**Password-reset email** (the reset link is sent straight through the email
+provider — no Redis or worker needed):
+
+1. Create a [Resend](https://resend.com) account, add and **verify the sending
+   domain** `fxbothub.com` (the DNS records Resend shows you), then create an API key.
+2. Add to hPanel's environment variables and redeploy:
+   `EMAIL_PROVIDER=resend`, `RESEND_API_KEY=<key>`, and
+   `EMAIL_FROM=fx Bot Hub <no-reply@fxbothub.com>` (the domain must be the verified one).
+3. Verify: request a reset for a real account at `/auth/forgot-password`. If nothing
+   arrives, check the server log for `email.send_failed` (Resend rejected it — usually an
+   unverified domain or wrong key) or `[email:console] NOT SENT` (provider still `console`).
+
+Other emails (welcome, alerts, refunds…) still go through the BullMQ queue and need
+Redis plus a running worker, which this plan doesn't have — see "Known gap" below.
 
 ## Economic calendar: live feed, no worker needed
 
