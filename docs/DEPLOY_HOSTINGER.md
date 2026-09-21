@@ -116,6 +116,19 @@ Shared hosting can't run this app's full stack directly:
   `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` (Google sign-in) — not set yet, see
   "Sign in with Google and password-reset email" below.
 
+### If a deploy fails with `ERR_INVALID_URL`
+
+Saving variables in hPanel once wrote two of them onto **one line** of `hbuilds/config/.env`
+(`NEXT_PUBLIC_APP_URL` with `MARKET_DATA_API_KEY=…` glued after it), and the build died at
+`new URL(...)` in `src/app/layout.tsx` — the deploy log (`hbuilds/logs/<id>/*_deploy.log`) shows
+`ERR_INVALID_URL` with the bad value as `input`. The live site keeps serving the previous build when
+a deploy fails, so nothing goes down. To fix: correct that line (each variable on its own line, the
+URL exactly `https://fxbothub.com`), **and** check the same value in hPanel's own Environment
+Variables panel so the next save doesn't rewrite it. `resolveSiteUrl()` (`src/lib/site-url.ts`) now
+ignores a malformed `NEXT_PUBLIC_APP_URL` for the metadata base (falling back to `NEXTAUTH_URL`) and
+logs the variable **name** only — the rejected value can contain secrets — so this exact mistake no
+longer fails the build, but a bad value still deserves fixing: reset/notification links use it too.
+
 ## Sign in with Google and password-reset email
 
 Both features are built and tested, but each needs **credentials that only you
