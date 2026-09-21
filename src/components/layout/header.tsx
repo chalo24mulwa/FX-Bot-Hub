@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { PRIMARY_NAV, COMMUNITY_HREF } from "@/config/navigation";
+import { PRIMARY_NAV, MENU_BAR_LINKS, COMMUNITY_HREF } from "@/config/navigation";
 import { isSeller, isStaff } from "@/lib/authorization/roles";
 import { Input } from "@/components/ui/input";
 import { buttonVariants } from "@/components/ui/button";
@@ -38,35 +38,45 @@ export function Header() {
           <span className="text-amber-600">Hub</span>
         </Link>
 
-        <nav className="hidden items-center gap-1 lg:flex" aria-label="Primary">
+        <nav className="hidden items-center gap-1 xl:flex" aria-label="Primary">
           {PRIMARY_NAV.map((group) => (
-            <div
-              key={group.label}
-              className="relative"
-              onMouseEnter={() => setOpenGroup(group.label)}
-              onMouseLeave={() => setOpenGroup(null)}
-            >
-              <button
-                type="button"
-                className="rounded-md px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-                aria-expanded={openGroup === group.label}
+            <Fragment key={group.label}>
+              <div
+                className="relative"
+                onMouseEnter={() => setOpenGroup(group.label)}
+                onMouseLeave={() => setOpenGroup(null)}
               >
-                {group.label}
-              </button>
-              {openGroup === group.label && (
-                <div className="absolute left-0 top-full w-56 rounded-md border border-slate-200 bg-white py-1 shadow-lg">
-                  {group.links.map((link) => (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                    >
-                      {link.label}
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
+                <button
+                  type="button"
+                  className="rounded-md px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                  aria-expanded={openGroup === group.label}
+                >
+                  {group.label}
+                </button>
+                {openGroup === group.label && (
+                  <div className="absolute left-0 top-full w-56 rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+                    {group.links.map((link) => (
+                      <Link
+                        key={link.href}
+                        href={link.href}
+                        className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                      >
+                        {link.label}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {MENU_BAR_LINKS.filter((link) => link.after === group.label).map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </Fragment>
           ))}
           <Link
             href={COMMUNITY_HREF}
@@ -80,7 +90,7 @@ export function Header() {
           <Input name="q" type="search" placeholder="Search products…" aria-label="Search marketplace" />
         </form>
 
-        <div className="hidden items-center gap-2 lg:flex">
+        <div className="hidden items-center gap-2 xl:flex">
           <Link href="/cart" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))} aria-label="Cart">
             Cart
           </Link>
@@ -120,7 +130,7 @@ export function Header() {
 
         <button
           type="button"
-          className="ml-auto rounded-md border border-slate-200 px-3 py-1.5 text-sm lg:hidden"
+          className="ml-auto rounded-md border border-slate-200 px-3 py-1.5 text-sm xl:hidden"
           onClick={() => setMobileOpen((v) => !v)}
           aria-expanded={mobileOpen}
           aria-label="Toggle menu"
@@ -130,23 +140,30 @@ export function Header() {
       </div>
 
       {mobileOpen && (
-        <div className="border-t border-slate-200 px-4 py-3 lg:hidden">
+        <div className="border-t border-slate-200 px-4 py-3 xl:hidden">
           <form onSubmit={handleSearch} className="mb-3">
             <Input name="q" type="search" placeholder="Search products…" aria-label="Search marketplace" />
           </form>
           {PRIMARY_NAV.map((group) => (
-            <div key={group.label} className="mb-3">
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                {group.label}
-              </p>
-              <div className="flex flex-col gap-1">
-                {group.links.map((link) => (
-                  <Link key={link.href} href={link.href} className="py-1 text-sm text-slate-700">
-                    {link.label}
-                  </Link>
-                ))}
+            <Fragment key={group.label}>
+              <div className="mb-3">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  {group.label}
+                </p>
+                <div className="flex flex-col gap-1">
+                  {group.links.map((link) => (
+                    <Link key={link.href} href={link.href} className="py-1 text-sm text-slate-700">
+                      {link.label}
+                    </Link>
+                  ))}
+                </div>
               </div>
-            </div>
+              {MENU_BAR_LINKS.filter((link) => link.after === group.label).map((link) => (
+                <Link key={link.href} href={link.href} className="mb-3 block py-1 text-sm font-medium text-slate-700">
+                  {link.label}
+                </Link>
+              ))}
+            </Fragment>
           ))}
           <Link href={COMMUNITY_HREF} className="block py-1 text-sm text-slate-700">
             Community

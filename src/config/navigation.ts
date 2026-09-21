@@ -48,3 +48,13 @@ export const PRIMARY_NAV: NavGroup[] = [
 ];
 
 export const COMMUNITY_HREF = "/community";
+
+// Stand-alone links shown directly in the header menu bar (desktop bar and mobile
+// menu), in addition to the dropdown groups above. `after` is the label of the
+// PRIMARY_NAV group the link sits right behind. Kept out of PRIMARY_NAV itself
+// because the footer renders one column per group.
+export interface MenuBarLink extends NavLink {
+  after: string;
+}
+
+export const MENU_BAR_LINKS: MenuBarLink[] = [{ label: "News Calendar", href: "/calendar", after: "Market Intelligence" }];
