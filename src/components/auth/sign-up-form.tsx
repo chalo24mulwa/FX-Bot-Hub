@@ -19,6 +19,7 @@ export function SignUpForm({ googleEnabled, errorCode }: { googleEnabled: boolea
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleNotice, setGoogleNotice] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -52,30 +53,43 @@ export function SignUpForm({ googleEnabled, errorCode }: { googleEnabled: boolea
           </p>
         )}
 
-        {googleEnabled && (
-          <>
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              className="mt-6 w-full gap-3 text-base"
-              disabled={googleLoading}
-              onClick={() => {
-                setGoogleLoading(true);
-                void signIn("google", { callbackUrl: "/marketplace" });
-              }}
-            >
-              <GoogleIcon className="h-5 w-5" />
-              {googleLoading ? "Redirecting…" : "Continue with Google"}
-            </Button>
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="mt-6 w-full gap-3 text-base"
+            disabled={googleLoading}
+            onClick={() => {
+              // Visible either way; only redirect when the server actually has Google
+              // credentials (AUTH_GOOGLE_ID/SECRET) — otherwise say so instead of sending
+              // the visitor to an Auth.js error page.
+              if (!googleEnabled) {
+                setGoogleNotice(
+                  "Google sign-in isn't switched on for this site yet. Please use your email and password for now.",
+                );
+                return;
+              }
+              setGoogleNotice(null);
+              setGoogleLoading(true);
+              void signIn("google", { callbackUrl: "/marketplace" });
+            }}
+          >
+            <GoogleIcon className="h-5 w-5" />
+            {googleLoading ? "Redirecting…" : "Continue with Google"}
+          </Button>
+          {googleNotice && (
+            <p role="status" className="mt-3 rounded-md bg-amber-50 p-3 text-sm text-amber-800">
+              {googleNotice}
+            </p>
+          )}
 
-            <div className="mt-6 flex items-center gap-3">
-              <div className="h-px flex-1 bg-slate-200" />
-              <span className="text-xs uppercase tracking-wide text-slate-400">Or</span>
-              <div className="h-px flex-1 bg-slate-200" />
-            </div>
-          </>
-        )}
+          <div className="mt-6 flex items-center gap-3">
+            <div className="h-px flex-1 bg-slate-200" />
+            <span className="text-xs uppercase tracking-wide text-slate-400">Or</span>
+            <div className="h-px flex-1 bg-slate-200" />
+          </div>
+        </>
 
         <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">

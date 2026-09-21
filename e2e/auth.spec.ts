@@ -88,3 +88,20 @@ test("reset-password rejects a bogus token with a clear error, and does not chan
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/marketplace$/);
 });
+
+test("Continue with Google is visible on both sign-in and sign-up, and never sends a visitor to a dead end", async ({ page, request }) => {
+  // Shown whether or not the server has Google credentials. Without them (CI, and
+  // production until AUTH_GOOGLE_ID/SECRET are set) clicking explains that instead of
+  // redirecting to an Auth.js error page; with them it starts the real OAuth flow.
+  const configured = Boolean((await (await request.get("/api/auth/providers")).json()).google);
+  for (const path of ["/auth/sign-in", "/auth/sign-up"]) {
+    await page.goto(path);
+    const button = page.getByRole("button", { name: "Continue with Google" });
+    await expect(button).toBeVisible();
+    if (!configured) {
+      await button.click();
+      await expect(page.getByRole("status")).toContainText("isn't switched on");
+      await expect(page).toHaveURL(new RegExp(path + "$"));
+    }
+  }
+});
