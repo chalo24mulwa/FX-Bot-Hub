@@ -31,8 +31,8 @@ export const PRIMARY_NAV: NavGroup[] = [
     label: "Market Intelligence",
     links: [
       { label: "Dashboard", href: "/intelligence" },
-      { label: "Economic Calendar", href: "/calendar" },
-      { label: "Forex News", href: "/news" },
+      { label: "News Calendar", href: "/calendar" },
+      { label: "News Articles", href: "/news" },
       { label: "Forex Signals", href: "/signals" },
       { label: "Market Analysis", href: "/analysis" },
     ],

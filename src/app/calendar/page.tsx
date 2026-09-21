@@ -121,7 +121,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
           <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
             <div className="min-w-0">
               <h1 className="flex items-center gap-2.5 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
-                Economic Calendar
+                News Calendar
                 <span
                   className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider ${
                     isFresh ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-300"

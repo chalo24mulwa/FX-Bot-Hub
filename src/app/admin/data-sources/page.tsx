@@ -43,7 +43,7 @@ export default async function AdminDataSourcesPage() {
 
       <section className="mt-6 rounded-md border border-slate-200 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold text-slate-900">Economic calendar sync status</h2>
+          <h2 className="text-sm font-semibold text-slate-900">News calendar sync status</h2>
           <TriggerCalendarSyncButton />
         </div>
         <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">

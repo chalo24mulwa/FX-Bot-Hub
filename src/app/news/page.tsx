@@ -3,7 +3,7 @@ import Link from "next/link";
 import { listPublishedArticles, listCategories } from "@/features/news/news-service";
 import { Badge } from "@/components/ui/badge";
 
-export const metadata: Metadata = { title: "Forex News" };
+export const metadata: Metadata = { title: "News Articles" };
 export const dynamic = "force-dynamic";
 
 interface NewsPageProps {
@@ -24,7 +24,7 @@ export default async function NewsPage({ searchParams }: NewsPageProps) {
 
   return (
     <main className="mx-auto max-w-5xl flex-1 px-6 py-12">
-      <h1 className="text-2xl font-semibold text-slate-900">Forex News</h1>
+      <h1 className="text-2xl font-semibold text-slate-900">News Articles</h1>
       <p className="mt-1 text-sm text-slate-500">{total} article{total === 1 ? "" : "s"}</p>
 
       <div className="mt-4 flex flex-wrap gap-2">

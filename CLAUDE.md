@@ -1392,6 +1392,17 @@ components: `calendar-filters.tsx`, `calendar-table.tsx`,
   `calendar.spec.ts` updated and extended (sidebar groups, quick ranges,
   timezone, phone drawer).
 
+### Display names: News Calendar and News Articles
+
+The pages formerly titled "Economic Calendar" (`/calendar`) and "Forex News" (`/news`) are now
+**News Calendar** and **News Articles** — display text only. Routes, the `EconomicEvent` model, sync
+services and every code identifier are unchanged. The strings live in `src/config/navigation.ts`
+(header menu + footer), the page `<h1>`s / metadata titles (`calendar/page.tsx`,
+`calendar/[currency]`, `calendar/week/[date]`, `news/page.tsx`), the homepage button and the admin
+data-sources heading; e2e specs assert on the new headings. Deliberately left alone: the Community
+category named "Economic Calendar" (a stored topic name, seeded by the Community migration), the
+intelligence dashboard's "Latest Forex news" widget, and descriptive marketing/SEO copy.
+
 ## Community platform (forum + trading ideas)
 
 A Reddit/forum-style community at `/community` — posts, threaded comments,

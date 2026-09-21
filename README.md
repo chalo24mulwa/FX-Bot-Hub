@@ -45,7 +45,7 @@ against a real production build. Full rationale in CLAUDE.md.
   calendar/news/news-categories/signal-providers/signals/data-sources
   management, and Phase 4's finance dashboard, refunds, payouts, licenses,
   and security-event log.
-- **Economic calendar** (`/calendar`): Today/Tomorrow/This Week/Next Week/
+- **News calendar** (`/calendar`): Today/Tomorrow/This Week/Next Week/
   custom-date presets, filters by currency/country/impact/category, and a
   timezone picker (UTC/Nairobi/London/New York/Tokyo, defaulting to
   Africa/Nairobi — saveable as a signed-in user's default alongside the

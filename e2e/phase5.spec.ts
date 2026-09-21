@@ -41,9 +41,9 @@ test("the homepage renders correctly on a second load (cache hit path)", async (
 
 test("the calendar renders correctly on a second load (cache hit + Date revival path)", async ({ page }) => {
   await page.goto("/calendar");
-  await expect(page.getByRole("heading", { name: "Economic calendar" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "News Calendar" })).toBeVisible();
   await page.goto("/calendar");
-  await expect(page.getByRole("heading", { name: "Economic calendar" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "News Calendar" })).toBeVisible();
   // If eventTime weren't revived to a real Date on a cache hit, this row
   // (which calls .toISOString() on it) would throw instead of rendering.
   await expect(page.getByText("E2E Fixture Event")).toBeVisible();
@@ -51,9 +51,9 @@ test("the calendar renders correctly on a second load (cache hit + Date revival 
 
 test("the news list renders correctly on a second load (cache hit + Date revival path)", async ({ page }) => {
   await page.goto("/news");
-  await expect(page.getByRole("heading", { name: "Forex News" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "News Articles" })).toBeVisible();
   await page.goto("/news");
-  await expect(page.getByRole("heading", { name: "Forex News" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "News Articles" })).toBeVisible();
   await expect(page.getByText("E2E Fixture Article")).toBeVisible();
 });
 

@@ -3,7 +3,7 @@ import { signIn, E2E_BUYER } from "./helpers";
 
 test("the calendar lists the seeded event and filtering by impact keeps it visible", async ({ page }) => {
   await page.goto("/calendar");
-  await expect(page.getByRole("heading", { name: "Economic calendar" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "News Calendar" })).toBeVisible();
   await expect(page.getByText("E2E Fixture Event")).toBeVisible();
 
   await page.getByRole("button", { name: "High", exact: true }).click();

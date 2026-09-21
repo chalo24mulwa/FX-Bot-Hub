@@ -54,7 +54,7 @@ export default async function HomePage() {
               Browse the marketplace
             </Link>
             <Link href="/calendar" className={cn(buttonVariants({ variant: "outline", size: "lg" }))}>
-              Economic calendar
+              News Calendar
             </Link>
           </div>
         </div>

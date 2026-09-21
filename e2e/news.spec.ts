@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 test("the news list shows the seeded article with its source attribution", async ({ page }) => {
   await page.goto("/news");
-  await expect(page.getByRole("heading", { name: "Forex News" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "News Articles" })).toBeVisible();
   await expect(page.getByText("E2E Fixture Article")).toBeVisible();
   await expect(page.getByText("E2E Wire", { exact: false })).toBeVisible();
 });

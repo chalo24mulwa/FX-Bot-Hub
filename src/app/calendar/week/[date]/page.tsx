@@ -17,7 +17,7 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 export async function generateMetadata({ params }: WeekCalendarPageProps): Promise<Metadata> {
   const { date } = await params;
   return {
-    title: `Economic Calendar — Week of ${date}`,
+    title: `News Calendar — Week of ${date}`,
     alternates: { canonical: `/calendar/week/${date}` },
   };
 }
