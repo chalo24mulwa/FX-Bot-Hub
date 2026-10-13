@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { listDistinctCurrencies } from "@/services/calendar/calendar-service";
 import { resolveSiteUrl } from "@/lib/site-url";
 import { marketplaceLandingPath, SITEMAP_LANDING_COMBOS } from "@/lib/seo/marketplace-landing";
+import { GUIDES } from "@/content/guides";
 
 // Built per request from the database, not once at build time — otherwise new products,
 // articles and posts wouldn't appear in the sitemap until the next deploy.
@@ -77,6 +78,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: url("/signals"), changeFrequency: "hourly", priority: 0.6 },
     { url: url("/community"), changeFrequency: "hourly", priority: 0.6 },
     { url: url("/developer-resources"), changeFrequency: "monthly", priority: 0.6 },
+    { url: url("/guides"), changeFrequency: "weekly", priority: 0.7 },
+    ...GUIDES.map((g) => ({
+      url: url(`/guides/${g.slug}`),
+      lastModified: new Date(`${g.updated}T00:00:00Z`),
+      changeFrequency: "monthly" as const,
+      priority: 0.6,
+    })),
     ...landingPages,
     ...categories.map((c) => ({
       url: url(marketplaceLandingPath({ categorySlug: c.slug })),

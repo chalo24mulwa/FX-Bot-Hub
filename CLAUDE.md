@@ -1497,7 +1497,7 @@ tested), `src/components/community/`, `src/app/community/**`,
   a landing/category only once it has a published product (no empty, thin pages).
 - **noindex**: `/auth/*`, `/cart`, `/invoices/*` (pass-through `layout.tsx` with
   `PRIVATE_PAGE_ROBOTS`), `/signals/new|manage`, and the "coming soon" stubs (`/analysis`,
-  `/resources/guides|tutorials` — `noindex, follow`; drop the flag when a section launches, and add it to the
+  `/resources/tutorials` — `noindex, follow`; drop the flag when a section launches, and add it to the
   sitemap). robots.txt disallows `/admin`, `/seller`, `/dashboard`, `/api`, `/cart`,
   `/invoices` — auth pages are deliberately *not* disallowed so crawlers can see their noindex.
 - `sitemap.ts` is `force-dynamic` (built per request), so new products/articles/posts appear
@@ -1511,6 +1511,23 @@ tested), `src/components/community/`, `src/app/community/**`,
   steps, `UPLOAD_LIMITS` (imported, so the table can't drift), the `/api/licenses/*` endpoints
   (not presented as DRM) — and everything unbuilt sits in its "Roadmap" section labelled
   Planned. Update the page when a roadmap item ships; don't describe it before then.
+- **Guides hub** (`/guides`, `/guides/[slug]`; `/resources/guides` 308-redirects there):
+  guides are **typed content files**, not DB rows — `src/content/guides/articles/*.ts`,
+  registered in `src/content/guides/index.ts` (no CMS existed; file content needs no
+  migration and ships with each deploy). To add one: write the file, add it to `GUIDES` —
+  the hub, search, category counts, related guides and sitemap pick it up. Inline text uses a
+  tiny markup (`**bold**`, `` `code` ``, `[label](/path|https://…)`) parsed by
+  `src/lib/guides/inline.ts` and rendered as React elements (never HTML). Search/filter/
+  pagination is server-side via `?q=&category=&page=` (pure `src/lib/guides/search.ts`; works
+  without JS); `?q=` results are noindex and filtered views canonicalise to `/guides`. Article
+  pages are statically generated with `dynamicParams = false`, so unknown slugs are real 404s;
+  each has Article + BreadcrumbList JSON-LD with the site as author/publisher (no invented
+  people) and its real published/updated dates — bump `updated` on meaningful edits.
+  `guides.test.ts` fails the build on broken internal guide links, unknown related slugs,
+  duplicate titles/descriptions/anchors, or descriptions over 160 chars. No "was this helpful"
+  widget: it would need a new `AnalyticsEventType` (a migration) — deliberately not added.
+  Content rules: never claim profits or guaranteed results; `riskDisclaimer: true` on anything
+  about markets or automated trading; FXBotHub how-tos must match the real flows.
 - Search Console verification/sitemap submission is done by the site owner (needs their
   Google account) — see `docs/DEPLOY_HOSTINGER.md`.
 
@@ -1622,8 +1639,8 @@ tested), `src/components/community/`, `src/app/community/**`,
   edge case, not a security issue (their review still needs their own purchase
   to be "verified," which they get for free as the owner, so it'd read oddly
   but isn't exploitable for anything).
-- Analysis/Guides/Tutorials/Developer-Resources are still stub
-  ("coming soon") pages — News and Signals became real in Phase 3.
+- Analysis/Tutorials are still stub ("coming soon") pages (Guides and Developer
+  Resources are real since Oct 2026) — News and Signals became real in Phase 3.
 - The `/admin`, `/seller`, `/dashboard` redirect-to-sign-in for an
   authenticated-but-unauthorized user is a UX nit (looks like "not logged in"
   when it's really "wrong role") — a dedicated 403 page would be a cheap fix.

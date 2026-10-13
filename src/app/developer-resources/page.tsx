@@ -178,8 +178,8 @@ const ROADMAP = [
     body: "Ready-to-use MQL4 and MQL5 examples showing verify and activate calls with WebRequest.",
   },
   {
-    title: "Step-by-step guides and tutorials",
-    body: "Walkthroughs for packaging, testing and documenting EAs and indicators.",
+    title: "Developer-focused guides",
+    body: "Walkthroughs for packaging and documenting EAs and indicators. Installing, backtesting and selling are already covered in the Guides section.",
   },
   {
     title: "Dedicated developer support channel",

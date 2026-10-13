@@ -35,6 +35,8 @@ const nextConfig: NextConfig = {
       },
       // The Developer Resources page moved from its "coming soon" stub to a real page.
       { source: "/resources/developers", destination: "/developer-resources", permanent: true },
+      // Guides moved from its "coming soon" stub to the /guides hub.
+      { source: "/resources/guides", destination: "/guides", permanent: true },
     ];
   },
 
