@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { ProductCard } from "@/components/marketplace/product-card";
@@ -37,9 +38,14 @@ export default async function HomePage() {
         </div>
         <div className="mx-auto max-w-6xl px-6 py-12 text-center sm:py-16">
           <h1 className="inline-flex items-center justify-center gap-3 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
-            <span className="inline-flex items-center rounded-xl bg-gradient-to-br from-blue-600 via-violet-500 to-emerald-500 px-3 py-1 text-2xl font-black italic text-white shadow-md sm:text-3xl">
-              fx
-            </span>
+            <Image
+              src="/logo.png"
+              alt="FX Bot Hub logo"
+              width={56}
+              height={56}
+              className="h-12 w-12 sm:h-14 sm:w-14"
+              priority
+            />
             <span className="bg-gradient-to-r from-indigo-600 via-violet-500 to-emerald-500 bg-clip-text italic text-transparent">
               Bot
             </span>

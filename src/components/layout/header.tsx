@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
@@ -29,9 +30,14 @@ export function Header() {
           href="/"
           className="group shrink-0 inline-flex items-center gap-1.5 text-lg font-bold tracking-tight text-slate-900"
         >
-          <span className="inline-flex items-center rounded-md bg-gradient-to-br from-blue-600 via-violet-500 to-emerald-500 px-1.5 py-0.5 text-xs font-black italic text-white shadow-sm transition-transform group-hover:scale-105 motion-reduce:transition-none">
-            fx
-          </span>
+          <Image
+              src="/logo.png"
+              alt="FX Bot Hub logo"
+              width={28}
+              height={28}
+              className="h-7 w-7 transition-transform group-hover:scale-105 motion-reduce:transition-none"
+              priority
+            />
           <span className="bg-gradient-to-r from-indigo-600 via-violet-500 to-emerald-500 bg-clip-text italic text-transparent">
             Bot
           </span>
