@@ -76,6 +76,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: url("/intelligence"), changeFrequency: "hourly", priority: 0.6 },
     { url: url("/signals"), changeFrequency: "hourly", priority: 0.6 },
     { url: url("/community"), changeFrequency: "hourly", priority: 0.6 },
+    { url: url("/developer-resources"), changeFrequency: "monthly", priority: 0.6 },
     ...landingPages,
     ...categories.map((c) => ({
       url: url(marketplaceLandingPath({ categorySlug: c.slug })),

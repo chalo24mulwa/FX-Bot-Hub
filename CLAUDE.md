@@ -1497,7 +1497,7 @@ tested), `src/components/community/`, `src/app/community/**`,
   a landing/category only once it has a published product (no empty, thin pages).
 - **noindex**: `/auth/*`, `/cart`, `/invoices/*` (pass-through `layout.tsx` with
   `PRIVATE_PAGE_ROBOTS`), `/signals/new|manage`, and the "coming soon" stubs (`/analysis`,
-  `/resources/*` — `noindex, follow`; drop the flag when a section launches, and add it to the
+  `/resources/guides|tutorials` — `noindex, follow`; drop the flag when a section launches, and add it to the
   sitemap). robots.txt disallows `/admin`, `/seller`, `/dashboard`, `/api`, `/cart`,
   `/invoices` — auth pages are deliberately *not* disallowed so crawlers can see their noindex.
 - `sitemap.ts` is `force-dynamic` (built per request), so new products/articles/posts appear
@@ -1505,6 +1505,12 @@ tested), `src/components/community/`, `src/app/community/**`,
   structured data that the visible page doesn't support (e.g. ratings with no reviews).
 - Public pages must never show developer instructions (an `npm run db:seed` hint was live on
   the homepage and marketplace empty states).
+- **`/developer-resources`** replaced the `/resources/developers` stub (308 redirect in
+  `next.config.ts`, nav link updated, in the sitemap). Static, server-rendered page with
+  BreadcrumbList JSON-LD. Its content only describes what exists — seller onboarding, wizard
+  steps, `UPLOAD_LIMITS` (imported, so the table can't drift), the `/api/licenses/*` endpoints
+  (not presented as DRM) — and everything unbuilt sits in its "Roadmap" section labelled
+  Planned. Update the page when a roadmap item ships; don't describe it before then.
 - Search Console verification/sitemap submission is done by the site owner (needs their
   Google account) — see `docs/DEPLOY_HOSTINGER.md`.
 

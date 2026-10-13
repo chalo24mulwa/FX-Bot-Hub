@@ -33,6 +33,8 @@ const nextConfig: NextConfig = {
         destination: "https://fxbothub.com/:path*",
         permanent: true,
       },
+      // The Developer Resources page moved from its "coming soon" stub to a real page.
+      { source: "/resources/developers", destination: "/developer-resources", permanent: true },
     ];
   },
 

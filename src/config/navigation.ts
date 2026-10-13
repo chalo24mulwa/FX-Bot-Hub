@@ -42,7 +42,7 @@ export const PRIMARY_NAV: NavGroup[] = [
     links: [
       { label: "Guides", href: "/resources/guides" },
       { label: "Tutorials", href: "/resources/tutorials" },
-      { label: "Developer Resources", href: "/resources/developers" },
+      { label: "Developer Resources", href: "/developer-resources" },
     ],
   },
 ];
