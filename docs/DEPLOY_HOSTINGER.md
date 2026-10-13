@@ -223,3 +223,19 @@ then sign in, browse the marketplace, and check the homepage hero chart
 renders (it will show its "not configured" state until a real
 `MARKET_DATA_API_KEY` is set — see CLAUDE.md's "Homepage hero" section,
 that's expected, not a bug).
+
+## Google Search Console (site owner)
+
+Search Console needs the owner's Google account, so it's a manual step:
+
+1. Open https://search.google.com/search-console, **Add property** → **Domain** → `fxbothub.com`.
+2. Google shows a `google-site-verification=…` **TXT** record. In hPanel → **Domains** →
+   `fxbothub.com` → **DNS / Nameservers** → **DNS records**, add a **TXT** record with name `@`
+   and that value. Click **Verify** in Search Console (DNS can take minutes to hours).
+3. **Sitemaps** → submit `sitemap.xml` (full URL `https://fxbothub.com/sitemap.xml`).
+4. **URL inspection** → `https://fxbothub.com/` → **Request indexing**; repeat for
+   `/marketplace`, `/calendar`, `/news`, `/community`.
+5. Check **Pages** (indexing) after a few days for "Excluded" reasons.
+
+A Domain property covers http/https and www/non-www together. Indexing requests are not a
+guarantee of indexing or ranking.

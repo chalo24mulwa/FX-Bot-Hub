@@ -6,12 +6,13 @@ import { CommunityShell } from "@/components/community/community-shell";
 import { FeedView } from "@/components/community/feed-view";
 import type { CommunityPostType } from "@prisma/client";
 import type { FeedSort } from "@/config/community";
+import { pageMetadata } from "@/lib/seo/site";
 
-export const metadata: Metadata = {
-  title: "Community",
+export const metadata: Metadata = pageMetadata({
+  title: "Forex Trading Community and Forums",
   description: "Forex trading ideas, questions, EA and indicator discussion, and market analysis from FX Bot Hub members.",
-  alternates: { canonical: "/community" },
-};
+  path: "/community",
+});
 
 export const dynamic = "force-dynamic";
 

@@ -32,7 +32,7 @@ export function Header() {
         >
           <Image
               src="/logo.png"
-              alt="FX Bot Hub logo"
+              alt="FX"
               width={28}
               height={28}
               className="h-7 w-7 transition-transform group-hover:scale-105 motion-reduce:transition-none"

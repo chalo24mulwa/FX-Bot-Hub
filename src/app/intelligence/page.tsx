@@ -9,8 +9,13 @@ import { listNewestProducts } from "@/server/services/product-service";
 import { Badge } from "@/components/ui/badge";
 import { ProductCard } from "@/components/marketplace/product-card";
 import { SignalCard } from "@/components/signals/signal-card";
+import { pageMetadata } from "@/lib/seo/site";
 
-export const metadata: Metadata = { title: "Market Intelligence" };
+export const metadata: Metadata = pageMetadata({
+  title: "Market Intelligence Dashboard",
+  description: "Upcoming high-impact economic events, the latest forex news, recent trading signals and new Expert Advisors in one dashboard.",
+  path: "/intelligence",
+});
 export const dynamic = "force-dynamic";
 
 export default async function IntelligenceDashboardPage() {

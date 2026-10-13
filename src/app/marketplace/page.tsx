@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { listProductsQuerySchema } from "@/lib/validations/product";
 import { listPublishedProducts } from "@/server/services/product-service";
 import { ProductCard } from "@/components/marketplace/product-card";
@@ -6,6 +7,9 @@ import { Pagination } from "@/components/marketplace/pagination";
 import { auth } from "@/lib/auth";
 import { listFavoriteProductIds } from "@/features/favorites/favorite-service";
 import { track } from "@/lib/analytics/track";
+import { db } from "@/lib/db";
+import { describeMarketplaceLanding } from "@/lib/seo/marketplace-landing";
+import { pageMetadata } from "@/lib/seo/site";
 
 // Listings + search params vary per request; never prerender statically.
 export const dynamic = "force-dynamic";
@@ -14,9 +18,35 @@ interface MarketplacePageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
+async function resolveLanding(params: Record<string, string | string[] | undefined>) {
+  const query = listProductsQuerySchema.parse(params);
+  const category = query.categorySlug
+    ? await db.productCategory.findUnique({ where: { slug: query.categorySlug }, select: { name: true } })
+    : null;
+  const landing = describeMarketplaceLanding({
+    platform: query.platform,
+    type: query.type,
+    categorySlug: category ? query.categorySlug : undefined,
+    categoryName: category?.name,
+    q: query.q,
+    page: query.page,
+  });
+  return { query, landing };
+}
+
+export async function generateMetadata({ searchParams }: MarketplacePageProps): Promise<Metadata> {
+  const { landing } = await resolveLanding(await searchParams);
+  return pageMetadata({
+    title: landing.title,
+    description: landing.description,
+    path: landing.canonicalPath,
+    noindex: landing.noindex,
+  });
+}
+
 export default async function MarketplacePage({ searchParams }: MarketplacePageProps) {
   const params = await searchParams;
-  const query = listProductsQuerySchema.parse(params);
+  const { query, landing } = await resolveLanding(params);
   const [{ items, total, page, pageSize }, session] = await Promise.all([
     listPublishedProducts(query),
     auth(),
@@ -31,7 +61,7 @@ export default async function MarketplacePage({ searchParams }: MarketplacePageP
     <main className="mx-auto max-w-6xl flex-1 px-6 py-12">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Marketplace</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">{landing.heading}</h1>
           <p className="mt-1 text-sm text-slate-500">
             {total} product{total === 1 ? "" : "s"}
             {query.q ? ` matching "${query.q}"` : ""}
@@ -42,8 +72,8 @@ export default async function MarketplacePage({ searchParams }: MarketplacePageP
 
       {items.length === 0 ? (
         <p className="mt-8 text-slate-500">
-          No products found. Try different filters, or seed demo data with{" "}
-          <code className="rounded bg-slate-100 px-1 py-0.5">npm run db:seed</code>.
+          No products match these filters yet. Try different filters, or check back soon as sellers
+          publish new Expert Advisors and indicators.
         </p>
       ) : (
         <>

@@ -2,8 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { listPublishedArticles, listCategories } from "@/features/news/news-service";
 import { Badge } from "@/components/ui/badge";
+import { pageMetadata } from "@/lib/seo/site";
 
-export const metadata: Metadata = { title: "News Articles" };
+export const metadata: Metadata = pageMetadata({
+  title: "Forex News Articles",
+  description: "Forex market news articles on currencies, central banks and economic releases, published on FX Bot Hub.",
+  path: "/news",
+});
 export const dynamic = "force-dynamic";
 
 interface NewsPageProps {

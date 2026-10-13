@@ -1,11 +1,15 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getProviderByUserId } from "@/features/signals/provider-service";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { createSignalAction } from "@/features/signals/actions";
+import { PRIVATE_PAGE_ROBOTS } from "@/lib/seo/site";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = { robots: PRIVATE_PAGE_ROBOTS };
 
 export default async function NewSignalPage() {
   const session = await auth();

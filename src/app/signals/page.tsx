@@ -5,8 +5,13 @@ import { SignalCard } from "@/components/signals/signal-card";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { SignalDirection, SignalStatus } from "@prisma/client";
+import { pageMetadata } from "@/lib/seo/site";
 
-export const metadata: Metadata = { title: "Forex Signals" };
+export const metadata: Metadata = pageMetadata({
+  title: "Forex Signals",
+  description: "Forex trading signals published by FX Bot Hub signal providers, with entry, stop-loss and take-profit levels and each provider's self-reported track record.",
+  path: "/signals",
+});
 export const dynamic = "force-dynamic";
 
 interface SignalsPageProps {

@@ -5,6 +5,7 @@ import { AuthSessionProvider } from "@/components/providers/session-provider";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { resolveSiteUrl } from "@/lib/site-url";
+import { DEFAULT_OG_IMAGE, SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE } from "@/lib/seo/site";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,20 +20,23 @@ const geistMono = Geist_Mono({
 // Resolved defensively: a malformed env value must not fail the whole build (see site-url.ts).
 const siteUrl = resolveSiteUrl();
 
+// Pages set their own canonical via pageMetadata() — never put `alternates.canonical`
+// here, or every page without its own would claim to be the homepage.
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: { default: "fx Bot Hub", template: "%s | fx Bot Hub" },
-  description:
-    "A marketplace for MT4/MT5 Expert Advisors, indicators, and trading signals, with an integrated economic calendar.",
+  title: { default: `${SITE_NAME} — ${SITE_TAGLINE}`, template: `%s | ${SITE_NAME}` },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
   openGraph: {
     type: "website",
-    siteName: "fx Bot Hub",
-    title: "fx Bot Hub",
-    description:
-      "A marketplace for MT4/MT5 Expert Advisors, indicators, and trading signals.",
+    siteName: SITE_NAME,
+    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    description: SITE_DESCRIPTION,
+    images: [DEFAULT_OG_IMAGE],
   },
-  twitter: { card: "summary_large_image" },
-  robots: { index: true, follow: true },
+  twitter: { card: "summary_large_image", images: [DEFAULT_OG_IMAGE.url] },
+  // No site-wide `robots` here: pages are indexable by default, and an explicit
+  // "index, follow" was also emitted on 404 pages next to Next's own "noindex".
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

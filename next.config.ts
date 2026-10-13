@@ -21,6 +21,21 @@ const nextConfig: NextConfig = {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
 
+  // One canonical host for search engines: www.fxbothub.com served the full site with a
+  // 200 (a duplicate of every page), so send it permanently to the apex domain that the
+  // sitemap and canonical tags use. Matches that exact host only — localhost, previews
+  // and the apex itself are untouched.
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.fxbothub.com" }],
+        destination: "https://fxbothub.com/:path*",
+        permanent: true,
+      },
+    ];
+  },
+
   images: {
     // Local dev serves uploads from a MinIO/S3-compatible server on
     // localhost (docker compose), which the image optimizer's SSRF guard

@@ -1479,6 +1479,35 @@ tested), `src/components/community/`, `src/app/community/**`,
   uploads need `STORAGE_*` + bucket CORS + public read on `community/*` (see
   `docs/DEPLOY_HOSTINGER.md`); reports have no email digest.
 
+## Technical SEO (indexing)
+
+- **One host**: `next.config.ts` 308-redirects `www.fxbothub.com` → `https://fxbothub.com`
+  (www used to serve a full duplicate of the site). Sitemap, robots.txt and canonicals all
+  use `resolveSiteUrl()`, so production's `NEXT_PUBLIC_APP_URL` must stay `https://fxbothub.com`.
+- **Per-page metadata** goes through `pageMetadata()` (`src/lib/seo/site.ts`): title,
+  description, self-referencing canonical, Open Graph/Twitter with `/og-image.png`. Next merges
+  metadata shallowly, so a page's own `openGraph` would otherwise drop the site name/image.
+  **Never set `alternates.canonical` in the root layout** — every page without its own would
+  then canonicalise to the homepage.
+- **Marketplace landing views** (`/marketplace?platform=MT4&type=EA` etc., the header links)
+  get titles/headings/canonicals from the pure `describeMarketplaceLanding()`
+  (`src/lib/seo/marketplace-landing.ts`, unit-tested). Canonicals keep only platform/type/
+  categorySlug/page; free-text search (`q`) is noindex. The sitemap builds its landing URLs
+  with the same `marketplaceLandingPath()` so they always equal the page canonicals, and lists
+  a landing/category only once it has a published product (no empty, thin pages).
+- **noindex**: `/auth/*`, `/cart`, `/invoices/*` (pass-through `layout.tsx` with
+  `PRIVATE_PAGE_ROBOTS`), `/signals/new|manage`, and the "coming soon" stubs (`/analysis`,
+  `/resources/*` — `noindex, follow`; drop the flag when a section launches, and add it to the
+  sitemap). robots.txt disallows `/admin`, `/seller`, `/dashboard`, `/api`, `/cart`,
+  `/invoices` — auth pages are deliberately *not* disallowed so crawlers can see their noindex.
+- `sitemap.ts` is `force-dynamic` (built per request), so new products/articles/posts appear
+  without a redeploy. The homepage carries Organization + WebSite JSON-LD only — don't add
+  structured data that the visible page doesn't support (e.g. ratings with no reviews).
+- Public pages must never show developer instructions (an `npm run db:seed` hint was live on
+  the homepage and marketplace empty states).
+- Search Console verification/sitemap submission is done by the site owner (needs their
+  Google account) — see `docs/DEPLOY_HOSTINGER.md`.
+
 ## Testing
 
 - `npm run test` (Vitest) — pure-logic unit tests only (authorization matrix,

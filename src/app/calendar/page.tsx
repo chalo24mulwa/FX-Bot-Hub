@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { after } from "next/server";
 import { cookies } from "next/headers";
@@ -22,6 +23,13 @@ import { track } from "@/lib/analytics/track";
 import { env } from "@/lib/env";
 import { CalendarDays } from "lucide-react";
 import type { EventImpact, EventCategory } from "@prisma/client";
+import { pageMetadata } from "@/lib/seo/site";
+
+export const metadata: Metadata = pageMetadata({
+  title: "Forex News Calendar — Economic Calendar",
+  description: "Economic calendar for forex traders: upcoming and recent economic releases and central-bank decisions by currency, with impact level, forecast, previous and actual figures.",
+  path: "/calendar",
+});
 
 export const dynamic = "force-dynamic";
 

@@ -10,7 +10,7 @@ export function Footer() {
           <p className="inline-flex items-center gap-1.5 text-lg font-bold tracking-tight text-slate-900">
             <Image
               src="/logo.png"
-              alt="FX Bot Hub logo"
+              alt="FX"
               width={28}
               height={28}
               className="h-7 w-7"
