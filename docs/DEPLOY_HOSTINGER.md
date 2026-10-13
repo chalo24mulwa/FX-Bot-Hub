@@ -129,6 +129,16 @@ ignores a malformed `NEXT_PUBLIC_APP_URL` for the metadata base (falling back to
 logs the variable **name** only — the rejected value can contain secrets — so this exact mistake no
 longer fails the build, but a bad value still deserves fixing: reset/notification links use it too.
 
+### Why `npm run build` uses `next build --webpack`
+
+A deploy on 13 Oct 2026 failed inside Turbopack while running PostCSS (Tailwind v4) on
+`src/app/globals.css`: Turbopack's Node child process for the PostCSS loader exited before
+connecting — an internal Turbopack crash on this CloudLinux plan, not an error in the stylesheet.
+`package.json`'s `build` script therefore passes `--webpack` (Next 16's documented opt-out, see
+`node_modules/next/dist/docs/01-app/02-guides/upgrading/version-16.md`). `next.config.ts` has no
+Turbopack-specific options, so nothing else changes; `next dev` still uses Turbopack locally.
+Don't remove the flag unless a Hostinger deploy has been verified to build with Turbopack again.
+
 ## Sign in with Google and password-reset email
 
 Both features are built and tested, but each needs **credentials that only you
