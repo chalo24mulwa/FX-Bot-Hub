@@ -4,6 +4,7 @@ import { signUpSchema } from "@/lib/validations/auth";
 import { registerUser } from "@/server/services/auth-service";
 import { checkRateLimit, clientIp, RateLimitError } from "@/lib/security/rate-limit";
 import { assertSameOrigin, CsrfError } from "@/lib/security/csrf";
+import { attributeRegistration } from "@/features/partnership/attribution-service";
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,6 +13,8 @@ export async function POST(request: NextRequest) {
 
     const body = signUpSchema.parse(await request.json());
     const user = await registerUser(body);
+    // Partnership: link the new account to the Partner whose link brought them (never throws).
+    await attributeRegistration(user.id);
     return NextResponse.json(user, { status: 201 });
   } catch (err) {
     if (err instanceof ZodError) {

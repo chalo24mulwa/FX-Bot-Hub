@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { startSyncLog, finishSyncLog } from "@/repositories/sync-log-repository";
 import { createPayment } from "@/lib/payments/payment-service";
 import { completePaidOrder, markOrderFailed } from "@/features/checkout/checkout-service";
+import { recordOrderReferral } from "@/features/partnership/attribution-service";
 import { checkRepeatedPaymentFailures } from "@/lib/security/fraud";
 import { enqueueEmail } from "@/jobs/send-email";
 import { buildPaymentFailedEmail, buildSubscriptionEndingEmail } from "@/emails/templates";
@@ -68,6 +69,10 @@ export async function runSubscriptionRenewals(): Promise<RenewalResult> {
           },
         },
       });
+
+      // A renewal is credited to the Partner who owns the buyer's account (if
+      // any) — there's no browser here, so link-only referrals don't recur.
+      await recordOrderReferral(order.id, sub.userId);
 
       const payment = await createPayment({
         orderId: order.id,

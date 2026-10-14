@@ -27,7 +27,8 @@ export type Action =
   | "security:view"
   | "queue:view"
   | "community:moderate" // hide/remove/lock/pin/feature content, review reports, restrict members
-  | "community:manage_categories";
+  | "community:manage_categories"
+  | "partnership:manage"; // Partner/Master Partner decisions, commissions, payouts, programme settings
 
 /**
  * Centralized capability matrix — the single source of truth for "who can
@@ -62,6 +63,8 @@ const PERMISSIONS: Record<Action, (role: UserRole) => boolean> = {
   "queue:view": isAdmin,
   "community:moderate": isStaff,
   "community:manage_categories": isStaff,
+  // Financial (commissions and payouts), so admins only — same as payout:manage.
+  "partnership:manage": isAdmin,
 };
 
 export function can(role: UserRole, action: Action): boolean {

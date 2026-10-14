@@ -7,6 +7,7 @@ const DASHBOARD_NAV = [
   { label: "Orders", href: "/dashboard/orders" },
   { label: "Licenses", href: "/dashboard/licenses" },
   { label: "Favorites", href: "/dashboard/favorites" },
+  { label: "Partnership", href: "/dashboard/partnership" },
   { label: "Product Subscriptions", href: "/dashboard/product-subscriptions" },
   { label: "Signal Subscriptions", href: "/dashboard/subscriptions" },
   { label: "Alerts", href: "/dashboard/alerts" },

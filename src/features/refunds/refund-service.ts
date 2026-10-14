@@ -6,6 +6,7 @@ import { recordAuditLog } from "@/repositories/audit-log-repository";
 import { createNotification } from "@/repositories/notification-repository";
 import { enqueueEmail } from "@/jobs/send-email";
 import { buildRefundEmail, buildSellerRefundNoticeEmail } from "@/emails/templates";
+import { reverseCommissionsForOrderSafely } from "@/features/partnership/commission-service";
 
 export class RefundError extends Error {
   status: number;
@@ -145,6 +146,11 @@ export async function approveAndProcessRefund(refundId: string, actorId: string)
       );
     }
   });
+
+  // Partnership: reverse any unpaid referral commission on this order. Kept
+  // outside the refund transaction so it can never block a refund; failures
+  // are logged and flagged for an admin (see commission-service.ts).
+  await reverseCommissionsForOrderSafely(order.id, "Order refunded", actorId);
 
   for (const item of order.items) {
     void createNotification({

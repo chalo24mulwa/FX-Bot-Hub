@@ -69,6 +69,10 @@ model User {
 
   analyticsEvents AnalyticsEvent[]
 
+  // Partnership programme (see the "Partnership" section at the end of this file).
+  partnerProfile      PartnerProfile?
+  referralAttribution ReferralAttribution?
+
   // Phase 5: admin user list filters by role and sorts by createdAt.
   @@index([role, createdAt])
   @@map("users")
@@ -526,6 +530,9 @@ model Order {
   refunds  Refund[]
   invoices Invoice[]
 
+  partnerReferral    OrderReferral?
+  partnerCommissions PartnerCommission[]
+
   // Phase 5: "my orders" sorts by createdAt within a user; admin/finance
   // reads filter by status and sort by createdAt.
   @@index([userId, createdAt])
@@ -543,6 +550,8 @@ model OrderItem {
   order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
   invoice Invoice?
+
+  partnerCommissions PartnerCommission[]
 
   @@map("order_items")
 }
@@ -884,6 +893,7 @@ enum NotificationType {
   COMMUNITY_MENTION
   COMMUNITY_ACTIVITY
   COMMUNITY_MODERATION
+  PARTNERSHIP
 }
 
 model Notification {
@@ -1697,4 +1707,246 @@ model CommunityRestriction {
   @@index([userId, liftedAt])
   @@index([state, liftedAt])
   @@map("community_restrictions")
+}
+
+// ---------- Partnership programme (Partners + Master Partners) ----------
+//
+// Deliberately separate from UserRole: being a Partner never changes what a
+// user can do as a buyer, seller or staff member, and a Partner suspension
+// never touches the FX Bot Hub account itself. Business rules live in
+// src/lib/partnership/ (pure, unit-tested) and src/features/partnership/.
+// Money here is always integer cents and rates are basis points (2000 = 20%).
+
+enum PartnerStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum MasterPartnerStatus {
+  NOT_APPLIED
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+// Used both for a commission's type (standard 20% Partner commission vs the
+// additional 10% Master Partner override) and for the beneficiary's tier at
+// the moment the commission was earned.
+enum PartnerTier {
+  PARTNER
+  MASTER_PARTNER
+}
+
+enum PartnerCommissionStatus {
+  PENDING // payment verified, still inside the holding period
+  APPROVED // holding period over — available for payout
+  PAID // included in a payout an admin marked paid
+  REVERSED // underlying order refunded / charged back
+  REJECTED // rejected by an admin, with a recorded reason
+}
+
+enum PartnerPayoutStatus {
+  REQUESTED
+  APPROVED
+  PAID
+  REJECTED
+}
+
+enum ReferralSource {
+  REGISTRATION // the buyer's account was registered through this Partner's link
+  REFERRAL_LINK // an existing account followed this Partner's link before buying
+}
+
+// One row per user who has ever applied. Re-applying after a rejection
+// reuses the row (no duplicate applications). referralCode / masterCode are
+// assigned on first approval and never change, so shared links keep working.
+model PartnerProfile {
+  id              String        @id @default(cuid())
+  userId          String        @unique
+  status          PartnerStatus @default(PENDING)
+  referralCode    String?       @unique @db.VarChar(16)
+  applicationNote String?       @db.Text
+  appliedAt       DateTime      @default(now())
+  decidedAt       DateTime?
+  decidedById     String?
+  decisionReason  String?       @db.Text
+
+  masterStatus          MasterPartnerStatus @default(NOT_APPLIED)
+  masterCode            String?             @unique @db.VarChar(16)
+  masterApplicationNote String?             @db.Text
+  masterAppliedAt       DateTime?
+  masterDecidedAt       DateTime?
+  masterDecidedById     String?
+  masterDecisionReason  String?             @db.Text
+
+  // One level only: the Master Partner whose recruitment link this Partner
+  // applied through. Proposed at application, confirmed (recruitedAt) when
+  // the Partner is first approved, and never changed after that.
+  recruitedById String?
+  recruitedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recruitedBy PartnerProfile?  @relation("PartnerRecruitment", fields: [recruitedById], references: [id], onDelete: SetNull)
+  recruits    PartnerProfile[] @relation("PartnerRecruitment")
+
+  referredUsers  ReferralAttribution[]
+  clicks         ReferralClick[]
+  orderReferrals OrderReferral[]
+  commissions    PartnerCommission[]   @relation("CommissionBeneficiary")
+  payouts        PartnerPayout[]
+
+  @@index([status, appliedAt])
+  @@index([masterStatus, masterAppliedAt])
+  @@index([recruitedById])
+  @@map("partner_profiles")
+}
+
+// Who referred an account. Written once, at registration, and never moved to
+// another Partner afterwards.
+model ReferralAttribution {
+  id        String         @id @default(cuid())
+  userId    String         @unique
+  partnerId String
+  source    ReferralSource @default(REGISTRATION)
+  clickedAt DateTime?
+  createdAt DateTime       @default(now())
+
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  partner PartnerProfile @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+
+  @@index([partnerId, createdAt])
+  @@map("referral_attributions")
+}
+
+// Unique referral visits: at most one row per Partner, anonymous visitor and
+// UTC day, so refreshing a page never inflates the count. visitorKey is a
+// SHA-256 of a random first-party id — no IP address or user agent stored.
+model ReferralClick {
+  id          String   @id @default(cuid())
+  partnerId   String
+  visitorKey  String   @db.VarChar(64)
+  day         DateTime @db.Date
+  landingPath String   @db.VarChar(300)
+  createdAt   DateTime @default(now())
+
+  partner PartnerProfile @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@unique([partnerId, visitorKey, day])
+  @@index([partnerId, createdAt])
+  @@map("referral_clicks")
+}
+
+// The Partner an order is credited to, decided once at checkout (before any
+// payment exists) and never changed — commissions are only ever created from
+// this row, after the order is verified PAID.
+model OrderReferral {
+  id        String         @id @default(cuid())
+  orderId   String         @unique
+  partnerId String
+  source    ReferralSource
+  createdAt DateTime       @default(now())
+
+  order   Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  partner PartnerProfile @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+
+  @@index([partnerId, createdAt])
+  @@map("order_referrals")
+}
+
+// The commission ledger. One row per (order item, commission type) —
+// enforced by the unique constraint, so a repeated webhook or retried job can
+// never pay the same sale twice. Rows are never deleted: reversals and
+// rejections change `status` and record a reason. Balances are always sums of
+// rows, never a stored counter.
+model PartnerCommission {
+  id                 String                  @id @default(cuid())
+  beneficiaryId      String
+  beneficiaryTier    PartnerTier
+  type               PartnerTier
+  orderId            String
+  orderItemId        String
+  buyerId            String
+  referringPartnerId String
+  masterPartnerId    String?
+  rateBps            Int
+  basisCents         Int
+  amountCents        Int
+  currency           String
+  status             PartnerCommissionStatus @default(PENDING)
+  holdUntil          DateTime
+  approvedAt         DateTime?
+  paidAt             DateTime?
+  payoutId           String?
+  reversedAt         DateTime?
+  statusReason       String?                 @db.Text
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  beneficiary PartnerProfile @relation("CommissionBeneficiary", fields: [beneficiaryId], references: [id], onDelete: Restrict)
+  order       Order          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  orderItem   OrderItem      @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  payout      PartnerPayout? @relation(fields: [payoutId], references: [id], onDelete: SetNull)
+
+  @@unique([orderItemId, type])
+  @@index([beneficiaryId, status])
+  @@index([status, holdUntil])
+  @@index([orderId])
+  @@index([payoutId])
+  @@map("partner_commissions")
+}
+
+// A Partner's withdrawal request. Covers every APPROVED, unpaid commission in
+// one currency at request time (the linked rows), so the amount always equals
+// the sum of real commissions. Nothing moves money automatically: an admin
+// marks it PAID with a reference once the transfer has actually happened.
+model PartnerPayout {
+  id               String              @id @default(cuid())
+  partnerId        String
+  amountCents      Int
+  currency         String
+  method           String              @db.VarChar(32)
+  destination      String              @db.VarChar(120)
+  status           PartnerPayoutStatus @default(REQUESTED)
+  requestedAt      DateTime            @default(now())
+  decidedAt        DateTime?
+  decidedById      String?
+  rejectionReason  String?             @db.Text
+  paidAt           DateTime?
+  paymentReference String?             @db.VarChar(120)
+
+  partner     PartnerProfile      @relation(fields: [partnerId], references: [id], onDelete: Restrict)
+  commissions PartnerCommission[]
+
+  @@index([partnerId, status])
+  @@index([status, requestedAt])
+  @@map("partner_payouts")
+}
+
+// Singleton, admin-editable. Changes apply prospectively: every commission
+// stores the rate and basis it was calculated with.
+model PartnershipSettings {
+  id                         String   @id @default("singleton")
+  programmeOpen              Boolean  @default(true)
+  partnerRateBps             Int      @default(2000)
+  masterRateBps              Int      @default(1000)
+  attributionDays            Int      @default(30)
+  // 0 = commissions on a referred account's purchases for as long as the
+  // account exists; otherwise only within N days of its registration.
+  referredUserCommissionDays Int      @default(0)
+  holdDays                   Int      @default(14)
+  minPayoutCents             Int      @default(5000)
+  currencies                 String[] @default(["USD"])
+  eligibleCategoryIds        String[] @default([])
+  payoutMethods              String[] @default(["MPESA", "BANK_TRANSFER"])
+  // Markdown shown on /partnership/terms. Null = the built-in default terms.
+  termsText                  String?  @db.Text
+  updatedAt                  DateTime @updatedAt
+
+  @@map("partnership_settings")
 }

@@ -213,6 +213,16 @@ This is a deliberate, scoped gap, not an oversight — see CLAUDE.md's
 workers to a cron-friendly "drain and exit" mode, or move to a host that
 can run a persistent process for them) once you're ready to take it on.
 
+## Partnership programme: run the migration before deploying
+
+The Partnership Programme adds migration `20261015000000_partnership_programme`
+(additive — new tables only). Migrations are **not** applied automatically here, so run
+`npx prisma migrate deploy` against the production database **before** merging/deploying
+the code; otherwise the Partnership pages error (checkout, refunds and sign-up keep working —
+those hooks fail soft). Never set `PARTNERSHIP_ALLOW_MANUAL_PAYMENT_COMMISSIONS` in
+production: with the `manual` payment provider, orders don't move money and must not earn
+commission.
+
 ## Verifying a deploy
 
 ```bash

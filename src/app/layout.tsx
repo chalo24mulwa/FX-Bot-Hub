@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthSessionProvider } from "@/components/providers/session-provider";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
+import { ReferralTracker } from "@/components/partnership/referral-tracker";
 import { resolveSiteUrl } from "@/lib/site-url";
 import { DEFAULT_OG_IMAGE, SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE } from "@/lib/seo/site";
 
@@ -55,6 +56,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               already fits, since it only removes an implicit width floor. */}
           <div className="flex min-w-0 flex-1 flex-col">{children}</div>
           <Footer />
+          <ReferralTracker />
         </AuthSessionProvider>
       </body>
     </html>

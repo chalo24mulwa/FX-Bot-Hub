@@ -7,6 +7,8 @@ import { getMarketplaceSettings } from "@/features/admin/settings-service";
 import { recordLedgerEntries, type RecordLedgerEntryInput } from "@/repositories/ledger-repository";
 import { createInvoicesForOrderItems, type CreateInvoiceInput } from "@/repositories/invoice-repository";
 import { checkRepeatedPaymentFailures } from "@/lib/security/fraud";
+import { recordOrderReferral } from "@/features/partnership/attribution-service";
+import { createCommissionsForOrderSafely } from "@/features/partnership/commission-service";
 import { createNotification } from "@/repositories/notification-repository";
 import { enqueueEmail } from "@/jobs/send-email";
 import {
@@ -137,6 +139,11 @@ export async function checkoutCart(userId: string, userEmail: string, idempotenc
     throw err;
   }
 
+  // Partnership: credit the order to a Partner (or nobody) now, while the
+  // buyer's request — and its signed referral cookie — is available. Never
+  // throws; commission itself is only created once the order is verified PAID.
+  await recordOrderReferral(order.id, userId);
+
   const payment = await createPayment({
     orderId: order.id,
     amountCents: totalCents,
@@ -186,14 +193,25 @@ export async function completePaidOrder(orderId: string) {
     },
   });
   if (!order) throw new CheckoutError("Order not found.", 404);
-  if (order.status === "PAID") return order;
+  if (order.status === "PAID") {
+    // A repeated call (e.g. a retried webhook) changes nothing, but gives
+    // commission creation another chance if a previous attempt failed — it's
+    // idempotent, so this can never create a duplicate.
+    await createCommissionsForOrderSafely(order.id);
+    return order;
+  }
 
   const settings = await getMarketplaceSettings();
   const paymentReference = order.payments[0]?.providerReference ?? undefined;
   const buyer = await db.user.findUniqueOrThrow({ where: { id: order.userId } });
 
-  await db.$transaction(async (tx) => {
-    await tx.order.update({ where: { id: order.id }, data: { status: "PAID" } });
+  const completed = await db.$transaction(async (tx) => {
+    // Claim the transition atomically: two concurrent deliveries of the same
+    // webhook can both pass the PAID check above, but only one of them can
+    // flip PENDING -> PAID here. The loser writes nothing (no second set of
+    // licenses, ledger entries or invoices).
+    const claimed = await tx.order.updateMany({ where: { id: order.id, status: { not: "PAID" } }, data: { status: "PAID" } });
+    if (claimed.count === 0) return false;
 
     const cart = await tx.cart.findUnique({ where: { userId: order.userId } });
     if (cart) {
@@ -264,7 +282,14 @@ export async function completePaidOrder(orderId: string) {
 
     await recordLedgerEntries(ledgerEntries, tx);
     await createInvoicesForOrderItems(invoices, tx);
+    return true;
   });
+
+  if (!completed) return db.order.findUniqueOrThrow({ where: { id: order.id } });
+
+  // Partnership commissions: outside the order transaction on purpose, so a
+  // problem there can never undo a paid order. Idempotent and fail-soft.
+  await createCommissionsForOrderSafely(order.id);
 
   for (const item of order.items) {
     if (item.product.pricingType === "SUBSCRIPTION") {

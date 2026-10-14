@@ -17,6 +17,15 @@ const envSchema = z.object({
     .optional()
     .transform((v) => v === "true"),
 
+  // Partnership programme: the `manual` payment provider marks orders paid
+  // without moving money, so in production its orders never earn Partner
+  // commission. "true" lifts that for test environments (Playwright/CI run a
+  // production build) — never set it on the live site.
+  PARTNERSHIP_ALLOW_MANUAL_PAYMENT_COMMISSIONS: z
+    .string()
+    .optional()
+    .transform((v) => v === "true"),
+
   STORAGE_ENDPOINT: z.string().optional(),
   STORAGE_REGION: z.string().default("us-east-1"),
   STORAGE_BUCKET: z.string().default("fx-bot-market"),

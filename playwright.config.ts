@@ -18,7 +18,10 @@ export default defineConfig({
     // The calendar page normally triggers a background sync from the live
     // Finance Calendar API; a test run must never call an external service
     // or change calendar rows under the specs' feet.
-    env: { ECONOMIC_CALENDAR_AUTO_SYNC: "false" },
+    // PARTNERSHIP_ALLOW_MANUAL_PAYMENT_COMMISSIONS: the e2e build runs in
+    // production mode with the `manual` payment provider, whose orders never
+    // earn Partner commission on the live site. Tests only.
+    env: { ECONOMIC_CALENDAR_AUTO_SYNC: "false", PARTNERSHIP_ALLOW_MANUAL_PAYMENT_COMMISSIONS: "true" },
     timeout: 120_000,
   },
 });

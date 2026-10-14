@@ -19,6 +19,7 @@ const ADMIN_NAV = [
   { label: "Finance", href: "/admin/finance" },
   { label: "Refunds", href: "/admin/refunds" },
   { label: "Payouts", href: "/admin/payouts" },
+  { label: "Partnership", href: "/admin/partnership" },
   { label: "Licenses", href: "/admin/licenses" },
   { label: "Security", href: "/admin/security" },
   { label: "Background Jobs", href: "/admin/queues" },

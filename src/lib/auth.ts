@@ -124,6 +124,9 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
         update: {},
         create: { userId: user.id, displayName: user.name ?? user.email?.split("@")[0] ?? null },
       });
+      // Partnership: a first Google sign-in is a registration too (never throws).
+      const { attributeRegistration } = await import("@/features/partnership/attribution-service");
+      await attributeRegistration(user.id);
     },
   },
   callbacks: {

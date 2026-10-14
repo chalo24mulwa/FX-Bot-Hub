@@ -1547,6 +1547,60 @@ tested), `src/components/community/`, `src/app/community/**`,
 - Search Console verification/sitemap submission is done by the site owner (needs their
   Google account) — see `docs/DEPLOY_HOSTINGER.md`.
 
+## Partnership programme (Partners + Master Partners)
+
+Referral/affiliate programme at `/partnership` (public landing, `/terms`, `/join?master=`),
+`/dashboard/partnership/*` (members) and `/admin/partnership/*` (admins only —
+`partnership:manage`, `isAdmin`, same as `payout:manage`). Migration
+`20261015000000_partnership_programme` is additive (new enums/tables + one
+`NotificationType` value). Pure rules in `src/lib/partnership/` (`rules.ts`, `codes.ts`,
+`terms.ts`, unit-tested in `partnership.test.ts`); I/O in `src/features/partnership/`.
+
+- **Separate from `UserRole`.** `PartnerProfile` (one row per applicant, re-applying reuses
+  it) carries Partner status, Master Partner status, the permanent `referralCode` /
+  `masterCode` (assigned on first approval) and the one-level recruiter (`recruitedById`,
+  confirmed by `recruitedAt` at approval, never changed afterwards). Every decision is a
+  conditional `updateMany` + `AuditLog` entry + notification; admins can't decide their own.
+- **Attribution.** `?ref=` / `?master=` are only claims: `<ReferralTracker>` (root layout)
+  posts them to `/api/partnership/track` (same-origin, rate-limited), which validates the code
+  and sets an HMAC-signed httpOnly cookie (`fxbh_ref` / `fxbh_recruit`, `AUTH_SECRET`,
+  attribution window). Unique clicks: one `ReferralClick` per Partner/visitor/day (hashed
+  random visitor id, no IP). Registration (`/api/auth/register` and the Google `createUser`
+  event) writes `ReferralAttribution` once — ownership never moves. At checkout
+  `recordOrderReferral()` decides the order's Partner (`decideOrderReferral`: owner first, a
+  suspended owner means nobody; else last link within the window; never self) into
+  `OrderReferral`. Subscription renewals credit the owner only.
+- **Commissions** are created only by `createCommissionsForOrder()` from `completePaidOrder()`
+  (and on repeat calls): order `PAID` + a `SUCCEEDED` payment, never the `manual` provider in
+  production unless `PARTNERSHIP_ALLOW_MANUAL_PAYMENT_COMMISSIONS=true` (tests/CI only — never
+  on the live site). Basis = `unitPriceCents × quantity`; floor(basis × rate); 20% Partner
+  row + separate 10% `MASTER_PARTNER` row for a confirmed, active recruiter. Unique
+  `(orderItemId, type)` + `skipDuplicates` = idempotent. Each row stores rate, basis and
+  currency, so settings changes are prospective.
+- **Fail-soft by design:** commission creation and refund reversal run *outside* the
+  order/refund transactions and never throw into checkout/refunds (logged + `SecurityEvent`).
+  `completePaidOrder()` now claims PENDING→PAID with a conditional `updateMany`; before this,
+  two concurrent webhook deliveries both wrote licenses/ledger/invoices (caught by the
+  integration test).
+- **Lifecycle:** `PENDING` → (`holdDays`, no cron — `releaseMaturedCommissions()` runs lazily
+  on dashboard/admin reads and payout requests, only while the order is PAID with no open
+  refund request) `APPROVED` → `PAID` (only via an admin-recorded payout). Refund / provider
+  "refunded" webhook → unpaid rows `REVERSED` (pulled out of open payouts); already-paid rows
+  are flagged (`SecurityEvent` + audit), never clawed back automatically.
+- **Payouts** (`PartnerPayout`, separate from seller `Payout`/ledger): a request reserves every
+  approved, unattached commission in one currency (≥ `minPayoutCents`, one open request per
+  currency, race-safe); admin approves → sends money outside the app → marks paid with a
+  reference. No processor is wired up.
+- **Settings** (`PartnershipSettings` singleton, `/admin/partnership/settings`, reason
+  required, audited): rates (bps), windows, hold days, minimum payout, currencies (commission
+  only in listed currencies), eligible categories, payout methods, terms text (editable;
+  `{{tokens}}` filled from live settings). The settings page warns when Partner + Master rates
+  exceed the marketplace commission — referral commission is an FXBotHub expense.
+- **Testing:** unit tests above; `e2e/partnership.spec.ts` (each simulated member sends its own
+  `x-forwarded-for` so sign-ups don't share the IP-keyed registration rate-limit bucket);
+  a service-level suite against real Postgres was run locally (not committed — no DB in
+  `npm run test`). `DashboardShell` became responsive (nav row above content below `md`).
+
 ## Testing
 
 - `npm run test` (Vitest) — pure-logic unit tests only (authorization matrix,

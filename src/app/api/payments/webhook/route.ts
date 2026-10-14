@@ -8,6 +8,7 @@ import { recordSecurityEvent } from "@/repositories/security-event-repository";
 import { recordAuditLog } from "@/repositories/audit-log-repository";
 import { enqueueEmail } from "@/jobs/send-email";
 import { buildPaymentFailedEmail } from "@/emails/templates";
+import { reverseCommissionsForOrderSafely } from "@/features/partnership/commission-service";
 
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
@@ -90,6 +91,11 @@ export async function POST(request: NextRequest) {
       void checkRepeatedPaymentFailures(order.userId);
       void enqueueEmail(order.user.email, buildPaymentFailedEmail(order.id, `${siteUrl}/cart`));
     }
+  }
+  if (result.event!.status === "refunded") {
+    // A refund or chargeback initiated at the provider: unpaid Partner
+    // commissions on the order are reversed (idempotent, fail-soft).
+    await reverseCommissionsForOrderSafely(result.payment.orderId, "Payment refunded or charged back at the payment provider", null);
   }
   // "refunded" events arriving via webhook (rather than originating from
   // this app's own refund workflow) are recorded on the Payment row by

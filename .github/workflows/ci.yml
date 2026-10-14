@@ -39,6 +39,9 @@ jobs:
       EMAIL_PROVIDER: "console"
       PAYMENT_PROVIDER: "manual"
       ECONOMIC_CALENDAR_AUTO_SYNC: "false"
+      # Tests only: lets manual-provider orders earn Partner commission in the
+      # production-mode e2e build. Never set on the live site.
+      PARTNERSHIP_ALLOW_MANUAL_PAYMENT_COMMISSIONS: "true"
 
     steps:
       - uses: actions/checkout@v4

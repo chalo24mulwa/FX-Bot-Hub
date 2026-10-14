@@ -154,3 +154,15 @@ export function buildPayoutEmail(amountCents: number, currency: string, status: 
     text: `Your payout of ${amount} ${currency} ${verb}.`,
   };
 }
+
+const escapeHtml = (s: string) =>
+  s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+
+/** Partnership programme status changes (application decisions, payouts). Text is escaped — reasons are admin-written. */
+export function buildPartnershipUpdateEmail(title: string, message: string, url: string): EmailTemplate {
+  return {
+    subject: `FXBotHub Partnership: ${title}`,
+    html: wrap(escapeHtml(title), `<p>${escapeHtml(message)}</p><p><a href="${escapeHtml(url)}">Open your Partnership dashboard</a></p>`),
+    text: `${title}\n\n${message}\n\n${url}`,
+  };
+}

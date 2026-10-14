@@ -129,5 +129,26 @@ export default async function globalSetup() {
     },
   });
 
+  // Partnership programme: a one-time paid product, so a referred purchase
+  // has a commissionable amount ($49.00 -> $9.80 at the default 20%).
+  await db.product.upsert({
+    where: { slug: "e2e-partner-product" },
+    update: { status: "PUBLISHED", publishedAt: new Date(), priceCents: 4900, pricingType: "ONE_TIME" },
+    create: {
+      slug: "e2e-partner-product",
+      sellerId: seller.id,
+      name: "E2E Partner Product",
+      type: "EA",
+      platform: "MT5",
+      pricingType: "ONE_TIME",
+      priceCents: 4900,
+      currency: "USD",
+      status: "PUBLISHED",
+      publishedAt: new Date(),
+      shortSummary: "A paid product used by the Partnership end-to-end tests.",
+      description: "Seeded for Playwright — safe to leave in the database.",
+    },
+  });
+
   await db.$disconnect();
 }
