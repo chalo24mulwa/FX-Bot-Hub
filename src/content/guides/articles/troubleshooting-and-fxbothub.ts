@@ -8,7 +8,7 @@ export const eaTroubleshooting: Guide = {
     "Fix common MetaTrader EA problems: EA missing from the Navigator, trading disabled, invalid stops or volume, not enough money, DLL and WebRequest errors.",
   category: "troubleshooting",
   published: "2026-10-13",
-  updated: "2026-10-13",
+  updated: "2026-10-14",
   intro:
     "Most Expert Advisor problems come down to a handful of causes: the file is in the wrong place, trading isn't allowed, or the broker rejects the order. This guide shows where to look and how to fix the common ones.",
   riskDisclaimer: false,
@@ -80,7 +80,7 @@ export const eaTroubleshooting: Guide = {
         "**The EA stopped overnight** — MetaTrader must stay open and connected. If your computer sleeps or restarts, the EA stops; a VPS avoids this.",
         "**Settings lost after restart** — save your inputs as a `.set` file and keep your chart layout in a profile or template.",
         "**\"Not enough bars\" or no signals in the tester** — download more history or choose a longer test period.",
-        "**Different results live and in the tester** — usually spreads, slippage and execution; see [How to Backtest an Expert Advisor](/guides/how-to-backtest-an-expert-advisor).",
+        "**Different results live and in the tester** — usually spreads, slippage and execution; see [How to Run a Strategy Backtest in MT5](/tutorials/backtest-ea-mt5).",
       ],
     },
     {
@@ -90,82 +90,8 @@ export const eaTroubleshooting: Guide = {
       text: "Send the product's developer the exact messages from the Experts and Journal tabs, your platform (MT4/MT5) and build number, and your broker. On FXBotHub, use **Contact seller** on the product page.",
     },
   ],
-  related: ["how-to-install-an-ea-in-mt4", "how-to-install-an-ea-in-mt5", "how-to-backtest-an-expert-advisor"],
-};
-
-export const howToBuyOnFxBotHub: Guide = {
-  slug: "how-to-buy-and-download-on-fxbothub",
-  title: "How to Buy and Download Trading Tools on FXBotHub",
-  seoTitle: "How to Buy and Download Trading Tools on FXBotHub",
-  description:
-    "How buying on FXBotHub works: comparing products, checking out, downloading files, finding license keys, managing subscriptions and requesting refunds.",
-  category: "fxbothub",
-  published: "2026-10-13",
-  updated: "2026-10-13",
-  intro:
-    "This guide walks through getting an Expert Advisor, indicator or other trading tool on FXBotHub — from comparing listings to downloading your files and finding your license key.",
-  riskDisclaimer: false,
-  blocks: [
-    { type: "h2", text: "1. Find and compare products" },
-    {
-      type: "p",
-      text: "Browse the [marketplace](/marketplace) or jump straight to [MT4 Expert Advisors](/marketplace?platform=MT4&type=EA), [MT5 Expert Advisors](/marketplace?platform=MT5&type=EA) or [indicators](/marketplace?type=INDICATOR). Each product page shows:",
-    },
-    {
-      type: "ul",
-      items: [
-        "The platform (MT4, MT5 or both), description, features and compatibility notes.",
-        "A **quality checklist** — documentation, screenshots, compatibility details, recent updates, verified-seller status and verified-purchase reviews. It describes how complete the listing is, not how a product will perform.",
-        "Reviews, which only buyers who purchased the product can leave.",
-        "Version history and changelogs.",
-      ],
-    },
-    {
-      type: "p",
-      text: "Not sure how to judge a product? Read [How to Evaluate a Forex Trading Bot Before Buying](/guides/how-to-evaluate-a-forex-trading-bot). You can also ask the seller a question with **Contact seller** on the product page, and save products with the heart icon — you're notified of price changes and new versions of products you've saved.",
-    },
-
-    { type: "h2", text: "2. Create an account and check out" },
-    {
-      type: "steps",
-      items: [
-        { title: "Sign in or create a free account", text: "[Sign up](/auth/sign-up) with your email address. You need an account to buy or download anything." },
-        { title: "Add the product to your cart", text: "On the product page, click **Get for free**, **Buy** or **Subscribe**, depending on how the product is priced." },
-        { title: "Check out", text: "Open your cart and click **Checkout**. Free products go through the same checkout so they appear in your orders and licenses." },
-        { title: "Open your order", text: "When the order is paid you're taken to its order page, which lists your downloads." },
-      ],
-    },
-
-    { type: "h2", text: "3. Download your files" },
-    {
-      type: "p",
-      text: "Once you own a product, its product page shows **Your downloads** with a link for each file (for example separate MT4 and MT5 builds). Every download checks that you own the product before creating a short-lived download link. You can always come back to your files from **Dashboard → Orders**.",
-    },
-    {
-      type: "p",
-      text: "Then install the file: [EAs in MT4](/guides/how-to-install-an-ea-in-mt4), [EAs in MT5](/guides/how-to-install-an-ea-in-mt5), or [indicators](/guides/how-to-install-a-forex-indicator).",
-    },
-
-    { type: "h2", text: "4. Find your license key" },
-    {
-      type: "p",
-      text: "Every purchase issues a license. Your keys are listed under **Dashboard → Licenses**. Products that check their license online use this key and allow a limited number of activations; keep the key private, as it is what proves the copy is yours.",
-    },
-
-    { type: "h2", text: "5. Subscriptions" },
-    {
-      type: "p",
-      text: "Subscription products renew roughly every 30 days. Manage them under **Dashboard → Product subscriptions**. If you cancel, you keep access until the end of the period you've already paid for.",
-    },
-
-    { type: "h2", text: "6. Refunds" },
-    {
-      type: "p",
-      text: "You can request a refund from the order page. Requests are reviewed by the FXBotHub team, and a refund applies to the whole order. Once a refund is processed, the licenses from that order are revoked.",
-    },
-  ],
-  related: ["how-to-evaluate-a-forex-trading-bot", "how-to-install-an-ea-in-mt5", "how-to-install-a-forex-indicator"],
-  cta: { label: "Browse the marketplace", href: "/marketplace", text: "Explore Expert Advisors, indicators and trading tools for MT4 and MT5." },
+  related: ["what-is-a-forex-expert-advisor"],
+  tutorials: ["troubleshoot-ea-not-trading", "read-mt4-experts-journal-logs", "install-ea-mt5"],
 };
 
 export const sellersGuide: Guide = {
@@ -176,7 +102,7 @@ export const sellersGuide: Guide = {
     "How to publish an EA, indicator or trading tool on FXBotHub: becoming a seller, the product wizard, files, review, updates and getting paid.",
   category: "fxbothub",
   published: "2026-10-13",
-  updated: "2026-10-13",
+  updated: "2026-10-14",
   intro:
     "Learn how to go from an account to a published listing on FXBotHub: becoming a seller, building a listing in the product wizard, passing review, and keeping your product up to date.",
   riskDisclaimer: false,
@@ -244,6 +170,7 @@ export const sellersGuide: Guide = {
       ],
     },
   ],
-  related: ["how-to-buy-and-download-on-fxbothub", "how-to-evaluate-a-forex-trading-bot", "how-to-backtest-an-expert-advisor"],
+  related: ["how-to-evaluate-a-forex-trading-bot", "what-is-a-forex-expert-advisor"],
+  tutorials: ["find-trading-tools-fxbothub", "backtest-ea-mt5"],
   cta: { label: "Become a seller", href: "/dashboard/become-seller", text: "List your Expert Advisors and indicators on FXBotHub — setup takes minutes." },
 };

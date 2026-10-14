@@ -179,7 +179,7 @@ const ROADMAP = [
   },
   {
     title: "Developer-focused guides",
-    body: "Walkthroughs for packaging and documenting EAs and indicators. Installing, backtesting and selling are already covered in the Guides section.",
+    body: "Walkthroughs for packaging and documenting EAs and indicators. Installing and backtesting are already covered in Tutorials, and selling in the Guides section.",
   },
   {
     title: "Dedicated developer support channel",

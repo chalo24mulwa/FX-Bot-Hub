@@ -33,14 +33,16 @@ describe("parseGuideInline", () => {
 describe("guide search", () => {
   it("validates query input", () => {
     expect(parseGuideQuery({ q: "  mt5   install ", category: "nope", page: "abc" })).toEqual({ q: "mt5 install", category: "", page: 1 });
-    expect(parseGuideQuery({ q: "x".repeat(500), category: "mt4", page: "3" })).toMatchObject({ category: "mt4", page: 3 });
+    expect(parseGuideQuery({ q: "x".repeat(500), category: "risk-management", page: "3" })).toMatchObject({ category: "risk-management", page: 3 });
+    // Categories whose guides moved to Tutorials are no longer valid guide filters.
+    expect(parseGuideQuery({ category: "mt4" }).category).toBe("");
     expect(parseGuideQuery({ q: "x".repeat(500) }).q).toHaveLength(100);
   });
 
   it("requires every term and ranks title matches first", () => {
-    const results = searchGuides(GUIDES, "install mt5", "");
+    const results = searchGuides(GUIDES, "expert advisor", "");
     expect(results.length).toBeGreaterThan(0);
-    expect(results[0].title).toMatch(/MetaTrader 5|MT5/);
+    expect(results[0].slug).toBe("what-is-a-forex-expert-advisor");
     expect(searchGuides(GUIDES, "install zzqqxx", "")).toEqual([]);
   });
 
@@ -49,7 +51,9 @@ describe("guide search", () => {
   });
 
   it("filters by category", () => {
-    expect(searchGuides(GUIDES, "", "mt4").every((g) => g.category === "mt4")).toBe(true);
+    const ea = searchGuides(GUIDES, "", "expert-advisors");
+    expect(ea.length).toBeGreaterThan(0);
+    expect(ea.every((g) => g.category === "expert-advisors")).toBe(true);
   });
 
   it("paginates and clamps the page", () => {

@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { MOVED_FROM_GUIDES } from "./src/content/tutorials/moved-guides";
 
 // Baseline security headers. CSP is intentionally not set here yet —
 // enabling it safely requires auditing every inline script/style source
@@ -37,6 +38,14 @@ const nextConfig: NextConfig = {
       { source: "/resources/developers", destination: "/developer-resources", permanent: true },
       // Guides moved from its "coming soon" stub to the /guides hub.
       { source: "/resources/guides", destination: "/guides", permanent: true },
+      // Tutorials moved from its "coming soon" stub to the /tutorials hub.
+      { source: "/resources/tutorials", destination: "/tutorials", permanent: true },
+      // Step-by-step procedures that moved from Guides to Tutorials (see moved-guides.ts).
+      ...Object.entries(MOVED_FROM_GUIDES).map(([from, to]) => ({
+        source: `/guides/${from}`,
+        destination: `/tutorials/${to}`,
+        permanent: true,
+      })),
     ];
   },
 

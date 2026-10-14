@@ -1,5 +1,8 @@
 /**
- * Guide content model. Guides are typed content files in the repo (no database table):
+ * Guide content model. Guides explain concepts and background; numbered how-to
+ * procedures are Tutorials (src/content/tutorials), which guides link to via `tutorials`.
+ *
+ * Guides are typed content files in the repo (no database table):
  * there was no CMS to extend, and file-based content needs no migration, is reviewed in
  * pull requests and ships with each deploy. To add a guide, create a file in ./articles,
  * register it in ./index.ts, and it is picked up by /guides, search, the sitemap and
@@ -12,14 +15,10 @@
 
 export const GUIDE_CATEGORIES = [
   { slug: "getting-started", name: "Getting Started", description: "Forex basics: currency pairs, pips, spreads, lots and the terms you'll meet everywhere." },
-  { slug: "mt4", name: "MetaTrader 4 (MT4)", description: "Installing MT4, working with charts, and running indicators and Expert Advisors." },
-  { slug: "mt5", name: "MetaTrader 5 (MT5)", description: "MT5 setup, Algo Trading, and running automated strategies." },
   { slug: "expert-advisors", name: "Expert Advisors & Forex Bots", description: "What EAs are, how they work, and how to judge one before you rely on it." },
-  { slug: "indicators", name: "Forex Indicators", description: "Adding indicators to charts, configuring them, and understanding their limits." },
   { slug: "risk-management", name: "Risk Management", description: "Position sizing, stop-losses, leverage and drawdown." },
-  { slug: "backtesting", name: "Backtesting & Strategy Testing", description: "Testing trading systems in the Strategy Tester and reading results honestly." },
-  { slug: "fxbothub", name: "Buying & Selling on FXBotHub", description: "Finding, buying and downloading tools — and publishing your own." },
-  { slug: "troubleshooting", name: "Troubleshooting", description: "Fixing common MT4/MT5 and EA problems." },
+  { slug: "fxbothub", name: "Selling on FXBotHub", description: "Publishing and selling your own trading tools on FXBotHub." },
+  { slug: "troubleshooting", name: "Troubleshooting", description: "A reference to common MT4/MT5 and EA errors and what causes them." },
 ] as const;
 
 export type GuideCategorySlug = (typeof GUIDE_CATEGORIES)[number]["slug"];
@@ -56,6 +55,8 @@ export interface Guide {
   intro: string;
   blocks: GuideBlock[];
   related: string[];
+  /** Hands-on tutorials (slugs in src/content/tutorials) that put this guide into practice. */
+  tutorials: string[];
   cta?: GuideCta;
   /** Show the trading-risk disclaimer (anything discussing markets or automated trading). */
   riskDisclaimer: boolean;

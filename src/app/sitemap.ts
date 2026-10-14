@@ -4,6 +4,7 @@ import { listDistinctCurrencies } from "@/services/calendar/calendar-service";
 import { resolveSiteUrl } from "@/lib/site-url";
 import { marketplaceLandingPath, SITEMAP_LANDING_COMBOS } from "@/lib/seo/marketplace-landing";
 import { GUIDES } from "@/content/guides";
+import { TUTORIALS } from "@/content/tutorials";
 
 // Built per request from the database, not once at build time — otherwise new products,
 // articles and posts wouldn't appear in the sitemap until the next deploy.
@@ -14,7 +15,7 @@ const siteUrl = resolveSiteUrl().replace(/\/$/, "");
 
 // Every URL listed here must be a public, indexable page whose own canonical is this
 // exact URL. Private areas (/admin, /seller, /dashboard, /cart, /invoices, /auth),
-// noindexed "coming soon" stubs (/analysis, /resources/*) and search results are left out.
+// noindexed "coming soon" stubs (/analysis) and search results are left out.
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [
     products,
@@ -82,6 +83,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...GUIDES.map((g) => ({
       url: url(`/guides/${g.slug}`),
       lastModified: new Date(`${g.updated}T00:00:00Z`),
+      changeFrequency: "monthly" as const,
+      priority: 0.6,
+    })),
+    { url: url("/tutorials"), changeFrequency: "weekly", priority: 0.7 },
+    ...TUTORIALS.map((t) => ({
+      url: url(`/tutorials/${t.slug}`),
+      lastModified: new Date(`${t.updated}T00:00:00Z`),
       changeFrequency: "monthly" as const,
       priority: 0.6,
     })),

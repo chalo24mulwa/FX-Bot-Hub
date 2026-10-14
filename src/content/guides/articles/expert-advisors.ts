@@ -8,7 +8,7 @@ export const whatIsAnExpertAdvisor: Guide = {
     "What a MetaTrader Expert Advisor is, how forex trading bots make decisions, common strategy types, and the real limits and risks of automated trading.",
   category: "expert-advisors",
   published: "2026-10-13",
-  updated: "2026-10-13",
+  updated: "2026-10-14",
   intro:
     "An Expert Advisor is a program that runs inside MetaTrader and can analyse prices and manage trades automatically. This guide explains how EAs work, what types exist, and what they can and can't do.",
   riskDisclaimer: true,
@@ -65,7 +65,7 @@ export const whatIsAnExpertAdvisor: Guide = {
         "Apply the same rules consistently, without hesitation or fatigue.",
         "Monitor several symbols and timeframes at once.",
         "React immediately when conditions are met, including outside your working hours.",
-        "Be tested on historical data before use — see [How to Backtest an Expert Advisor](/guides/how-to-backtest-an-expert-advisor).",
+        "Be tested on historical data before use — see [How to Run a Strategy Backtest in MT5](/tutorials/backtest-ea-mt5).",
       ],
     },
 
@@ -92,127 +92,12 @@ export const whatIsAnExpertAdvisor: Guide = {
     },
     {
       type: "p",
-      text: "Ready to set one up? Follow [How to Install an Expert Advisor in MT4](/guides/how-to-install-an-ea-in-mt4) or [in MT5](/guides/how-to-install-an-ea-in-mt5), and read [How to Evaluate a Forex Trading Bot Before Buying](/guides/how-to-evaluate-a-forex-trading-bot) first.",
+      text: "Ready to set one up? Follow [How to Install an Expert Advisor in MT4](/tutorials/install-ea-mt4) or [in MT5](/tutorials/install-ea-mt5), and read [How to Evaluate a Forex Trading Bot Before Buying](/guides/how-to-evaluate-a-forex-trading-bot) first.",
     },
   ],
-  related: ["how-to-evaluate-a-forex-trading-bot", "how-to-backtest-an-expert-advisor", "how-to-install-an-ea-in-mt5"],
+  related: ["how-to-evaluate-a-forex-trading-bot", "forex-risk-management-drawdown-leverage-stop-loss", "metatrader-ea-errors-troubleshooting"],
+  tutorials: ["install-ea-mt5", "install-ea-mt4", "backtest-ea-mt5"],
   cta: { label: "Browse Expert Advisors", href: "/marketplace?type=EA", text: "Explore Expert Advisors for MT4 and MT5 — every listing shows its documentation, compatibility details and verified-purchase reviews." },
-};
-
-export const howToInstallEaMt4: Guide = {
-  slug: "how-to-install-an-ea-in-mt4",
-  title: "How to Install an Expert Advisor in MT4",
-  seoTitle: "How to Install an Expert Advisor (EA) in MetaTrader 4",
-  description:
-    "Install an Expert Advisor in MetaTrader 4: copy the .ex4 file to MQL4/Experts, attach it to a chart, set its inputs, allow live trading and enable AutoTrading.",
-  category: "mt4",
-  published: "2026-10-13",
-  updated: "2026-10-13",
-  intro:
-    "Follow these steps to add an Expert Advisor to MetaTrader 4, attach it to a chart, load its settings and confirm it is allowed to trade.",
-  riskDisclaimer: true,
-  blocks: [
-    { type: "h2", text: "What you need" },
-    {
-      type: "ul",
-      items: [
-        "MetaTrader 4 installed and logged in — see [How to Install MetaTrader 4](/guides/how-to-install-metatrader-4).",
-        "The EA file for MT4: a compiled `.ex4` file (and sometimes `.mq4` source). If it came as a `.zip`, extract it first.",
-        "Any extra files the developer supplies, such as `.set` presets or files for the `Libraries` folder.",
-      ],
-    },
-    {
-      type: "callout",
-      tone: "info",
-      title: "Test on a demo account first",
-      text: "Always run a new EA on a demo account until you understand how it behaves.",
-    },
-
-    { type: "h2", text: "Install the EA" },
-    {
-      type: "steps",
-      items: [
-        { title: "Open the data folder", text: "In MT4, go to **File → Open Data Folder**, then open `MQL4` → `Experts`." },
-        { title: "Copy the EA file", text: "Paste the `.ex4` file (and `.mq4`, if provided) into the `Experts` folder. Put any library files the developer mentions into `MQL4\\Libraries`, and `.set` files into `MQL4\\Presets`." },
-        { title: "Refresh the Navigator", text: "Back in MT4, open the **Navigator** window (Ctrl+N), right-click **Expert Advisors** and choose **Refresh** — or simply restart MT4." },
-        { title: "Attach it to a chart", text: "Open a chart for the symbol and timeframe the EA's documentation specifies, then drag the EA from the Navigator onto the chart (or double-click it)." },
-        { title: "Allow live trading", text: "In the EA's properties window, open the **Common** tab and tick **Allow live trading**. Only tick **Allow DLL imports** if the developer says the EA needs it and you trust the source." },
-        { title: "Set the inputs", text: "On the **Inputs** tab, adjust the settings or click **Load** to import a `.set` file. Pay particular attention to lot size and risk settings." },
-        { title: "Enable AutoTrading", text: "Click **OK**, then make sure the **AutoTrading** button on the main toolbar is switched on. The EA's name appears in the top-right corner of the chart, with an icon showing whether it is allowed to trade." },
-      ],
-    },
-
-    { type: "h2", text: "Check that it's running" },
-    {
-      type: "ul",
-      items: [
-        "Open the **Terminal** window (Ctrl+T) and look at the **Experts** tab for messages from the EA, and the **Journal** tab for platform messages.",
-        "If the EA shows it isn't allowed to trade, recheck both the AutoTrading button and **Allow live trading** in the EA's properties (press F7 on the chart to reopen them).",
-        "Remember the EA stops when MT4 closes or loses its connection.",
-      ],
-    },
-    {
-      type: "p",
-      text: "Problems? See [Common MetaTrader EA Errors and How to Troubleshoot Them](/guides/metatrader-ea-errors-troubleshooting).",
-    },
-  ],
-  related: ["metatrader-ea-errors-troubleshooting", "how-to-backtest-an-expert-advisor", "how-to-install-an-ea-in-mt5"],
-  cta: { label: "Browse MT4 Expert Advisors", href: "/marketplace?platform=MT4&type=EA", text: "Find Expert Advisors for MetaTrader 4 on FXBotHub." },
-};
-
-export const howToInstallEaMt5: Guide = {
-  slug: "how-to-install-an-ea-in-mt5",
-  title: "How to Install an Expert Advisor in MT5",
-  seoTitle: "How to Install an Expert Advisor (EA) in MetaTrader 5",
-  description:
-    "Install an Expert Advisor in MetaTrader 5: copy the .ex5 file to MQL5/Experts, attach it to a chart, configure inputs and dependencies, and enable Algo Trading.",
-  category: "mt5",
-  published: "2026-10-13",
-  updated: "2026-10-13",
-  intro:
-    "This guide shows how to add an Expert Advisor to MetaTrader 5, attach it to a chart, load its settings and switch on automated trading.",
-  riskDisclaimer: true,
-  blocks: [
-    { type: "h2", text: "What you need" },
-    {
-      type: "ul",
-      items: [
-        "MetaTrader 5 installed and logged in — see [How to Install MetaTrader 5](/guides/how-to-install-metatrader-5).",
-        "The EA built for MT5: a compiled `.ex5` file (MT4 `.ex4` files will not run in MT5).",
-        "Any `.set` presets or extra files the developer provides.",
-      ],
-    },
-
-    { type: "h2", text: "Install the EA" },
-    {
-      type: "steps",
-      items: [
-        { title: "Open the data folder", text: "Go to **File → Open Data Folder**, then open `MQL5` → `Experts`." },
-        { title: "Copy the files", text: "Paste the `.ex5` file into `Experts`. You can create a subfolder to keep a product's files together. Put `.set` files into `MQL5\\Presets`." },
-        { title: "Refresh the Navigator", text: "Open the **Navigator** (Ctrl+N), right-click **Expert Advisors** and choose **Refresh**." },
-        { title: "Attach the EA to a chart", text: "Open a chart with the symbol and timeframe from the EA's documentation and drag the EA onto it, or double-click it." },
-        { title: "Allow it to trade", text: "In the properties window, on the **Common** tab, tick **Allow Algo Trading** (labelled **Allow Auto Trading** in older builds). If the EA needs DLLs, its **Dependencies** tab has **Allow DLL imports** — only enable it for software you trust." },
-        { title: "Configure the inputs", text: "Use the **Inputs** tab to review settings, or **Load** a `.set` file." },
-        { title: "Turn on Algo Trading", text: "Click **OK** and make sure the **Algo Trading** button on the toolbar (called **AutoTrading** in older builds) is enabled. The EA's name and a status icon appear in the chart's top-right corner." },
-      ],
-    },
-
-    { type: "h2", text: "Confirm it's working" },
-    {
-      type: "ul",
-      items: [
-        "In the **Toolbox** window (Ctrl+T), check the **Experts** tab for the EA's messages and the **Journal** tab for platform messages.",
-        "If trades are refused because automated trading is disabled, check the Algo Trading button and the EA's own permission (press F7 on the chart).",
-        "Some brokers or account types restrict automated trading — ask your broker if everything looks enabled but trades still fail.",
-      ],
-    },
-    {
-      type: "p",
-      text: "Next, test it properly: [How to Backtest an Expert Advisor Before Using It](/guides/how-to-backtest-an-expert-advisor).",
-    },
-  ],
-  related: ["how-to-backtest-an-expert-advisor", "metatrader-ea-errors-troubleshooting", "how-to-install-an-ea-in-mt4"],
-  cta: { label: "Browse MT5 Expert Advisors", href: "/marketplace?platform=MT5&type=EA", text: "Find trading robots built for MetaTrader 5." },
 };
 
 export const howToEvaluateATradingBot: Guide = {
@@ -223,11 +108,17 @@ export const howToEvaluateATradingBot: Guide = {
     "A checklist for judging a forex trading bot before you buy: documentation, strategy transparency, backtests, demo testing, reviews and red flags.",
   category: "expert-advisors",
   published: "2026-10-13",
-  updated: "2026-10-13",
+  updated: "2026-10-14",
   intro:
     "Use this checklist to judge an Expert Advisor before you pay for it or trust it with real money — what to read, what to test, and which warning signs to take seriously.",
   riskDisclaimer: true,
   blocks: [
+    {
+      type: "callout",
+      tone: "info",
+      title: "Prefer a hands-on walkthrough?",
+      text: "This guide explains what to look for and why. To go through a real listing section by section, follow the tutorial [How to Evaluate a Forex Bot Before Purchasing](/tutorials/evaluate-forex-bot-before-buying).",
+    },
     { type: "h2", text: "1. Read the documentation" },
     {
       type: "p",
@@ -279,8 +170,8 @@ export const howToEvaluateATradingBot: Guide = {
     {
       type: "steps",
       items: [
-        { title: "Backtest with realistic settings", text: "Run it in the Strategy Tester with your broker's spread and commission — see [How to Backtest an Expert Advisor](/guides/how-to-backtest-an-expert-advisor)." },
-        { title: "Forward test on a demo account", text: "Run it live on demo for several weeks to see how it handles real spreads, news and execution." },
+        { title: "Backtest with realistic settings", text: "Run it in the Strategy Tester with your broker's spread and commission — see [How to Run a Strategy Backtest in MT5](/tutorials/backtest-ea-mt5)." },
+        { title: "Forward test on a demo account", text: "Run it live on demo for several weeks to see how it handles real spreads, news and execution — see [How to Test a Forex Bot on a Demo Account](/tutorials/test-forex-bot-demo-account)." },
         { title: "Start small", text: "If you move to a live account, begin with the smallest size you can and increase only after results match your expectations." },
       ],
     },
@@ -298,9 +189,10 @@ export const howToEvaluateATradingBot: Guide = {
     { type: "h2", text: "6. Understand licensing" },
     {
       type: "p",
-      text: "Many paid EAs check a license key and limit how many terminals they can be activated on. Check how many activations you get and how to move a license to a new computer. See [How to Buy and Download Trading Tools on FXBotHub](/guides/how-to-buy-and-download-on-fxbothub).",
+      text: "Many paid EAs check a license key and limit how many terminals they can be activated on. Check how many activations you get and how to move a license to a new computer. See [How to Find and Access Trading Tools on FXBotHub](/tutorials/find-trading-tools-fxbothub).",
     },
   ],
-  related: ["how-to-backtest-an-expert-advisor", "forex-risk-management-drawdown-leverage-stop-loss", "what-is-a-forex-expert-advisor"],
+  related: ["forex-risk-management-drawdown-leverage-stop-loss", "what-is-a-forex-expert-advisor"],
+  tutorials: ["evaluate-forex-bot-before-buying", "backtest-ea-mt5", "test-forex-bot-demo-account"],
   cta: { label: "Browse Expert Advisors", href: "/marketplace?type=EA", text: "Compare Expert Advisors on FXBotHub using their documentation, compatibility notes and verified reviews." },
 };

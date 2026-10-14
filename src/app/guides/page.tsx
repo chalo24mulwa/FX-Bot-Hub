@@ -87,8 +87,12 @@ export default async function GuidesPage({ searchParams }: GuidesPageProps) {
           <div className="mt-10 max-w-3xl">
             <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">Forex Trading Guides &amp; Resources</h1>
             <p className="mt-5 text-lg leading-relaxed text-slate-300">
-              Learn how to use MetaTrader 4 and MetaTrader 5, understand forex trading tools, explore automated trading
-              systems, and get more from the FXBotHub marketplace with practical, step-by-step guides.
+              Understand forex trading tools, automated trading systems and risk before you use them. Looking for
+              hands-on, numbered walkthroughs for MT4 and MT5? Those are in{" "}
+              <Link href="/tutorials" className="font-medium text-amber-200 underline decoration-amber-200/40 underline-offset-4 hover:decoration-amber-200">
+                Tutorials
+              </Link>
+              .
             </p>
           </div>
 
@@ -105,7 +109,7 @@ export default async function GuidesPage({ searchParams }: GuidesPageProps) {
                 name="q"
                 defaultValue={q}
                 maxLength={MAX_QUERY_LENGTH}
-                placeholder="Search guides, tutorials and resources…"
+                placeholder="Search guides…"
                 className="h-12 w-full rounded-lg border border-white/15 bg-white pl-11 pr-3 text-base text-slate-900 shadow-lg shadow-black/20 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-400"
               />
             </div>
@@ -233,7 +237,11 @@ export default async function GuidesPage({ searchParams }: GuidesPageProps) {
             <div className="mt-6 rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
               <p className="font-medium text-slate-900">No guides match your search.</p>
               <p className="mt-2 text-sm text-slate-600">
-                Try fewer or different words, or browse a topic above. Looking for something we haven&apos;t covered? Ask
+                Try fewer or different words, browse a topic above, or look for a step-by-step walkthrough in{" "}
+                <Link href={q ? `/tutorials?q=${encodeURIComponent(q)}#results` : "/tutorials"} className="font-medium text-violet-700 hover:underline">
+                  Tutorials
+                </Link>
+                . Looking for something we haven&apos;t covered? Ask
                 in the{" "}
                 <Link href="/community" className="font-medium text-violet-700 hover:underline">
                   Community

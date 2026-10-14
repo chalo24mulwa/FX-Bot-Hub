@@ -1,25 +1,20 @@
 import type { Guide, GuideCategorySlug } from "./types";
 import { GUIDE_CATEGORIES } from "./types";
 import { forexTradingForBeginners } from "./articles/getting-started";
-import { howToInstallMt4, howToInstallMt5 } from "./articles/metatrader";
-import { whatIsAnExpertAdvisor, howToInstallEaMt4, howToInstallEaMt5, howToEvaluateATradingBot } from "./articles/expert-advisors";
-import { howToInstallIndicator, howToBacktestAnEa, riskManagement } from "./articles/indicators-backtesting-risk";
-import { eaTroubleshooting, howToBuyOnFxBotHub, sellersGuide } from "./articles/troubleshooting-and-fxbothub";
+import { whatIsAnExpertAdvisor, howToEvaluateATradingBot } from "./articles/expert-advisors";
+import { riskManagement } from "./articles/risk-management";
+import { eaTroubleshooting, sellersGuide } from "./articles/troubleshooting-and-fxbothub";
 
-/** Every published guide. Order here is the default "browse" order on /guides. */
+/**
+ * Every published guide. Guides explain concepts; numbered how-to procedures live in
+ * src/content/tutorials (the old procedural guides moved there — see moved-guides.ts).
+ * Order here is the default "browse" order on /guides. */
 export const GUIDES: Guide[] = [
   forexTradingForBeginners,
-  howToInstallMt4,
-  howToInstallMt5,
   whatIsAnExpertAdvisor,
-  howToInstallEaMt4,
-  howToInstallEaMt5,
-  howToInstallIndicator,
-  howToBacktestAnEa,
   howToEvaluateATradingBot,
   riskManagement,
   eaTroubleshooting,
-  howToBuyOnFxBotHub,
   sellersGuide,
 ];
 

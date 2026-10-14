@@ -8,7 +8,7 @@ export const forexTradingForBeginners: Guide = {
     "A practical introduction to forex trading: how currency pairs are quoted, what pips, lots, spreads, leverage and margin mean, and how trading platforms fit in.",
   category: "getting-started",
   published: "2026-10-13",
-  updated: "2026-10-13",
+  updated: "2026-10-14",
   intro:
     "This guide explains how the foreign exchange market works and the core vocabulary you need before using any trading platform, indicator or Expert Advisor: currency pairs, pips, lot sizes, spreads, leverage and margin.",
   riskDisclaimer: true,
@@ -20,7 +20,7 @@ export const forexTradingForBeginners: Guide = {
     },
     {
       type: "p",
-      text: "Retail traders usually access the market through a **broker**, which provides a trading account and a platform such as [MetaTrader 4](/guides/how-to-install-metatrader-4) or [MetaTrader 5](/guides/how-to-install-metatrader-5). When you place a trade you are speculating on the exchange rate between two currencies rising or falling.",
+      text: "Retail traders usually access the market through a **broker**, which provides a trading account and a platform such as [MetaTrader 4](/tutorials/install-metatrader-4) or [MetaTrader 5](/tutorials/install-metatrader-5). When you place a trade you are speculating on the exchange rate between two currencies rising or falling.",
     },
 
     { type: "h2", text: "Currency pairs and how quotes work" },
@@ -84,7 +84,7 @@ export const forexTradingForBeginners: Guide = {
     },
     {
       type: "p",
-      text: "These costs matter even more for automated strategies that trade often, which is why spread and commission settings should match your real account when you [backtest an Expert Advisor](/guides/how-to-backtest-an-expert-advisor).",
+      text: "These costs matter even more for automated strategies that trade often, which is why spread and commission settings should match your real account when you [backtest an Expert Advisor](/tutorials/backtest-ea-mt5).",
     },
 
     { type: "h2", text: "Leverage and margin" },
@@ -132,7 +132,8 @@ export const forexTradingForBeginners: Guide = {
       ],
     },
   ],
-  related: ["forex-risk-management-drawdown-leverage-stop-loss", "how-to-install-metatrader-5", "what-is-a-forex-expert-advisor"],
+  related: ["forex-risk-management-drawdown-leverage-stop-loss", "what-is-a-forex-expert-advisor"],
+  tutorials: ["compare-mt4-mt5-tools", "install-metatrader-5", "install-metatrader-4"],
   cta: {
     label: "Browse forex indicators",
     href: "/marketplace?type=INDICATOR",

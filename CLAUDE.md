@@ -1497,7 +1497,7 @@ tested), `src/components/community/`, `src/app/community/**`,
   a landing/category only once it has a published product (no empty, thin pages).
 - **noindex**: `/auth/*`, `/cart`, `/invoices/*` (pass-through `layout.tsx` with
   `PRIVATE_PAGE_ROBOTS`), `/signals/new|manage`, and the "coming soon" stubs (`/analysis`,
-  `/resources/tutorials` — `noindex, follow`; drop the flag when a section launches, and add it to the
+  — `noindex, follow`; drop the flag when a section launches, and add it to the
   sitemap). robots.txt disallows `/admin`, `/seller`, `/dashboard`, `/api`, `/cart`,
   `/invoices` — auth pages are deliberately *not* disallowed so crawlers can see their noindex.
 - `sitemap.ts` is `force-dynamic` (built per request), so new products/articles/posts appear
@@ -1528,6 +1528,22 @@ tested), `src/components/community/`, `src/app/community/**`,
   widget: it would need a new `AnalyticsEventType` (a migration) — deliberately not added.
   Content rules: never claim profits or guaranteed results; `riskDisclaimer: true` on anything
   about markets or automated trading; FXBotHub how-tos must match the real flows.
+- **Tutorials hub** (`/tutorials`, `/tutorials/[slug]`; `/resources/tutorials` 308-redirects there):
+  hands-on numbered procedures, distinct from Guides (concepts). Same content-as-code pattern —
+  `src/content/tutorials/articles/*.ts` registered in `src/content/tutorials/index.ts`, whose
+  array order is the learning path (default listing + Previous/Next). Each tutorial has
+  difficulty, an estimated time (always shown as an estimate), requirements, outcomes, steps,
+  expected result, troubleshooting, related tutorials, background guides and marketplace links.
+  Pure search/filter/sort/pagination in `src/lib/tutorials/search.ts` (`?q=&category=&difficulty=
+  &sort=newest&page=`; short terms like "ea" match whole words only); `?q=` is noindex. Step
+  "done" checkboxes are **localStorage only** (no account sync — would need a migration), and
+  there's no "helpful" widget for the same reason. JSON-LD: TechArticle + BreadcrumbList (no
+  HowTo/VideoObject/ratings — no videos exist). No screenshots: only add real ones.
+  The 7 procedural guides that moved here 308-redirect via `src/content/tutorials/moved-guides.ts`
+  (imported by `next.config.ts`, so keep it dependency-free; never remove entries). Guides link to
+  tutorials through `Guide.tutorials`; `tutorials.test.ts` checks every `/guides/` and
+  `/tutorials/` link in both content sets, that no tutorial reuses a guide title/description,
+  and that moved slugs don't also exist as guides.
 - Search Console verification/sitemap submission is done by the site owner (needs their
   Google account) — see `docs/DEPLOY_HOSTINGER.md`.
 
@@ -1639,7 +1655,7 @@ tested), `src/components/community/`, `src/app/community/**`,
   edge case, not a security issue (their review still needs their own purchase
   to be "verified," which they get for free as the owner, so it'd read oddly
   but isn't exploitable for anything).
-- Analysis/Tutorials are still stub ("coming soon") pages (Guides and Developer
+- Analysis is still a stub ("coming soon") page (Guides, Tutorials and Developer
   Resources are real since Oct 2026) — News and Signals became real in Phase 3.
 - The `/admin`, `/seller`, `/dashboard` redirect-to-sign-in for an
   authenticated-but-unauthorized user is a UX nit (looks like "not logged in"

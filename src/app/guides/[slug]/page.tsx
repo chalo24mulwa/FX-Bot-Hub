@@ -5,6 +5,9 @@ import { AlertTriangle, ArrowRight, CalendarDays, ChevronRight, Clock } from "lu
 import { GUIDES, getCategory, getGuide, relatedGuides } from "@/content/guides";
 import { GuideBody, GuideText } from "@/components/guides/guide-content";
 import { GuideCard } from "@/components/guides/guide-card";
+import { TutorialCard } from "@/components/tutorials/tutorial-meta";
+import { getTutorial } from "@/content/tutorials";
+import type { Tutorial } from "@/content/tutorials/types";
 import { DEFAULT_OG_IMAGE, SITE_NAME } from "@/lib/seo/site";
 import { resolveSiteUrl } from "@/lib/site-url";
 import { headingId } from "@/lib/guides/inline";
@@ -57,6 +60,7 @@ export default async function GuidePage({ params }: GuidePageProps) {
   const toc = guide.blocks.filter((b): b is { type: "h2"; text: string } => b.type === "h2");
   const related = relatedGuides(guide);
   const minutes = readingMinutes(guide);
+  const tutorials = guide.tutorials.map((s) => getTutorial(s)).filter((t): t is Tutorial => Boolean(t));
 
   // Article + BreadcrumbList structured data. The publisher is the site itself — no
   // invented individual author — and the dates are the guide's real published/updated dates.
@@ -205,6 +209,29 @@ export default async function GuidePage({ params }: GuidePageProps) {
           </aside>
         )}
       </div>
+
+      {tutorials.length > 0 && (
+        <section aria-labelledby="practice-title" className="border-t border-slate-200 bg-slate-100/60">
+          <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+            <div className="flex items-end justify-between gap-4">
+              <h2 id="practice-title" className="text-2xl font-semibold tracking-tight text-slate-900">
+                Put it into practice
+              </h2>
+              <Link href="/tutorials" className="text-sm font-medium text-violet-700 hover:underline">
+                All tutorials
+              </Link>
+            </div>
+            <p className="mt-2 text-slate-600">Step-by-step tutorials that build on this guide.</p>
+            <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {tutorials.map((t) => (
+                <li key={t.slug}>
+                  <TutorialCard tutorial={t} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
 
       {related.length > 0 && (
         <section aria-labelledby="related-title" className="border-t border-slate-200 bg-white">
