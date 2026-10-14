@@ -1496,8 +1496,8 @@ tested), `src/components/community/`, `src/app/community/**`,
   with the same `marketplaceLandingPath()` so they always equal the page canonicals, and lists
   a landing/category only once it has a published product (no empty, thin pages).
 - **noindex**: `/auth/*`, `/cart`, `/invoices/*` (pass-through `layout.tsx` with
-  `PRIVATE_PAGE_ROBOTS`), `/signals/new|manage`, and the "coming soon" stubs (`/analysis`,
-  — `noindex, follow`; drop the flag when a section launches, and add it to the
+  `PRIVATE_PAGE_ROBOTS`), `/signals/new|manage`, and the "coming soon" stub (`/analysis`
+  — `noindex, follow`); drop the flag when a section launches, and add it to the
   sitemap). robots.txt disallows `/admin`, `/seller`, `/dashboard`, `/api`, `/cart`,
   `/invoices` — auth pages are deliberately *not* disallowed so crawlers can see their noindex.
 - `sitemap.ts` is `force-dynamic` (built per request), so new products/articles/posts appear
