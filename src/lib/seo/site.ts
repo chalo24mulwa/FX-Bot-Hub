@@ -5,7 +5,7 @@ import type { Metadata } from "next";
  * from metadata exports and unit tests alike.
  */
 export const SITE_NAME = "FX Bot Hub";
-export const SITE_TAGLINE = "Forex Trading Tools and Market Intelligence";
+export const SITE_TAGLINE = "Forex Trading Tools and Insights";
 export const SITE_DESCRIPTION =
   "FX Bot Hub is a marketplace for MT4 and MT5 Expert Advisors and trading indicators, with a forex news calendar, market news, trading signals and a trader community.";
 

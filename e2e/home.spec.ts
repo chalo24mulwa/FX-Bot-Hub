@@ -46,3 +46,10 @@ test("the Insights page keeps its original /intelligence address and shows the n
   // The footer column carries the new name too.
   await expect(page.locator("footer").getByText("Insights", { exact: true })).toBeVisible();
 });
+
+test("the homepage title and intro use the new Insights wording", async ({ page }) => {
+  await page.goto("/");
+  await expect(page).toHaveTitle("FX Bot Hub — Forex Trading Tools and Insights");
+  await expect(page.getByText("Forex trading tools and market insights:", { exact: false })).toBeVisible();
+  expect(await page.locator('meta[property="og:title"]').first().getAttribute("content")).toBe("Forex Trading Tools and Insights | FX Bot Hub");
+});

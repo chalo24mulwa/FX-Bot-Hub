@@ -302,8 +302,10 @@ test("an administrator can create a Partnership account for an existing member, 
   await expect.poll(async () => (await db.partnerProfile.findUniqueOrThrow({ where: { userId: memberId } })).masterStatus).toBe("APPROVED");
   expect((await db.partnerProfile.findUniqueOrThrow({ where: { userId: memberId } })).masterCode).toBeTruthy();
 
-  const actions = (await db.auditLog.findMany({ where: { entityId: partner.id }, select: { action: true } })).map((a) => a.action);
-  expect(actions).toEqual(expect.arrayContaining(["partnership.admin_create", "partnership.partner.approve", "partnership.master.admin_grant", "partnership.master.approve"]));
+  // The Master status flips before the admin-grant audit row is written, so poll for the audit trail.
+  await expect
+    .poll(async () => (await db.auditLog.findMany({ where: { entityId: partner.id }, select: { action: true } })).map((a) => a.action), { timeout: 15_000 })
+    .toEqual(expect.arrayContaining(["partnership.admin_create", "partnership.partner.approve", "partnership.master.admin_grant", "partnership.master.approve"]));
   await admin.context().close();
 });
 

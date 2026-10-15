@@ -75,7 +75,7 @@ export default async function HomePage() {
             <span className="text-amber-600">Hub</span>
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-600">
-            Forex trading tools and market intelligence: Expert Advisors, indicators, and trading
+            Forex trading tools and market insights: Expert Advisors, indicators, and trading
             signals for MT4 &amp; MT5 — plus a live market chart and news calendar to trade around.
           </p>
           <div className="mt-8 flex justify-center gap-3">
