@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { CtaLink } from "@/components/partnership/cta-link";
 import {
   ArrowRight,
   BookOpen,
@@ -656,6 +657,13 @@ export default function DeveloperResourcesPage() {
               Browse Trading Tools
             </Link>
           </div>
+          <p className="mt-6 text-sm text-slate-400">
+            Not selling, but recommending tools to other traders?{" "}
+            <CtaLink href="/partnership" placement="developer-resources" className="font-medium text-amber-200 underline underline-offset-4 hover:text-amber-100">
+              Become an FXBotHub Partner
+            </CtaLink>
+            .
+          </p>
         </section>
       </div>
     </main>

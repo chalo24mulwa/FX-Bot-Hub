@@ -1600,6 +1600,20 @@ Referral/affiliate programme at `/partnership` (public landing, `/terms`, `/join
   `x-forwarded-for` so sign-ups don't share the IP-keyed registration rate-limit bucket);
   a service-level suite against real Postgres was run locally (not committed — no DB in
   `npm run test`). `DashboardShell` became responsive (nav row above content below `md`).
+- **"Be Our Partner" promotion** (`src/components/partnership/partnership-cta.tsx`):
+  `PartnershipSection` (homepage), `PartnershipCard` (dashboard, seller dashboard) and the
+  session-free `PartnershipInlineLink` (marketplace, product, guides, tutorials). The first two
+  read the viewer's real status via `getViewerPartnerState()` (`viewer.ts`) and pick label/route
+  with the pure `ctaFor()` (`src/lib/partnership/cta.ts`, unit-tested) — never show an apply
+  button to someone who already applied or joined. Static/client surfaces (header, developer
+  resources, community rail, footer) only link to `/partnership` or `/dashboard/partnership`,
+  which are themselves status-aware. Clicks go through `CtaLink` → `POST /api/partnership/cta`
+  → `AnalyticsEvent` `PARTNERSHIP_CTA_CLICK` with `{ placement }` only (validated against
+  `CTA_PLACEMENTS`; no user id, no IP); counts on `/admin/partnership`. Logged-out visitors go
+  to sign-up/sign-in with `callbackUrl=/dashboard/partnership`; the auth pages accept a
+  `callbackUrl` only through `safeCallbackPath()` (same-site relative paths — no `//`, `/\`,
+  schemes or control characters), so it can't become an open redirect. No popups/overlays;
+  product pages keep the link below the content, never near the buy button.
 
 ## Testing
 

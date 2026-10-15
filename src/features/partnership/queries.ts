@@ -262,6 +262,22 @@ export async function getAdminProgrammeOverview() {
   };
 }
 
+/** "Be Our Partner" clicks per placement over the last `days` days (placement is all that's stored). */
+export async function getCtaClickReport(days = 30) {
+  const since = new Date(Date.now() - days * 86_400_000);
+  const rows = await db.analyticsEvent.findMany({
+    where: { type: "PARTNERSHIP_CTA_CLICK", createdAt: { gte: since } },
+    select: { metadata: true },
+    take: 50_000,
+  });
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    const placement = (r.metadata as { placement?: string } | null)?.placement ?? "unknown";
+    counts.set(placement, (counts.get(placement) ?? 0) + 1);
+  }
+  return [...counts.entries()].map(([placement, clicks]) => ({ placement, clicks })).sort((a, b) => b.clicks - a.clicks);
+}
+
 export async function listPartnersForAdmin(opts: { status?: string; master?: string; q?: string; page: number }) {
   const q = opts.q?.trim().slice(0, 80).replace(/[%_]/g, "");
   const where: Prisma.PartnerProfileWhereInput = {

@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { GoogleIcon } from "@/components/auth/google-icon";
 import { authErrorMessage } from "@/lib/auth-errors";
 
-export function SignInForm({ googleEnabled, errorCode }: { googleEnabled: boolean; errorCode?: string }) {
+// `callbackUrl` is already validated as a same-site path by the page (safeCallbackPath).
+export function SignInForm({ googleEnabled, errorCode, callbackUrl }: { googleEnabled: boolean; errorCode?: string; callbackUrl?: string }) {
   const oauthError = authErrorMessage(errorCode);
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -36,7 +37,7 @@ export function SignInForm({ googleEnabled, errorCode }: { googleEnabled: boolea
       setError("Invalid email or password.");
       return;
     }
-    router.push("/marketplace");
+    router.push(callbackUrl ?? "/marketplace");
   }
 
   return (
@@ -70,7 +71,7 @@ export function SignInForm({ googleEnabled, errorCode }: { googleEnabled: boolea
               }
               setGoogleNotice(null);
               setGoogleLoading(true);
-              void signIn("google", { callbackUrl: "/marketplace" });
+              void signIn("google", { callbackUrl: callbackUrl ?? "/marketplace" });
             }}
           >
             <GoogleIcon className="h-5 w-5" />

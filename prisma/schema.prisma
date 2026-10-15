@@ -946,6 +946,7 @@ enum AnalyticsEventType {
   PURCHASE
   SIGNAL_VIEW
   CALENDAR_VIEW
+  PARTNERSHIP_CTA_CLICK // metadata: { placement } only
 }
 
 // Deliberately minimal: no IP address, no user agent, no full URL/query

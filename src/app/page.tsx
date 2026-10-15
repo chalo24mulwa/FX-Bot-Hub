@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { listFeaturedProducts, listNewestProducts } from "@/server/services/product-service";
 import { MARKETPLACE_CONFIG } from "@/config/marketplace";
 import { cacheWrap } from "@/lib/cache";
+import { PartnershipSection } from "@/components/partnership/partnership-cta";
 import { resolveSiteUrl } from "@/lib/site-url";
 import { pageMetadata, SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE } from "@/lib/seo/site";
 
@@ -145,6 +146,9 @@ export default async function HomePage() {
           </div>
         )}
       </section>
+
+      {/* Partnership: after the product sections, so browsing stays the page's main job. */}
+      <PartnershipSection placement="home" />
     </main>
   );
 }

@@ -5,6 +5,7 @@ import { TUTORIALS, FEATURED_TUTORIAL_SLUG, getTutorial, getTutorialCategory, tu
 import { DIFFICULTIES, type TutorialCategorySlug } from "@/content/tutorials/types";
 import { DifficultyBadge, EstimatedTime, TutorialCard } from "@/components/tutorials/tutorial-meta";
 import { pageMetadata } from "@/lib/seo/site";
+import { PartnershipInlineLink } from "@/components/partnership/partnership-cta";
 import { resolveSiteUrl } from "@/lib/site-url";
 import {
   MAX_TUTORIAL_QUERY_LENGTH,
@@ -380,6 +381,12 @@ export default async function TutorialsPage({ searchParams }: TutorialsPageProps
             </div>
           </div>
         </section>
+        <PartnershipInlineLink
+          placement="tutorials"
+          lead="Teach trading tools on your channel or blog?"
+          label="Earn with the FXBotHub Partner Programme"
+          className="mt-8 text-center"
+        />
       </div>
     </main>
   );

@@ -10,6 +10,7 @@ import { isSeller, isStaff } from "@/lib/authorization/roles";
 import { Input } from "@/components/ui/input";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { CtaLink } from "@/components/partnership/cta-link";
 
 export function Header() {
   const { data: session, status } = useSession();
@@ -97,6 +98,15 @@ export function Header() {
         </form>
 
         <div className="hidden items-center gap-2 xl:flex">
+          {/* Partnership: an invitation for visitors; for signed-in members, a neutral link
+              to their own Partnership page (which shows their real status). */}
+          <CtaLink
+            href={status === "authenticated" ? "/dashboard/partnership" : "/partnership"}
+            placement="header"
+            className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "text-violet-700 hover:text-violet-900")}
+          >
+            {status === "authenticated" ? "Partnership" : "Be Our Partner"}
+          </CtaLink>
           <Link href="/cart" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))} aria-label="Cart">
             Cart
           </Link>
@@ -177,6 +187,13 @@ export function Header() {
           <Link href="/cart" className="block py-1 text-sm text-slate-700">
             Cart
           </Link>
+          <CtaLink
+            href={status === "authenticated" ? "/dashboard/partnership" : "/partnership"}
+            placement="header-mobile"
+            className="block py-1 text-sm font-medium text-violet-700"
+          >
+            {status === "authenticated" ? "Partnership" : "Be Our Partner"}
+          </CtaLink>
           <div className="mt-3 flex gap-2 border-t border-slate-200 pt-3">
             {status === "authenticated" ? (
               <Link href="/dashboard" className={cn(buttonVariants({ size: "sm" }))}>

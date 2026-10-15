@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PartnershipCard } from "@/components/partnership/partnership-cta";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isSeller, isStaff } from "@/lib/authorization/roles";
@@ -52,6 +53,7 @@ export default async function DashboardPage() {
           </Link>
         </div>
       )}
+      <PartnershipCard placement="dashboard" className="mt-6 max-w-2xl" />
     </div>
   );
 }

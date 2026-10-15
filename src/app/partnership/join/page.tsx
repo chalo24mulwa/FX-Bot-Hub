@@ -56,10 +56,10 @@ export default async function PartnershipJoinPage({ searchParams }: JoinPageProp
       <div className="mt-8 flex flex-wrap gap-3">
         {!session?.user ? (
           <>
-            <Link href="/auth/sign-up" className="inline-flex h-11 items-center rounded-lg bg-violet-600 px-5 text-sm font-semibold text-white hover:bg-violet-500">
+            <Link href="/auth/sign-up?callbackUrl=%2Fdashboard%2Fpartnership" className="inline-flex h-11 items-center rounded-lg bg-violet-600 px-5 text-sm font-semibold text-white hover:bg-violet-500">
               Create an account
             </Link>
-            <Link href="/auth/sign-in" className="inline-flex h-11 items-center rounded-lg border border-slate-300 px-5 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+            <Link href="/auth/sign-in?callbackUrl=%2Fdashboard%2Fpartnership" className="inline-flex h-11 items-center rounded-lg border border-slate-300 px-5 text-sm font-semibold text-slate-800 hover:bg-slate-50">
               Sign in
             </Link>
           </>

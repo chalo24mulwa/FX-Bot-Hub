@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PartnershipCard } from "@/components/partnership/partnership-cta";
 import { auth } from "@/lib/auth";
 import { getSellerDashboardStats } from "@/features/seller/analytics-service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -83,6 +84,8 @@ export default async function SellerDashboardPage({ searchParams }: SellerDashbo
           </Card>
         ))}
       </div>
+      {/* Sellers can join the Partnership Programme too — it's separate from their seller role. */}
+      <PartnershipCard placement="seller-dashboard" className="mt-8 max-w-2xl" />
     </div>
   );
 }

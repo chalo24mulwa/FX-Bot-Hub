@@ -10,6 +10,7 @@ import { AddToCartButton } from "@/components/marketplace/add-to-cart-button";
 import { ContactSellerButton } from "@/components/marketplace/contact-seller-button";
 import { ReviewForm } from "@/components/marketplace/review-form";
 import { ProductTabs } from "@/components/marketplace/product-tabs";
+import { PartnershipInlineLink } from "@/components/partnership/partnership-cta";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getPublicUrl } from "@/lib/storage";
@@ -356,6 +357,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
             ),
           },
         ]}
+      />
+      <PartnershipInlineLink
+        placement="product"
+        lead="Recommend trading tools to other traders?"
+        label="Learn about the FXBotHub Partner Programme"
+        className="mt-10 border-t border-slate-200 pt-6"
       />
     </main>
   );

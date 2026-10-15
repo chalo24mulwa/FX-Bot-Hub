@@ -1,5 +1,6 @@
 -- Partnership programme (Partners + Master Partners). Additive only: new
--- enums and tables plus one new NotificationType value. No existing table,
+-- enums and tables plus one new NotificationType and AnalyticsEventType value.
+-- No existing table,
 -- column or row is changed or removed.
 
 -- CreateEnum
@@ -22,6 +23,9 @@ CREATE TYPE "ReferralSource" AS ENUM ('REGISTRATION', 'REFERRAL_LINK');
 
 -- AlterEnum
 ALTER TYPE "NotificationType" ADD VALUE 'PARTNERSHIP';
+
+-- AlterEnum (clicks on "Be Our Partner" calls to action; metadata holds the placement only)
+ALTER TYPE "AnalyticsEventType" ADD VALUE 'PARTNERSHIP_CTA_CLICK';
 
 -- CreateTable
 CREATE TABLE "partner_profiles" (

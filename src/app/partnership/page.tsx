@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { CtaLink } from "@/components/partnership/cta-link";
+import { ctaFor } from "@/lib/partnership/cta";
 import { ArrowRight, BadgeCheck, ChevronRight, Link2, Network, ShieldCheck, Wallet } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { pageMetadata } from "@/lib/seo/site";
@@ -32,10 +34,8 @@ export default async function PartnershipLandingPage() {
   const masterExample = commissionAmount(exampleBasis, settings.masterRateBps);
 
   const cta = !session?.user
-    ? { href: "/auth/sign-up", label: "Create a free account to apply" }
-    : profile
-      ? { href: "/dashboard/partnership", label: "Go to your Partnership dashboard" }
-      : { href: "/dashboard/partnership", label: "Become a Partner" };
+    ? { href: "/auth/sign-up?callbackUrl=%2Fdashboard%2Fpartnership", label: "Create a free account to apply" }
+    : ctaFor({ signedIn: true, status: profile?.status ?? null, masterStatus: profile?.masterStatus ?? null, programmeOpen: settings.programmeOpen });
 
   return (
     <main className="w-full min-w-0 flex-1 bg-slate-50">
@@ -64,12 +64,13 @@ export default async function PartnershipLandingPage() {
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-4">
               {settings.programmeOpen || profile ? (
-                <Link
+                <CtaLink
+                  placement="landing"
                   href={cta.href}
                   className="inline-flex items-center gap-2 rounded-lg bg-amber-400 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200"
                 >
                   {cta.label} <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Link>
+                </CtaLink>
               ) : (
                 <p className="rounded-lg border border-white/15 px-4 py-3 text-sm text-slate-300">New applications are paused at the moment.</p>
               )}
@@ -80,10 +81,10 @@ export default async function PartnershipLandingPage() {
             {!session?.user && (
               <p className="mt-4 text-sm text-slate-400">
                 Already have an account?{" "}
-                <Link href="/auth/sign-in" className="font-medium text-slate-200 underline underline-offset-4">
+                <Link href="/auth/sign-in?callbackUrl=%2Fdashboard%2Fpartnership" className="font-medium text-slate-200 underline underline-offset-4">
                   Sign in
                 </Link>
-                , then open Partnership in your dashboard.
+                 to apply from your dashboard.
               </p>
             )}
           </div>

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, BookOpen, ChevronRight, Clock, Search, X } from "lucide-react";
 import { GUIDES, FEATURED_GUIDE_SLUG, categoriesWithGuides, getCategory, getGuide } from "@/content/guides";
 import { GuideCard } from "@/components/guides/guide-card";
+import { PartnershipInlineLink } from "@/components/partnership/partnership-cta";
 import { pageMetadata } from "@/lib/seo/site";
 import { resolveSiteUrl } from "@/lib/site-url";
 import { paginate, parseGuideQuery, readingMinutes, searchGuides, MAX_QUERY_LENGTH } from "@/lib/guides/search";
@@ -291,6 +292,12 @@ export default async function GuidesPage({ searchParams }: GuidesPageProps) {
             </Link>
             .
           </p>
+          <PartnershipInlineLink
+            placement="guides"
+            lead="Have an audience of traders?"
+            label="Join the FXBotHub Partner Programme"
+            className="mt-3 text-base"
+          />
         </section>
       </div>
     </main>

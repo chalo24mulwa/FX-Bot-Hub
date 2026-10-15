@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Bookmark, Flame, Hash, Plus, Search, ShieldAlert, Star, ThumbsUp, Users } from "lucide-react";
+import { CtaLink } from "@/components/partnership/cta-link";
+import { Bookmark, Flame, Handshake, Hash, Plus, Search, ShieldAlert, Star, ThumbsUp, Users } from "lucide-react";
 import { COMMUNITY_DISCLAIMER, FEED_SECTIONS } from "@/config/community";
 import type { SidebarData } from "@/features/community/queries";
 import type { ViewerContext } from "@/features/community/viewer";
@@ -162,6 +163,12 @@ export function RightRail({ data }: { data: SidebarData }) {
           </div>
         </Panel>
       )}
+      <Panel title="Earn with FXBotHub" icon={<Handshake className="h-3.5 w-3.5 text-amber-300" aria-hidden="true" />}>
+        <p className="text-sm leading-6 text-slate-400">Recommend trading tools to other traders and earn commission on eligible referred sales.</p>
+        <CtaLink href="/partnership" placement="community" className="mt-2 inline-flex text-sm font-medium text-amber-200 hover:text-amber-100 hover:underline">
+          Be Our Partner
+        </CtaLink>
+      </Panel>
       {data.activeMembers.length > 0 && (
         <Panel title="Active members" icon={<Users className="h-3.5 w-3.5 text-emerald-300" aria-hidden="true" />}>
           <ul className="space-y-1">

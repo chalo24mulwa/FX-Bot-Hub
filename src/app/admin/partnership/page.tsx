@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requirePartnershipAdminPage } from "@/features/partnership/guard";
-import { PAGE_SIZE, getAdminProgrammeOverview, listPartnersForAdmin } from "@/features/partnership/queries";
+import { PAGE_SIZE, getAdminProgrammeOverview, getCtaClickReport, listPartnersForAdmin } from "@/features/partnership/queries";
 import { PartnershipAdminTabs } from "@/components/partnership/admin-tabs";
 import { Pager, StatCard, StatusPill, fmtDate, firstParam, parsePage } from "@/components/partnership/ui";
 import { formatMoney } from "@/lib/partnership/rules";
@@ -17,7 +17,7 @@ export default async function AdminPartnersPage({ searchParams }: { searchParams
   const master = MASTER_STATUSES.includes(firstParam(sp.master)) ? firstParam(sp.master) : "";
   const q = firstParam(sp.q).slice(0, 80);
   const page = parsePage(sp.page);
-  const [overview, { items, total }] = await Promise.all([getAdminProgrammeOverview(), listPartnersForAdmin({ status, master, q, page })]);
+  const [overview, { items, total }, ctaClicks] = await Promise.all([getAdminProgrammeOverview(), listPartnersForAdmin({ status, master, q, page }), getCtaClickReport(30)]);
   const qs = (p: number) => {
     const u = new URLSearchParams();
     if (status) u.set("status", status);
@@ -49,6 +49,25 @@ export default async function AdminPartnersPage({ searchParams }: { searchParams
           />
         ))}
       </div>
+
+      <details className="mt-6 rounded-xl border border-slate-200 bg-white p-4">
+        <summary className="cursor-pointer text-sm font-medium text-slate-800">
+          &ldquo;Be Our Partner&rdquo; clicks, last 30 days ({ctaClicks.reduce((s, c) => s + c.clicks, 0)})
+        </summary>
+        {ctaClicks.length === 0 ? (
+          <p className="mt-2 text-sm text-slate-500">No clicks recorded yet.</p>
+        ) : (
+          <ul className="mt-3 grid gap-1 text-sm sm:grid-cols-2 lg:grid-cols-3">
+            {ctaClicks.map((c) => (
+              <li key={c.placement} className="flex justify-between gap-4 rounded-md bg-slate-50 px-3 py-1.5">
+                <span className="text-slate-700">{c.placement}</span>
+                <span className="font-medium text-slate-900">{c.clicks}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="mt-2 text-xs text-slate-500">Only the placement is recorded — no user, IP address or page URL.</p>
+      </details>
 
       <form method="get" className="mt-8 flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">

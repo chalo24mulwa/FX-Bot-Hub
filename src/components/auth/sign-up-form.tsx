@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { GoogleIcon } from "@/components/auth/google-icon";
 import { authErrorMessage } from "@/lib/auth-errors";
 
-export function SignUpForm({ googleEnabled, errorCode }: { googleEnabled: boolean; errorCode?: string }) {
+// `callbackUrl` is already validated as a same-site path by the page (safeCallbackPath).
+export function SignUpForm({ googleEnabled, errorCode, callbackUrl }: { googleEnabled: boolean; errorCode?: string; callbackUrl?: string }) {
   const oauthError = authErrorMessage(errorCode);
   const router = useRouter();
   const [name, setName] = useState("");
@@ -38,7 +39,7 @@ export function SignUpForm({ googleEnabled, errorCode }: { googleEnabled: boolea
       setError(body?.error ?? "Something went wrong.");
       return;
     }
-    router.push("/auth/sign-in");
+    router.push(callbackUrl ? `/auth/sign-in?callbackUrl=${encodeURIComponent(callbackUrl)}` : "/auth/sign-in");
   }
 
   return (
@@ -72,7 +73,7 @@ export function SignUpForm({ googleEnabled, errorCode }: { googleEnabled: boolea
               }
               setGoogleNotice(null);
               setGoogleLoading(true);
-              void signIn("google", { callbackUrl: "/marketplace" });
+              void signIn("google", { callbackUrl: callbackUrl ?? "/marketplace" });
             }}
           >
             <GoogleIcon className="h-5 w-5" />
@@ -141,7 +142,7 @@ export function SignUpForm({ googleEnabled, errorCode }: { googleEnabled: boolea
 
         <p className="mt-6 text-center text-sm text-slate-500">
           Already have an account?{" "}
-          <Link href="/auth/sign-in" className="font-medium text-slate-900 hover:underline">
+          <Link href={callbackUrl ? `/auth/sign-in?callbackUrl=${encodeURIComponent(callbackUrl)}` : "/auth/sign-in"} className="font-medium text-slate-900 hover:underline">
             Sign in
           </Link>
         </p>

@@ -3,6 +3,7 @@ import { listProductsQuerySchema } from "@/lib/validations/product";
 import { listPublishedProducts } from "@/server/services/product-service";
 import { ProductCard } from "@/components/marketplace/product-card";
 import { MarketplaceFilters } from "@/components/marketplace/marketplace-filters";
+import { PartnershipInlineLink } from "@/components/partnership/partnership-cta";
 import { Pagination } from "@/components/marketplace/pagination";
 import { auth } from "@/lib/auth";
 import { listFavoriteProductIds } from "@/features/favorites/favorite-service";
@@ -85,6 +86,12 @@ export default async function MarketplacePage({ searchParams }: MarketplacePageP
           <Pagination page={page} pageSize={pageSize} total={total} basePath="/marketplace" searchParams={params} />
         </>
       )}
+      <PartnershipInlineLink
+        placement="marketplace"
+        lead="Know traders who'd use tools like these? Share FXBotHub and earn commission on eligible referred sales —"
+        label="become an FXBotHub Partner"
+        className="mt-10 border-t border-slate-200 pt-6 text-center"
+      />
     </main>
   );
 }
