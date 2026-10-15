@@ -19,6 +19,7 @@ const ADMIN_ROUTE_ACTIONS: ReadonlyArray<readonly [string, Action]> = [
   ["/admin/news-categories", "news:manage"],
   ["/admin/news", "news:manage"],
   ["/admin/brokers", "broker:manage"],
+  ["/admin/vps", "vps:manage"],
   ["/admin/signal-providers", "signal:moderate"],
   ["/admin/signals", "signal:moderate"],
   ["/admin/data-sources", "data_source:manage"],

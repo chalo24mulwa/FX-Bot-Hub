@@ -18,6 +18,7 @@ const ADMIN_NAV = [
   { label: "News", href: "/admin/news" },
   { label: "News Categories", href: "/admin/news-categories" },
   { label: "Best Brokers", href: "/admin/brokers" },
+  { label: "VPS Providers", href: "/admin/vps" },
   { label: "Signal Providers", href: "/admin/signal-providers" },
   { label: "Signals", href: "/admin/signals" },
   { label: "Community", href: "/admin/community" },

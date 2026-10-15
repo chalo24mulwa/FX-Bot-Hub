@@ -2078,3 +2078,84 @@ model Broker {
   @@index([status, position])
   @@map("brokers")
 }
+
+// ---- VPS providers -------------------------------------------------------------------
+// Editorial forex-VPS listings shown at /vps, managed from /admin/vps. Deliberately separate from
+// `Broker`: different facts, different filters, two images, so the two features share patterns but not
+// data. Nothing is seeded; every factual field (price, specs, locations, latency, rating) is entered by an
+// administrator and shown as entered, or marked "Not provided".
+enum VpsStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model VpsProvider {
+  id       String    @id @default(cuid())
+  slug     String    @unique
+  name     String
+  status   VpsStatus @default(DRAFT)
+  // 1-based ranking among non-archived providers (renumbered on every reorder). Archived = 0.
+  position Int       @default(0)
+  // "Top Pick" — only ever set by an administrator, never inferred from rank.
+  featured       Boolean @default(false)
+  sponsored      Boolean @default(false)
+  disclosureNote String? @db.VarChar(160)
+
+  // Links. `affiliateUrl` becomes the main button only when set. https-only, validated on save.
+  officialUrl    String
+  affiliateUrl   String?
+  ctaLabel       String?   @db.VarChar(30) // "Get VPS" | "View Plans" | "Visit Provider"
+  promoCode      String?   @db.VarChar(40)
+  offerText      String?   @db.VarChar(240)
+  offerExpiresAt DateTime? @db.Date
+
+  // Images live in the database (production has no object storage); served by /api/vps/[id]/logo|cover.
+  logoData      Bytes?
+  logoMime      String?   @db.VarChar(40)
+  logoUpdatedAt DateTime?
+  coverData      Bytes?
+  coverMime      String?   @db.VarChar(40)
+  coverUpdatedAt DateTime?
+
+  category    String?  @db.VarChar(60)
+  headline    String?  @db.VarChar(160)
+  description String   @default("") @db.Text
+  features    String[]
+  bestFor     String[]
+
+  // Hosting facts (free text, optional). Empty means "not provided", never a guess.
+  operatingSystems String[]
+  serverLocations  String[]
+  platforms        String[]
+  cpu              String? @db.VarChar(120)
+  ram              String? @db.VarChar(120)
+  storage          String? @db.VarChar(120)
+  otherSpecs       String? @db.VarChar(400)
+  priceCents       Int?
+  priceCurrency    String? @db.VarChar(3)
+  pricePeriod      String? @db.VarChar(5) // MONTH | YEAR
+  freeTrial        Boolean @default(false)
+  trialNote        String? @db.VarChar(240)
+  // Latency is only shown together with where it came from.
+  latencyInfo   String? @db.VarChar(400)
+  latencySource String? @db.VarChar(300)
+
+  whyRecommend String   @default("") @db.Text
+  advantages   String[]
+  limitations  String[]
+  rating       Float?
+  ratingNote   String?  @db.VarChar(300)
+
+  seoTitle       String?   @db.VarChar(70)
+  seoDescription String?   @db.VarChar(160)
+  infoVerifiedAt DateTime? @db.Date
+
+  publishedAt DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status, position])
+  @@map("vps_providers")
+}

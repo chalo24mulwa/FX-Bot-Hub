@@ -27,6 +27,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     communityCategories,
     communityPosts,
     brokers,
+    vpsProviders,
   ] = await Promise.all([
     db.product.findMany({
       where: { status: "PUBLISHED" },
@@ -60,6 +61,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Only published brokers. A failure here (for example before the Best Brokers migration has run)
     // must never take the whole sitemap down, so it degrades to "no broker pages".
     db.broker.findMany({ where: { status: "PUBLISHED" }, select: { slug: true, updatedAt: true }, take: 500 }).catch(() => []),
+    // Same defensive posture for VPS providers (the table may not exist yet while a deploy is in flight).
+    db.vpsProvider.findMany({ where: { status: "PUBLISHED" }, select: { slug: true, updatedAt: true }, take: 500 }).catch(() => []),
   ]);
 
   const url = (path: string) => `${siteUrl}${path === "/" ? "" : path}`;
@@ -95,6 +98,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...brokers.map((b) => ({
       url: url(`/best-brokers/${b.slug}`),
       lastModified: b.updatedAt,
+      changeFrequency: "weekly" as const,
+      priority: 0.5,
+    })),
+    { url: url("/vps"), changeFrequency: "weekly", priority: 0.7 },
+    ...vpsProviders.map((p) => ({
+      url: url(`/vps/${p.slug}`),
+      lastModified: p.updatedAt,
       changeFrequency: "weekly" as const,
       priority: 0.5,
     })),

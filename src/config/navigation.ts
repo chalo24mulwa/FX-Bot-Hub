@@ -61,4 +61,5 @@ export interface MenuBarLink extends NavLink {
 export const MENU_BAR_LINKS: MenuBarLink[] = [
   { label: "News Calendar", href: "/calendar", after: "Insights" },
   { label: "Best Brokers", href: "/best-brokers", after: "Resources" },
+  { label: "VPS", href: "/vps", after: "Resources" },
 ];

@@ -11,7 +11,7 @@ test("the menu bar has a News Calendar link between Insights and Resources", asy
   await page.goto("/");
   const bar = page.getByRole("navigation", { name: "Primary" });
   const labels = await bar.locator(":scope > div > button, :scope > a").allTextContents();
-  expect(labels.map((label) => label.trim())).toEqual(["Marketplace", "Insights", "News Calendar", "Resources", "Best Brokers", "Community"]);
+  expect(labels.map((label) => label.trim())).toEqual(["Marketplace", "Insights", "News Calendar", "Resources", "Best Brokers", "VPS", "Community"]);
 
   await bar.getByRole("link", { name: "News Calendar", exact: true }).click();
   await expect(page).toHaveURL(/\/calendar$/);

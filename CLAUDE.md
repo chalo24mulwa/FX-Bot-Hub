@@ -1790,6 +1790,63 @@ the header link, the admin nav, the sitemap and one permission. Code: `src/featu
   per-broker structured data beyond the list; the FAQ/how-to-choose copy is content-as-code, not editable
   in the admin; ratings are a single editorial number with a free-text note, no per-criterion breakdown.
 
+## VPS providers (`/vps`)
+
+A forex-VPS education page plus an editorial provider ranking, managed entirely from `/admin/vps`. Built on the
+Best Brokers patterns but with **its own table and enum** (`VpsProvider`, `VpsStatus`, migration
+`20261018000000_vps_providers`, additive) — broker data is untouched. Code: `src/features/vps/` (queries,
+audited service, actions), `src/lib/vps/` (pure, unit-tested: `validation.ts`, `filters.ts`, `present.ts`,
+`images.ts`; browser-only `client-image.ts`), `src/components/vps/`, `src/components/admin/vps-*.tsx`,
+`src/app/vps/**`, `src/app/admin/vps/**`, `src/app/api/vps/[id]/[kind]`, copy in `src/content/vps/content.ts`.
+It deliberately **imports generic helpers from `src/lib/brokers/`** (`parseExternalUrl`, `splitList`,
+`slugify`, `placeAt`/`moveBy`/`reorderWithin`, `detectLogoType`) and the `RankBadge`/`Rating`/`formatDay`
+presentational bits from `broker-card.tsx` — shared utilities, not shared data. If you change those, both
+features' tests (`brokers.test.ts`, `vps.test.ts`) must still pass.
+
+- **Same honesty rules as brokers.** Nothing is seeded; every fact (price, specs, locations, trial, latency,
+  rating) is admin-entered and shown as entered or "Not provided"; the page says so when empty.
+  `vpsPublishBlockers()` refuses to publish a provider that shows any fact, a trial or a rating without an
+  `infoVerifiedAt` date, that has no "why we recommend" text or no feature, or that shows **latency without its
+  source** (`latencySource`) — and a live provider can't be edited into that state. A price is only shown when
+  amount + currency + period are all set (`formatStartingPrice`, never a partial or guessed price).
+- **"Top Pick" is the `featured` flag, set by an admin tick — never inferred from rank.** It stays with the provider
+  when the ranking changes (e2e asserts this). `sponsored` + an optional `disclosureNote` label the placement.
+- **Offers**: `promoCode` (letters/digits/-/_), `offerText` and `offerExpiresAt` (a date). `isOfferActive()`
+  hides the whole offer strip after its expiry day (inclusive, UTC) — an expired offer is never shown, and
+  nothing re-labels it.
+- **Links**: identical rules to brokers (https only, no credentials/localhost/IPs/`javascript:`/`data:`, direct
+  links, no redirect route). `vpsCta()` uses the affiliate URL for the main button only when set
+  (`rel="sponsored nofollow noopener noreferrer"`, "Affiliate link" tag, official site stays reachable); the
+  button text is one of "Get VPS" / "View Plans" / "Visit Provider", defaulting by link type.
+- **Images** (logo ≤ 200 KB, cover ≤ 500 KB) live in the database like broker logos (production has no object
+  storage), served by `/api/vps/[id]/logo|cover` with `nosniff` and a sandbox CSP; a draft's/archived's images
+  only to `vps:manage`. PNG/JPEG/WebP by magic bytes, **no SVG**. **Compression happens in the browser**
+  (`optimizeForUpload`: canvas → WebP, stepping quality/size until it fits) — the same approach as the Community
+  uploader, chosen because the host may lack a native image library (`sharp`); the server only enforces the caps.
+  Two images must fit one server-action request (default body limit 1 MB), which is why the caps are small — don't
+  raise them without raising `serverActions.bodySizeLimit`. Cards use `next/image` with `unoptimized`, `loading="lazy"`,
+  a fixed aspect ratio (no layout shift) and descriptive alt text.
+- **Filters** (`?filter=`) are data-driven: MT4/MT5, Windows VPS, Verified free trial, one per "best for" tag in
+  use ("Budget-friendly" and "Multiple EAs" are admin tags — we don't invent a price threshold), and up to six
+  "Servers in <place>" region filters. A filter only exists if something matches; unknown keys are ignored; ranks
+  stay overall ranks.
+- **Permission** `vps:manage` = ADMIN/SUPER_ADMIN plus the scoped CONTENT admin role (not legacy moderators);
+  enforced in the proxy (`route-permissions.ts`), the page and every action; all changes audited (`vps.*`).
+- **SEO**: title/description exactly as briefed ("Best Forex VPS Hosting for MT4 & MT5 | FXBotHub"), canonical,
+  Open Graph, BreadcrumbList + FAQPage + ItemList JSON-LD (**no Review/AggregateRating**), sitemap entries (the
+  query `.catch`es so a missing table can't take the sitemap down). Profiles (`/vps/[slug]`) are indexable with
+  unique content and use the provider's own `seoTitle`/`seoDescription` when set. Hero buttons are plain anchors
+  (`#providers`, `#why-vps`). Header link "VPS" sits after "Best Brokers" in `MENU_BAR_LINKS`.
+- **Gotchas found while building it**: the cover banner is positioned, so the logo that overlaps it needs
+  `relative z-10` or it paints *behind* the banner (e2e asserts the logo is topmost at its centre); the
+  comparison table's scroller needs `relative` for the same sr-only reason as the broker table; a status
+  banner ("created") and a "Saved" message can both be `role="status"` at once — select by text in tests.
+- **Tests**: `src/lib/vps/vps.test.ts` (URL safety, schema, price/currency/period, promo, publish gate incl.
+  latency evidence, offer expiry, CTA rules, filters, image checks); `e2e/vps.spec.ts` drives the real admin UI end
+  to end and cleans up after itself.
+- **Known gaps**: no click tracking on provider links (needs an analytics event type + migration); no per-criterion
+  rating breakdown; education/FAQ copy is content-as-code; no server-side image re-encoding.
+
 ## Testing
 
 - `npm run test` (Vitest) — pure-logic unit tests only (authorization matrix,
