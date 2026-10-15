@@ -65,7 +65,7 @@ function formDataToProductInput(formData: FormData) {
 // ---------- Form (FormData) actions — used by the single-page edit form ----------
 
 export async function createProductAction(formData: FormData) {
-  const session = await requirePermission("product:create");
+  const session = await requirePermission("product:create", { allowImpersonation: true });
   const input = parseOrThrowFriendly(createProductSchema, formDataToProductInput(formData));
   const product = await productService.createDraftProduct(session.user.id, input);
   revalidatePath("/seller/products");
@@ -73,7 +73,7 @@ export async function createProductAction(formData: FormData) {
 }
 
 export async function updateProductAction(productId: string, formData: FormData) {
-  const session = await requirePermission("product:edit_own");
+  const session = await requirePermission("product:edit_own", { allowImpersonation: true });
   const input = parseOrThrowFriendly(updateProductSchema, formDataToProductInput(formData));
   const updated = await productService.updateOwnProduct(session.user.id, productId, input);
   if (!updated) throw new Error("Product not found or not owned by you.");
@@ -84,13 +84,13 @@ export async function updateProductAction(productId: string, formData: FormData)
 // ---------- Typed-object actions — used by the multi-step wizard ----------
 
 export async function createProductFromDataAction(input: CreateProductInput) {
-  const session = await requirePermission("product:create");
+  const session = await requirePermission("product:create", { allowImpersonation: true });
   const parsed = parseOrThrowFriendly(createProductSchema, input);
   return productService.createDraftProduct(session.user.id, parsed);
 }
 
 export async function updateProductFromDataAction(productId: string, input: UpdateProductInput) {
-  const session = await requirePermission("product:edit_own");
+  const session = await requirePermission("product:edit_own", { allowImpersonation: true });
   const parsed = parseOrThrowFriendly(updateProductSchema, input);
   const updated = await productService.updateOwnProduct(session.user.id, productId, parsed);
   if (!updated) throw new Error("Product not found or not owned by you.");
@@ -98,7 +98,7 @@ export async function updateProductFromDataAction(productId: string, input: Upda
 }
 
 export async function submitForReviewAction(productId: string) {
-  const session = await requirePermission("product:edit_own");
+  const session = await requirePermission("product:edit_own", { allowImpersonation: true });
   const ok = await productService.submitProductForReview(session.user.id, productId);
   if (!ok) throw new Error("Product not found, not owned by you, or not in a submittable state.");
   revalidatePath(`/seller/products/${productId}`);

@@ -31,5 +31,5 @@ export async function changePasswordAction(input: ChangePasswordInput) {
   }
 
   const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
-  await db.user.update({ where: { id: session.user.id }, data: { password: passwordHash } });
+  await db.user.update({ where: { id: session.user.id }, data: { password: passwordHash, mustChangePassword: false } });
 }

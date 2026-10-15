@@ -1,11 +1,16 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
 import { isStaff } from "@/lib/authorization/roles";
+import { can } from "@/lib/authorization/permissions";
+import { requiredActionForAdminPath } from "@/lib/admin/route-permissions";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 
 const ADMIN_NAV = [
   { label: "Dashboard", href: "/admin" },
   { label: "Users", href: "/admin/users" },
+  { label: "Access Sessions", href: "/admin/access-sessions" },
+  { label: "Admin Roles", href: "/admin/admin-roles" },
   { label: "Products", href: "/admin/products" },
   { label: "Reviews", href: "/admin/reviews" },
   { label: "Categories", href: "/admin/categories" },
@@ -34,8 +39,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect("/auth/sign-in");
   }
 
+  // An account provisioned with a temporary password (the first administrator) can't use
+  // the admin area until that password has been changed.
+  const me = await db.user.findUnique({ where: { id: session.user.id }, select: { mustChangePassword: true } });
+  if (me?.mustChangePassword) redirect("/dashboard/security?change=required");
+
+  // Only show the areas this person's role can actually open (the proxy and each action enforce it too).
+  const nav = ADMIN_NAV.filter((item) => {
+    const needed = requiredActionForAdminPath(item.href);
+    return !needed || can(session.user, needed);
+  });
+
   return (
-    <DashboardShell title="Admin" nav={ADMIN_NAV}>
+    <DashboardShell title="Admin" nav={nav}>
       {children}
     </DashboardShell>
   );

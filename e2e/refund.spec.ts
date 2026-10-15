@@ -26,6 +26,9 @@ test("a buyer can request a refund, an admin can approve it, and entitlement is 
 
   const orderUrl = page.url();
 
+  // Switching identity on one tab: drop the old cookie first so a late session refresh from the previous
+  // page can't write it back over the new sign-in (flaky under parallel load otherwise).
+  await page.context().clearCookies();
   await signIn(page, E2E_ADMIN);
   await page.goto("/admin/refunds");
   const row = page.getByRole("row", { name: new RegExp(email) });
@@ -34,6 +37,9 @@ test("a buyer can request a refund, an admin can approve it, and entitlement is 
   await row.getByRole("button", { name: "Approve" }).click();
   await expect(row.getByText("PROCESSED")).toBeVisible({ timeout: 10_000 });
 
+  // Switching identity on one tab: drop the old cookie first so a late session refresh from the previous
+  // page can't write it back over the new sign-in (flaky under parallel load otherwise).
+  await page.context().clearCookies();
   await signIn(page, email);
   await page.goto(orderUrl);
   await expect(page.getByText("REFUNDED", { exact: true })).toBeVisible();

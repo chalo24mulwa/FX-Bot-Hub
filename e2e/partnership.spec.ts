@@ -154,6 +154,8 @@ test("Master Partner: apply, approval, recruitment link, and a 10% override on a
   await expect(recruit.getByText("Application received")).toBeVisible();
 
   await adminDecide(adminPage, recruitEmail, "Approve");
+  // Wait for the decision to commit before the recruit loads their dashboard (it races under load otherwise).
+  await expect(adminPage.getByRole("heading", { name: "Partner", exact: true }).locator("..").getByText("Approved")).toBeVisible();
   await expect(adminPage.getByText("Recruited by").locator("..")).toContainText("E2E Partner");
 
   await recruit.goto("/dashboard/partnership");

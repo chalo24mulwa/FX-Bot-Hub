@@ -36,7 +36,7 @@ const assetSchema = z.discriminatedUnion("assetType", [
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withAuthorization(async () => {
-    const session = await requirePermission("product:edit_own");
+    const session = await requirePermission("product:edit_own", { allowImpersonation: true });
     const { id } = await params;
     try {
       const assets = await listProductAssets(session.user.id, id);
@@ -51,7 +51,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withAuthorization(async () => {
     assertSameOrigin(request);
-    const session = await requirePermission("product:edit_own");
+    const session = await requirePermission("product:edit_own", { allowImpersonation: true });
     const { id } = await params;
     const body = assetSchema.parse(await request.json());
 

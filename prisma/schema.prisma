@@ -22,6 +22,9 @@ model User {
   password      String? // bcrypt hash, only set for credentials sign-in
   role          UserRole  @default(USER)
   bannedAt      DateTime? // set by an admin/moderator; blocks credentials sign-in
+  // Set when an account is provisioned with a temporary password (e.g. the first
+  // administrator); /admin stays closed until the password has been changed.
+  mustChangePassword Boolean   @default(false)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -72,6 +75,12 @@ model User {
   // Partnership programme (see the "Partnership" section at the end of this file).
   partnerProfile      PartnerProfile?
   referralAttribution ReferralAttribution?
+
+  // Admin control centre (see the "Admin control centre" section at the end of this file).
+  adminRoleGrants      AdminRoleGrant[]       @relation("AdminRoleHolder")
+  adminRolesGranted    AdminRoleGrant[]       @relation("AdminRoleGranter")
+  impersonationsRun    ImpersonationSession[] @relation("ImpersonationAdmin")
+  impersonationsOnSelf ImpersonationSession[] @relation("ImpersonationTarget")
 
   // Phase 5: admin user list filters by role and sorts by createdAt.
   @@index([role, createdAt])
@@ -924,12 +933,17 @@ model AuditLog {
   entityId   String?
   metadata   Json?
   ipAddress  String?
+  // Set when the action happened inside an admin's "view as user" session; plain
+  // text (no FK) so the log outlives the session row.
+  impersonationSessionId String?
   createdAt  DateTime @default(now())
 
   actor User? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([entityType, entityId])
   @@index([actorId])
+  @@index([impersonationSessionId])
+  @@index([action, createdAt])
   // Phase 5: the admin audit log list is unfiltered, sorted by createdAt.
   @@index([createdAt])
   @@map("audit_logs")
@@ -1950,4 +1964,58 @@ model PartnershipSettings {
   updatedAt                  DateTime @updatedAt
 
   @@map("partnership_settings")
+}
+
+// ---------------------------------------------------------------------------
+// Admin control centre
+// ---------------------------------------------------------------------------
+// UserRole stays the base rank (USER < SELLER < MODERATOR < ADMIN < SUPER_ADMIN).
+// AdminRole grants are extra, narrowly-scoped capabilities stacked on top of a
+// staff account; they never replace UserRole and never apply to non-staff users.
+
+enum AdminRole {
+  USER_SUPPORT // find users, edit profiles, start a "view as user" session
+  LISTING_MODERATOR // approve / reject / suspend / remove marketplace listings
+  PARTNERSHIP_MANAGER // Partner + Master Partner applications, commissions, payouts
+  FINANCE // payouts, refunds, finance reports
+  CONTENT // news and calendar content
+}
+
+model AdminRoleGrant {
+  id          String    @id @default(cuid())
+  userId      String
+  role        AdminRole
+  grantedById String?
+  reason      String?   @db.Text
+  createdAt   DateTime  @default(now())
+
+  user      User  @relation("AdminRoleHolder", fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy User? @relation("AdminRoleGranter", fields: [grantedById], references: [id], onDelete: SetNull)
+
+  @@unique([userId, role])
+  @@index([role])
+  @@map("admin_role_grants")
+}
+
+// One row per "view as user" session. The admin's own identity is only ever
+// stored here (never in the browser): the session cookie carries this row's id,
+// and every request re-checks that the row is still open and unexpired.
+model ImpersonationSession {
+  id           String    @id @default(cuid())
+  adminId      String
+  targetUserId String
+  reason       String?   @db.Text
+  startedAt    DateTime  @default(now())
+  expiresAt    DateTime
+  endedAt      DateTime?
+  endReason    String?   @db.VarChar(40) // exited | expired | signed_out | revoked | target_unavailable
+  ipAddress    String?
+
+  admin  User @relation("ImpersonationAdmin", fields: [adminId], references: [id], onDelete: Restrict)
+  target User @relation("ImpersonationTarget", fields: [targetUserId], references: [id], onDelete: Restrict)
+
+  @@index([adminId, startedAt])
+  @@index([targetUserId, startedAt])
+  @@index([endedAt, expiresAt])
+  @@map("impersonation_sessions")
 }

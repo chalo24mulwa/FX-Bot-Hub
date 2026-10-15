@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 // Community capability so a future role change can't silently widen access.
 export default async function AdminCommunityLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
-  if (!session?.user || !can(session.user.role, "community:moderate")) redirect("/auth/sign-in");
+  if (!session?.user || !can(session.user, "community:moderate")) redirect("/auth/sign-in");
   const openReports = await db.communityReport.count({ where: { status: "OPEN" } });
   return (
     <div>

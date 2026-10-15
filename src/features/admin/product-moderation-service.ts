@@ -22,6 +22,17 @@ async function loadProductOrThrow(productId: string) {
   return product;
 }
 
+// Only a listing that is actually awaiting a decision can be approved or rejected.
+// Before this, the server action would publish a draft, a rejected or an archived
+// listing for any id it was given — the buttons just happened not to offer it.
+const REVIEWABLE = ["PENDING_REVIEW", "UNDER_REVIEW"] as const;
+
+function reasonOrThrow(reason: string | undefined): string {
+  const trimmed = (reason ?? "").trim().slice(0, 500);
+  if (trimmed.length < 5) throw new Error("Please give a reason (at least 5 characters) — the seller sees it and it is kept in the audit log.");
+  return trimmed;
+}
+
 /** Claims a PENDING_REVIEW product for active review — moves it to
  * UNDER_REVIEW and records the moderator so the queue shows who's on it. */
 export async function claimForReview({ actorId, productId, ipAddress }: ModerationActionInput) {
@@ -38,8 +49,8 @@ export async function claimForReview({ actorId, productId, ipAddress }: Moderati
 export async function approveProduct({ actorId, productId, ipAddress }: ModerationActionInput) {
   const product = await loadProductOrThrow(productId);
 
-  const updated = await db.product.update({
-    where: { id: productId },
+  const approved = await db.product.updateMany({
+    where: { id: productId, status: { in: [...REVIEWABLE] } },
     data: {
       status: "PUBLISHED",
       publishedAt: product.publishedAt ?? new Date(),
@@ -47,6 +58,8 @@ export async function approveProduct({ actorId, productId, ipAddress }: Moderati
       assignedModeratorId: null,
     },
   });
+  if (approved.count === 0) throw new Error("Only a listing awaiting review can be approved.");
+  const updated = await db.product.findUniqueOrThrow({ where: { id: productId } });
 
   await Promise.all([
     recordAuditLog({
@@ -74,13 +87,16 @@ export async function approveProduct({ actorId, productId, ipAddress }: Moderati
   return updated;
 }
 
-export async function rejectProduct({ actorId, productId, reason, ipAddress }: ModerationActionInput) {
+export async function rejectProduct({ actorId, productId, reason: rawReason, ipAddress }: ModerationActionInput) {
+  const reason = reasonOrThrow(rawReason);
   const product = await loadProductOrThrow(productId);
 
-  const updated = await db.product.update({
-    where: { id: productId },
-    data: { status: "REJECTED", rejectionReason: reason ?? null, assignedModeratorId: null },
+  const rejected = await db.product.updateMany({
+    where: { id: productId, status: { in: [...REVIEWABLE] } },
+    data: { status: "REJECTED", rejectionReason: reason, assignedModeratorId: null },
   });
+  if (rejected.count === 0) throw new Error("Only a listing awaiting review can be rejected.");
+  const updated = await db.product.findUniqueOrThrow({ where: { id: productId } });
 
   await Promise.all([
     recordAuditLog({
@@ -105,13 +121,16 @@ export async function rejectProduct({ actorId, productId, reason, ipAddress }: M
   return updated;
 }
 
-export async function suspendProduct({ actorId, productId, reason, ipAddress }: ModerationActionInput) {
+export async function suspendProduct({ actorId, productId, reason: rawReason, ipAddress }: ModerationActionInput) {
+  const reason = reasonOrThrow(rawReason);
   const product = await loadProductOrThrow(productId);
 
-  const updated = await db.product.update({
-    where: { id: productId },
-    data: { status: "SUSPENDED" },
+  const suspended = await db.product.updateMany({
+    where: { id: productId, status: "PUBLISHED" },
+    data: { status: "SUSPENDED", rejectionReason: reason },
   });
+  if (suspended.count === 0) throw new Error("Only a published listing can be suspended.");
+  const updated = await db.product.findUniqueOrThrow({ where: { id: productId } });
 
   await Promise.all([
     recordAuditLog({

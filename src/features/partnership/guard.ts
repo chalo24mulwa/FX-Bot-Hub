@@ -16,6 +16,6 @@ export async function requireApprovedPartnerPage(): Promise<MyPartnerProfile> {
 export async function requirePartnershipAdminPage() {
   const session = await auth();
   const { can } = await import("@/lib/authorization/permissions");
-  if (!session?.user || !can(session.user.role, "partnership:manage")) redirect("/admin");
+  if (!session?.user || !can(session.user, "partnership:manage")) redirect("/admin");
   return session;
 }

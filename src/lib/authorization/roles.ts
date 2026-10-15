@@ -16,6 +16,10 @@ export function roleAtLeast(role: UserRole, minimum: UserRole): boolean {
   return ROLE_RANK[role] >= ROLE_RANK[minimum];
 }
 
+export function roleRank(role: UserRole): number {
+  return ROLE_RANK[role];
+}
+
 export const SELLER_ROLES: UserRole[] = ["SELLER", "AUTHOR"];
 export const STAFF_ROLES: UserRole[] = ["MODERATOR", "ADMIN", "SUPER_ADMIN"];
 export const ADMIN_ROLES: UserRole[] = ["ADMIN", "SUPER_ADMIN"];

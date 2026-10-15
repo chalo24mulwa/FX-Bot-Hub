@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthSessionProvider } from "@/components/providers/session-provider";
 import { Header } from "@/components/layout/header";
+import { ImpersonationBanner } from "@/components/admin/impersonation-banner";
 import { Footer } from "@/components/layout/footer";
 import { ReferralTracker } from "@/components/partnership/referral-tracker";
 import { resolveSiteUrl } from "@/lib/site-url";
@@ -48,6 +49,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex min-h-full flex-col bg-white text-slate-900">
         <AuthSessionProvider>
+          <ImpersonationBanner />
           <Header />
           {/* min-w-0: without it, a flex column's default min-width:auto lets a
               wide descendant (e.g. the calendar's day table) push this whole

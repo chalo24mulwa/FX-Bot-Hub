@@ -8,13 +8,28 @@ import { env } from "@/lib/env";
 import { checkRateLimit, clientIp } from "@/lib/security/rate-limit";
 import { decideGoogleAccountLinking } from "@/lib/auth-linking";
 import { findUserByEmail } from "@/lib/auth-email";
-import type { UserRole } from "@prisma/client";
+import type { AdminRole, UserRole } from "@prisma/client";
+import { isReservedEmail } from "@/lib/admin/reserved-emails";
+import { isImpersonationExpired } from "@/lib/admin/rules";
+import { isStaff } from "@/lib/authorization/roles";
+import { recordAuditLog } from "@/repositories/audit-log-repository";
+import {
+  beginImpersonationToken,
+  closeImpersonationOnSignOut,
+  endImpersonationToken,
+  impersonationStillValid,
+  loadAdminRoles,
+} from "@/features/admin/impersonation-token";
 
 declare module "next-auth" {
   interface Session {
     user: {
       id: string;
       role: UserRole;
+      /** Granular admin roles (moderator-level staff only). */
+      adminRoles: AdminRole[];
+      /** Present while an administrator is viewing as this member. */
+      impersonation?: { sessionId: string; adminId: string; targetName: string; expiresAt: number };
     } & import("next-auth").DefaultSession["user"];
   }
   interface User {
@@ -114,6 +129,21 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
       : []),
   ],
   events: {
+    // Sign-ins and sign-outs of staff accounts are audited (members are not — that would
+    // only add noise). Never throws into the sign-in flow.
+    async signIn({ user }) {
+      const role = (user as { role?: UserRole }).role;
+      if (user.id && role && isStaff(role)) {
+        await recordAuditLog({ actorId: user.id, action: "auth.sign_in", entityType: "User", entityId: user.id }).catch(() => undefined);
+      }
+    },
+    async signOut(message) {
+      const token = "token" in message ? message.token : null;
+      await closeImpersonationOnSignOut(token);
+      if (token && typeof token.id === "string" && typeof token.role === "string" && isStaff(token.role as UserRole)) {
+        await recordAuditLog({ actorId: token.id, action: "auth.sign_out", entityType: "User", entityId: token.id }).catch(() => undefined);
+      }
+    },
     // Email/password registration creates a Profile alongside the User; the
     // adapter creates only the User for OAuth sign-ups. Give a Google-created
     // account the same starting records so both kinds of member look alike.
@@ -153,6 +183,9 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
         // (link / proceed / reject) is a pure function in
         // src/lib/auth-linking.ts, unit-tested there — this block is only
         // the I/O that decision acts on.
+        // The first administrator is provisioned out-of-band; nobody may create that address by signing up.
+        if (!existing && isReservedEmail(user.email)) return false;
+
         if (account?.provider === "google") {
           const emailVerified = (profile as { email_verified?: boolean } | undefined)?.email_verified;
           const decision = decideGoogleAccountLinking(
@@ -196,7 +229,7 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
       }
       return true;
     },
-    async jwt({ token, user, account, profile, trigger }) {
+    async jwt({ token, user, account, profile, trigger, session }) {
       if (user) {
         // Google asserts `email_verified` in the raw ID-token claims, which only reach
         // this callback at sign-in (Auth.js hands the adapter events a normalised profile
@@ -206,8 +239,30 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
         }
         token.id = user.id;
         token.role = (user as { role: UserRole }).role;
+        token.adminRoles = await loadAdminRoles(user.id as string, token.role as UserRole);
         token.roleCheckedAt = Date.now();
         return token;
+      }
+
+      // "View as user": started and ended only through an explicit update() from a server
+      // action. Everything is re-checked against the database — see impersonation-token.ts.
+      if (trigger === "update" && session && typeof session === "object") {
+        const data = session as { startImpersonation?: unknown; endImpersonation?: unknown };
+        if (typeof data.startImpersonation === "string") return beginImpersonationToken(token, data.startImpersonation);
+        if (data.endImpersonation === true) return endImpersonationToken(token, "exited");
+      }
+
+      // A "view as user" session has a hard expiry, enforced on every request without a database hit…
+      if (typeof token.impSid === "string" && typeof token.impExp === "number" && isImpersonationExpired(token.impExp)) {
+        return endImpersonationToken(token, "expired");
+      }
+      // …and its row is re-checked on EVERY request (only administrators mid-session pay for this).
+      // Auth.js re-issues the session cookie whenever it reads a session, so a request that began
+      // before an exit/revoke can finish after it and put the old, impersonating cookie back. Checking
+      // the row each time means that stale cookie is healed on its very next use, not up to a minute later.
+      if (typeof token.impSid === "string") {
+        const check = await impersonationStillValid(token);
+        if (!check.valid) return endImpersonationToken(token, check.reason);
       }
 
       // Re-sync role/ban status from the DB — immediately when explicitly
@@ -221,12 +276,18 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
       const ROLE_REFRESH_INTERVAL_MS = 60_000;
       const checkedAt = typeof token.roleCheckedAt === "number" ? token.roleCheckedAt : 0;
       if (token.id && (trigger === "update" || Date.now() - checkedAt > ROLE_REFRESH_INTERVAL_MS)) {
+        const impersonating = typeof token.impSid === "string";
         const current = await db.user.findUnique({
           where: { id: token.id as string },
           select: { role: true, bannedAt: true },
         });
-        if (!current || current.bannedAt) return null; // ends the session
+        if (!current || current.bannedAt) {
+          // A member suspended mid-session ends the session; if an administrator was viewing
+          // as them, hand the administrator back their own session instead of signing them out.
+          return impersonating ? endImpersonationToken(token, "target_unavailable") : null;
+        }
         token.role = current.role;
+        token.adminRoles = impersonating ? [] : await loadAdminRoles(token.id as string, current.role);
         token.roleCheckedAt = Date.now();
       }
 
@@ -236,6 +297,21 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
       if (session.user) {
         session.user.id = token.id as string;
         session.user.role = token.role as UserRole;
+        // Auth.js builds session.user.name/email/image from the cookie as it was BEFORE the jwt callback
+        // ran, so when the callback switches identity (start/exit/heal) the same response would still
+        // carry the previous person's email. Take them from the token the callback actually returned.
+        session.user.name = (token.name as string | null | undefined) ?? null;
+        session.user.email = (token.email as string | null | undefined) ?? "";
+        session.user.image = (token.picture as string | null | undefined) ?? null;
+        session.user.adminRoles = Array.isArray(token.adminRoles) ? (token.adminRoles as AdminRole[]) : [];
+        if (typeof token.impSid === "string" && typeof token.impAdminId === "string") {
+          session.user.impersonation = {
+            sessionId: token.impSid,
+            adminId: token.impAdminId,
+            targetName: typeof token.impName === "string" ? token.impName : "this member",
+            expiresAt: typeof token.impExp === "number" ? token.impExp : 0,
+          };
+        }
       }
       return session;
     },

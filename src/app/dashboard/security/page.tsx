@@ -4,7 +4,8 @@ import { ChangePasswordForm } from "@/components/auth/change-password-form";
 
 export const dynamic = "force-dynamic";
 
-export default async function SecurityPage() {
+export default async function SecurityPage({ searchParams }: { searchParams: Promise<{ change?: string }> }) {
+  const { change } = await searchParams;
   const session = await auth();
   const user = await db.user.findUnique({ where: { id: session!.user.id }, select: { password: true } });
 
@@ -12,6 +13,11 @@ export default async function SecurityPage() {
     <div>
       <h1 className="text-2xl font-semibold text-slate-900">Security</h1>
       <p className="mt-1 text-sm text-slate-500">Manage your account password.</p>
+      {change === "required" && (
+        <p role="alert" className="mt-4 max-w-md rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          This account was set up with a temporary password. Choose your own password below — the admin area stays closed until you do.
+        </p>
+      )}
 
       <div className="mt-6 max-w-md">
         {user?.password ? (

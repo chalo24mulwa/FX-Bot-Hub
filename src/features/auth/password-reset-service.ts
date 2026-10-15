@@ -56,7 +56,7 @@ export async function resetPassword(token: string, newPassword: string): Promise
   const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
 
   await db.$transaction([
-    db.user.update({ where: { id: record.userId }, data: { password: passwordHash } }),
+    db.user.update({ where: { id: record.userId }, data: { password: passwordHash, mustChangePassword: false } }),
     db.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } }),
     db.passwordResetToken.updateMany({
       where: { userId: record.userId, usedAt: null, id: { not: record.id } },

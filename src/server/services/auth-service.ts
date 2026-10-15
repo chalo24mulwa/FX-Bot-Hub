@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { findUserByEmail, normalizeEmail } from "@/lib/auth-email";
+import { isReservedEmail } from "@/lib/admin/reserved-emails";
 import type { SignUpInput } from "@/lib/validations/auth";
 import { enqueueEmail } from "@/jobs/send-email";
 import { buildWelcomeEmail } from "@/emails/templates";
@@ -9,6 +10,9 @@ const BCRYPT_ROUNDS = 12;
 
 export async function registerUser(input: SignUpInput) {
   const email = normalizeEmail(input.email);
+  // Reserved for accounts provisioned out-of-band (the first administrator). Same wording as a taken
+  // address, so the response doesn't reveal that one is special.
+  if (isReservedEmail(email)) throw new Error("An account with this email already exists.");
   // Case-insensitive: an account under `Foo@x.com` blocks a second `foo@x.com`.
   const existing = await findUserByEmail(email);
   if (existing) {

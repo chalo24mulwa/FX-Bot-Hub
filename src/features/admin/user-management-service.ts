@@ -1,6 +1,6 @@
 import type { UserRole } from "@prisma/client";
 import { db } from "@/lib/db";
-import { recordAuditLog } from "@/repositories/audit-log-repository";
+import { loadActor, changeUserRoleChecked, setUserSuspendedChecked } from "./user-admin-service";
 
 export async function listUsers(page: number, pageSize: number, role?: UserRole) {
   const where = role ? { role } : {};
@@ -17,30 +17,21 @@ export async function listUsers(page: number, pageSize: number, role?: UserRole)
   return { items, total, page, pageSize };
 }
 
+// These two used to write straight to the database, so any ADMIN could make
+// themselves (or anyone) a SUPER_ADMIN and any moderator could ban an
+// administrator. They now go through the same rule-checked path as the user
+// detail page (src/lib/admin/rules.ts): you can only act on accounts you
+// outrank, never on yourself, and the last active Super Administrator is
+// protected. Kept as exports so existing callers still work.
+
 export async function changeUserRole(actorId: string, userId: string, role: UserRole, ipAddress?: string) {
-  const updated = await db.user.update({ where: { id: userId }, data: { role } });
-  await recordAuditLog({
-    actorId,
-    action: "user.role_change",
-    entityType: "User",
-    entityId: userId,
-    metadata: { role },
-    ipAddress,
-  });
-  return updated;
+  const actor = await loadActor(actorId, ipAddress);
+  await changeUserRoleChecked(actor, userId, role, "Changed from the legacy role selector.");
+  return db.user.findUniqueOrThrow({ where: { id: userId } });
 }
 
 export async function setUserBanned(actorId: string, userId: string, banned: boolean, ipAddress?: string) {
-  const updated = await db.user.update({
-    where: { id: userId },
-    data: { bannedAt: banned ? new Date() : null },
-  });
-  await recordAuditLog({
-    actorId,
-    action: banned ? "user.ban" : "user.unban",
-    entityType: "User",
-    entityId: userId,
-    ipAddress,
-  });
-  return updated;
+  const actor = await loadActor(actorId, ipAddress);
+  await setUserSuspendedChecked(actor, userId, banned, banned ? "Suspended from the legacy user list." : "");
+  return db.user.findUniqueOrThrow({ where: { id: userId } });
 }

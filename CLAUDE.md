@@ -1615,6 +1615,110 @@ Referral/affiliate programme at `/partnership` (public landing, `/terms`, `/join
   schemes or control characters), so it can't become an open redirect. No popups/overlays;
   product pages keep the link below the content, never near the buy button.
 
+## Admin control centre: impersonation, admin roles, user and listing management
+
+Extends the existing admin area (`/admin/*`, `src/features/admin/`, `src/lib/authorization/`) —
+nothing replaced. Migration `20261016000000_admin_control_centre` is additive (one enum, two tables,
+`User.mustChangePassword`, `AuditLog.impersonationSessionId`, indexes). Pure rules live in
+`src/lib/admin/` (unit-tested: `admin-rules.test.ts`, `provision.test.ts`); I/O in
+`src/features/admin/`.
+
+- **Escalation holes that existed and are now closed** (all in `rules.ts`, enforced by
+  `user-admin-service.ts`; the old `changeUserRole`/`setUserBanned` are thin wrappers over it):
+  an ADMIN could set anyone — including themselves — to `SUPER_ADMIN`; a MODERATOR could ban an
+  administrator; nothing protected the last Super Administrator. Now: you may only act on
+  accounts you strictly outrank (a Super Administrator on anyone but themselves), never on
+  yourself, only a Super Administrator assigns/changes ADMIN or SUPER_ADMIN, and the last active
+  Super Administrator can't be demoted or suspended (checked inside a `Serializable` transaction
+  so two administrators can't race it).
+- **Page gates were missing.** `finance:view`, `payout:manage` etc. were declared in the matrix
+  but `/admin/finance`, `/payouts`, `/security`, `/settings` only checked "is staff", so any
+  moderator could open them. `route-permissions.ts` maps each `/admin/*` area to its action; the
+  **proxy** enforces it, the layout hides links the viewer can't open, and `requireAdminPage()`
+  re-checks on the new pages. This is a behaviour change for legacy moderators on those pages.
+- **Admin roles** (`AdminRole`: USER_SUPPORT, LISTING_MODERATOR, PARTNERSHIP_MANAGER, FINANCE,
+  CONTENT; `AdminRoleGrant`) are grants on a moderator-level account, not a replacement for
+  `UserRole`. A MODERATOR with **no** grants keeps today's all-purpose access; with one or more
+  they are *scoped* to exactly the union of those roles' capabilities
+  (`ADMIN_ROLE_CAPABILITIES`). ADMIN/SUPER_ADMIN are never narrowed; non-staff are never widened.
+  Only a Super Administrator grants/revokes; granting to a non-staff account promotes it to
+  MODERATOR (audited). **Revoking someone's last role also removes their staff rank** — otherwise
+  lifting a scope would silently widen them to a full moderator. `can()` takes a bare role *or*
+  the whole `session.user` (`{role, adminRoles}`); grants ride in the JWT and are re-read with the
+  60 s role refresh. `loadAdminRoles()` fails closed (a missing table means no extra roles, never a
+  sign-in error).
+- **"View as user" (impersonation)** — `ImpersonationSession` row + a JWT switch:
+  - The admin's identity is only ever in the DB row. The cookie carries `impSid` (+ display name,
+    expiry); `token.id/role/name/email/sub` are switched to the **target's**, so every existing
+    permission check sees an ordinary member and `/admin` is closed (the proxy sends them to
+    `/dashboard`). Name/email must switch too — Auth.js copies them from the token into
+    `session.user`, so otherwise code reading `session.user.email` would get the admin's.
+  - Started only by `startImpersonationAction` → `createImpersonationSession` (permission +
+    `evaluateImpersonation` from DB facts) → `updateSession({startImpersonation})` → the `jwt`
+    callback re-verifies the row (`adminId === token.id`, open, unexpired, rules again) before
+    switching. A client posting a forged payload to `/api/auth/session` can at most start a session
+    that already exists for its own account. Exit = `endImpersonationAction`
+    (`updateSession({endImpersonation})`, deliberately not behind the permission guards).
+  - Targets must be non-staff (never MODERATOR/ADMIN/SUPER_ADMIN), unsuspended, not yourself; no
+    nesting; the administrator must not have a temporary password. 60-minute hard expiry
+    (checked every request from the token), and the session row is re-checked in the database on
+    **every request** while impersonating (catches revoke / suspension of the member / expiry; only
+    mid-session administrators pay for it), `events.signOut` closes an open row.
+    **Cookie-overwrite race (real bug, fixed)**: Auth.js re-issues the session cookie whenever it
+    reads a session, so a request that began *before* a start/exit/revoke can finish *after* it and
+    put the old cookie back. Three guards: the per-request row check (a stale impersonating cookie
+    heals on its next use), the `session` callback taking name/email/image from the token the `jwt`
+    callback *returned* (Auth.js builds them from the pre-callback cookie, so the same response used
+    to carry the previous person's email), and `ImpersonateForm` confirming via `/api/auth/session`
+    and re-sending the `startImpersonation` update if the switch didn't stick. Proven by an 8-cycle
+    start/exit probe asserting the *first* session read after each switch. If the member is suspended
+    mid-session the administrator is handed their own session back instead of being signed out.
+  - **Read-only by default**: `requireSession()`/`requirePermission()` refuse while impersonating
+    unless the caller passes `{ allowImpersonation: true }`. Opted in: the seller's own product
+    create/edit/submit and their image/asset upload routes only. Everything else — checkout,
+    payouts, password change, reviews and replies, Community, downloads, Partnership member
+    actions — is refused, and any *new* action is safe without anyone remembering to block it.
+    Opted-in calls are written to the audit log (`impersonation.action`, path only — never the
+    query string) **before** the action runs; if that write fails the action doesn't happen.
+  - Audit: `impersonation.start|end|revoke|action`, all with `impersonationSessionId`;
+    `/admin/access-sessions` lists sessions (revoke = owner or Super Administrator);
+    `/admin/audit-logs` filters by administrator, action prefix, record, access session, dates.
+  - `ImpersonationBanner` (root layout, client, `useSession`) shows "ADMIN ACCESS MODE — Viewing
+    account: …", minutes left, and **Exit impersonation**.
+- **User management** (`/admin/users`, `/admin/users/[id]`): search (name/email/display name/ID;
+  `%`/`_` stripped), filters (account type, status, seller, partnership), pagination; the detail
+  page selects the password hash only to answer "has a password?" and never returns it. Actions
+  (each requires a reason, is audited, re-checks permission): edit profile (name, display name,
+  bio, location only — never email/role/password), change role, suspend/reactivate, send a
+  password-reset link (the admin never sees a token or password; Google-only accounts are
+  refused), create a Partnership account, grant Master Partner. **No hard delete**: accounts with
+  listings, orders, licences, ledger, payouts or referral history can't be erased without breaking
+  financial and audit records, so removal = suspension; the page shows the dependency counts.
+- **Partnership accounts** (`features/partnership/admin-account-service.ts`): reuse
+  `decidePartner`/`decideMaster`, so code assignment, recruiter confirmation, notification and audit
+  are identical to a normal approval. Creating a Partner never grants Master (a separate action).
+- **Listing moderation**: existing approve/reject/suspend now enforce their source status
+  (previously the server action would publish a draft/rejected/archived listing for any id) and
+  require a reason; the reason is stored in `rejectionReason` and shown to the seller. New:
+  unpublish (→ DRAFT), remove (→ ARCHIVED), restore (→ PUBLISHED if it was ever published, else
+  review queue), edit (name/summary/description/category only), delete. **Every product relation
+  is `onDelete: Cascade`, including order items and licences**, so `deleteListing` refuses
+  whenever any order item, licence or subscription exists (re-checked inside the transaction);
+  "Remove" hides a listing and leaves every purchase and download intact. Public reads already
+  filter on `PUBLISHED` (search, category pages, product URL, sitemap) — the e2e spec asserts it.
+- **First administrator** (`npm run admin:provision`, `scripts/provision-admin.ts`, rules in
+  `provision.ts`): password only from `ADMIN_INITIAL_PASSWORD` (never argv/source/logs), bcrypt,
+  `mustChangePassword` keeps `/admin` closed until it's changed; refuses a non-localhost database
+  without `--allow-remote`; **refuses to promote an existing account unless `--adopt`** — public
+  sign-up was open before the address was reserved, so a pre-existing `admin@fxbothub.com` may
+  belong to a stranger, and existing JWT sessions would gain the new role. `admin@fxbothub.com`
+  (+ `RESERVED_EMAILS`, comma-separated) can't be registered or created via Google
+  (`reserved-emails.ts`). No MFA exists in this stack.
+- **Testing quirks**: `e2e/admin-control.spec.ts` seeds its own accounts per run and includes a
+  ~65 s revocation test (written when the row was re-checked once a minute; it now takes effect on
+  the next request, the test just still waits). `npm run typecheck` needs `.next/types` — run `npx next typegen` after deleting
+  `.next`. vitest's worker occasionally times out on startup on this machine; re-run.
+
 ## Testing
 
 - `npm run test` (Vitest) — pure-logic unit tests only (authorization matrix,

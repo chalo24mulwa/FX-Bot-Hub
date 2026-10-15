@@ -50,7 +50,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
 // nowhere (console.error only).
 export default async function AdminQueuesPage() {
   const session = await auth();
-  if (!session?.user || !can(session.user.role, "queue:view")) redirect("/auth/sign-in");
+  if (!session?.user || !can(session.user, "queue:view")) redirect("/auth/sign-in");
 
   const [counts, recentLogs] = await Promise.all([
     Promise.all(

@@ -15,7 +15,7 @@ const bodySchema = z.object({
 export async function POST(request: NextRequest) {
   return withAuthorization(async () => {
     assertSameOrigin(request);
-    const session = await requirePermission("product:edit_own");
+    const session = await requirePermission("product:edit_own", { allowImpersonation: true });
 
     const body = bodySchema.parse(await request.json());
     try {
