@@ -2019,3 +2019,62 @@ model ImpersonationSession {
   @@index([endedAt, expiresAt])
   @@map("impersonation_sessions")
 }
+
+// ---- Best Brokers --------------------------------------------------------------------
+// Editorial broker listings shown at /best-brokers, managed entirely from /admin/brokers.
+// Nothing here is seeded or invented: every factual field (regulation, platforms, costs,
+// ratings) is entered by an administrator, and the public page shows only what was entered.
+enum BrokerStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Broker {
+  id       String       @id @default(cuid())
+  slug     String       @unique
+  name     String
+  status   BrokerStatus @default(DRAFT)
+  // 1-based ranking among non-archived brokers (renumbered on every reorder, so no gaps).
+  // Archived brokers are parked at 0 and ignored by the ranking.
+  position Int          @default(0)
+  featured Boolean      @default(false)
+
+  // Links. `officialUrl` is always the broker's own site; `affiliateUrl` (optional) is the approved
+  // referral link and becomes the main button only when set. Both are https-only, validated on save.
+  officialUrl  String
+  affiliateUrl String?
+  sponsored    Boolean @default(false) // paid placement, disclosed on the card
+
+  // Logo, stored in the database (production has no object storage) and served by
+  // /api/brokers/[id]/logo. PNG/JPEG/WebP only, size-capped, type checked by magic bytes.
+  logoData      Bytes?
+  logoMime      String?   @db.VarChar(40)
+  logoUpdatedAt DateTime?
+
+  tagline     String?  @db.VarChar(160)
+  features    String[]
+  whySelected String   @default("") @db.Text
+  bestFor     String[]
+  platforms   String[]
+
+  // Verified facts (free text, optional). Empty means "not provided", never a guess.
+  instruments  String? @db.VarChar(400)
+  accountTypes String? @db.VarChar(400)
+  minDeposit   String? @db.VarChar(120)
+  spreadsInfo  String? @db.VarChar(400)
+  regulation   String? @db.VarChar(600)
+
+  // Editorial rating on the 0.0-5.0 scale described on the public page; optional.
+  rating         Float?
+  ratingNote     String?   @db.VarChar(300)
+  infoVerifiedAt DateTime? @db.Date
+
+  publishedAt DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status, position])
+  @@map("brokers")
+}

@@ -22,6 +22,7 @@ export type Action =
   | "category:manage"
   | "calendar:manage"
   | "news:manage"
+  | "broker:manage" // the Best Brokers listings (create/edit/rank/publish/archive/delete)
   | "signal:moderate"
   | "data_source:manage"
   | "refund:manage"
@@ -75,6 +76,8 @@ const PERMISSIONS: Record<Action, (role: UserRole) => boolean> = {
   "category:manage": isAdmin,
   "calendar:manage": isStaff,
   "news:manage": isStaff,
+  // Commercial content (affiliate links, rankings), so admins only — a legacy moderator doesn't get it.
+  "broker:manage": isAdmin,
   "signal:moderate": isStaff,
   "data_source:manage": isAdmin,
   "refund:manage": isStaff,
@@ -103,7 +106,7 @@ export const ADMIN_ROLE_CAPABILITIES: Record<AdminRole, readonly Action[]> = {
   LISTING_MODERATOR: ["admin:view_dashboard", "product:moderate", "product:edit_any", "review:delete_any"],
   PARTNERSHIP_MANAGER: ["admin:view_dashboard", "user:view_all", "partnership:manage", "partnership:create_account"],
   FINANCE: ["admin:view_dashboard", "finance:view", "payout:manage", "refund:manage"],
-  CONTENT: ["admin:view_dashboard", "news:manage", "calendar:manage"],
+  CONTENT: ["admin:view_dashboard", "news:manage", "calendar:manage", "broker:manage"],
 };
 
 export const ADMIN_ROLE_LABELS: Record<AdminRole, string> = {

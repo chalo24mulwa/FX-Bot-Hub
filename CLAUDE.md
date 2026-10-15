@@ -1719,6 +1719,66 @@ nothing replaced. Migration `20261016000000_admin_control_centre` is additive (o
   the next request, the test just still waits). `npm run typecheck` needs `.next/types` — run `npx next typegen` after deleting
   `.next`. vitest's worker occasionally times out on startup on this machine; re-run.
 
+## Best Brokers (`/best-brokers`)
+
+An editorial forex-broker comparison page, managed entirely from `/admin/brokers` (no code edits).
+Additive: migration `20261017000000_best_brokers` (one enum, one table), nothing existing changed except
+the header link, the admin nav, the sitemap and one permission. Code: `src/features/brokers/`
+(`queries.ts` public/admin reads, `service.ts` audited writes, `actions.ts` server actions),
+`src/lib/brokers/` (pure, unit-tested: `validation.ts`, `filters.ts`, `links.ts`, `logo.ts`),
+`src/components/brokers/`, `src/components/admin/broker-*.tsx`, `src/app/best-brokers/**`,
+`src/app/admin/brokers/**`, `src/app/api/brokers/[id]/logo`, copy in `src/content/brokers/content.ts`.
+
+- **Nothing is seeded or invented.** Every fact (regulation, platforms, deposit, spreads, rating) is
+  admin-entered; blanks render as "Not provided", an unset rating as "Not rated". The page is honest when
+  empty ("No brokers published yet"). `publishBlockers()` refuses to publish a broker that shows any factual
+  field or a rating without an `infoVerifiedAt` date (shown as "Information checked <date>"), or without a
+  "why we selected it" text and at least one feature; a *live* broker can't be edited into that state either.
+- **Permission** `broker:manage` = ADMIN/SUPER_ADMIN, plus the scoped CONTENT admin role. A legacy
+  moderator does **not** get it (affiliate links and rankings are commercial). Enforced at the proxy
+  (`route-permissions.ts`), the page (`requireAdminPage`), and every action (`runAdminAction`, rate
+  limited). Every change is audited (`broker.create|update|publish|unpublish|archive|restore|reorder|delete`).
+- **Links** (`parseExternalUrl`): https only; no credentials, no `localhost`/internal names, no IP
+  literals, no `javascript:`/`data:`. Official URL and optional affiliate URL are separate fields; the
+  affiliate one becomes the main button ("Join Broker", `rel="sponsored nofollow noopener noreferrer"`,
+  labelled "Affiliate link") only when set, otherwise "Visit Broker" to the official site. Links go direct —
+  no redirect route, so there's no open-redirect surface. `sponsored` adds a "Sponsored placement" label.
+  The advertising disclosure sits above the rankings and on a profile with an affiliate link; the
+  FAQ/disclosure text says a commission doesn't by itself decide ranking — that is a statement about how the
+  admin runs the page, so don't let rankings be driven by commission.
+- **Ranking**: `position` is renumbered 1..n over non-archived brokers inside one transaction; the public
+  rank is the broker's place among *published* ones. Up/down moves happen **within a group** (published among
+  published, drafts among drafts — `reorderWithin`) so a draft can't silently shuffle the public order, and the
+  "Ranking position" field places a broker within the published ranking. A filtered public list keeps each
+  broker's overall rank. No automatic "best" claim; ranking is whatever the admin set.
+- **Logos live in the database** (`logoData Bytes`, ≤ 300 KB) because production has no object storage.
+  PNG/JPEG/WebP only, type decided by magic bytes (never the filename/MIME the browser sent), **no SVG**.
+  Served by `/api/brokers/[id]/logo` with `nosniff` and a sandbox CSP; a published broker's logo is public,
+  a draft's/archived's only to `broker:manage` (so unpublished listings don't leak). Queries never select the
+  bytes. If real storage is configured later, move to it — keep the route as the compatibility URL.
+- **Filters** (`?filter=`) exist only when the data supports them: MT4/MT5 (platforms), Regulated (regulation
+  text present), and one per "best for" category in use (built-ins relabelled, custom ones as typed). Server
+  rendered links, work without JS. Unknown keys are ignored.
+- **SEO**: title/description exactly as briefed (the "2026" in the title is hard-coded copy — update it
+  yearly in `content.ts`/`page.tsx`), canonical via `pageMetadata()`, BreadcrumbList + FAQPage (visible FAQ) +
+  ItemList (published brokers). **Deliberately no Review/AggregateRating markup** — ratings are editorial.
+  Profile pages (`/best-brokers/[slug]`) are indexable and in the sitemap (per-broker unique copy); the
+  sitemap's broker query `.catch`es so a missing table can never take the sitemap down.
+- **Header**: "Best Brokers" is in `MENU_BAR_LINKS` (after Resources, before Community; desktop bar and phone
+  menu). `e2e/home.spec.ts` asserts the exact label order.
+- **Gotcha (real bug, fixed)**: the comparison table sits in an `overflow-x-auto` scroller, but its
+  `sr-only` link text is absolutely positioned and **escapes the clip** unless the scroller is itself
+  positioned — the document scrolled 802px sideways on a 375px phone. The scroller has `relative`; keep it when
+  restyling. `e2e/brokers.spec.ts` asserts no sideways page scroll on a phone with a published broker.
+- **Tests**: `src/lib/brokers/brokers.test.ts` (URL safety, schema, publish gate, ordering, filters, logo
+  type/size, link rules); `e2e/brokers.spec.ts` drives the real admin UI end to end (create with logo →
+  draft is private → publish → links/rel/disclosure/logo → SEO/sitemap/JSON-LD → ranking, filters, edit,
+  unpublish, archive, restore, delete → unsafe URLs and SVG logo rejected → signed-out/member/moderator
+  turned away → phone layout) and removes everything it created.
+- **Known gaps**: no click tracking on broker links (would need an analytics event type + migration); no
+  per-broker structured data beyond the list; the FAQ/how-to-choose copy is content-as-code, not editable
+  in the admin; ratings are a single editorial number with a free-text note, no per-criterion breakdown.
+
 ## Testing
 
 - `npm run test` (Vitest) — pure-logic unit tests only (authorization matrix,
