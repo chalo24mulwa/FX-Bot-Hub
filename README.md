@@ -74,7 +74,7 @@ against a real production build. Full rationale in CLAUDE.md.
 - **Alerts** (`/dashboard/alerts`): subscribe to economic events, currencies,
   signal providers, or news categories from anywhere in the app; economic
   event reminders fire 30 minutes ahead via a scheduled job.
-- **Market intelligence dashboard** (`/intelligence`): a modular overview
+- **Insights dashboard** (`/intelligence`, formerly "Market Intelligence"): a modular overview
   combining upcoming high-impact events, latest news, and newest marketplace
   products in one place.
 - **Commercial infrastructure** (Phase 4): a `PaymentService` wrapping the

@@ -12,7 +12,7 @@ import { SignalCard } from "@/components/signals/signal-card";
 import { pageMetadata } from "@/lib/seo/site";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Market Intelligence Dashboard",
+  title: "Insights Dashboard",
   description: "Upcoming high-impact economic events, the latest forex news, recent trading signals and new Expert Advisors in one dashboard.",
   path: "/intelligence",
 });
@@ -37,7 +37,7 @@ export default async function IntelligenceDashboardPage() {
 
   return (
     <main className="mx-auto max-w-6xl flex-1 px-6 py-12">
-      <h1 className="text-2xl font-semibold text-slate-900">Market Intelligence</h1>
+      <h1 className="text-2xl font-semibold text-slate-900">Insights</h1>
       <p className="mt-1 text-sm text-slate-500">A snapshot of the calendar, news, signals, and marketplace.</p>
 
       <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">

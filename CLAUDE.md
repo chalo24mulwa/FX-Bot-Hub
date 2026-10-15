@@ -1403,6 +1403,17 @@ data-sources heading; e2e specs assert on the new headings. Deliberately left al
 category named "Economic Calendar" (a stored topic name, seeded by the Community migration), the
 intelligence dashboard's "Latest Forex news" widget, and descriptive marketing/SEO copy.
 
+### Display name: Insights
+
+The header/footer/phone-menu group formerly labelled "Market Intelligence" is now **Insights**, and the
+`/intelligence` dashboard's heading and page title follow (`Insights Dashboard`). Display text only: the route
+`/intelligence`, the sitemap URL, the `IntelligenceDashboardPage` component and every canonical stay as they were.
+The group label in `src/config/navigation.ts` and the `after` key of the News Calendar menu-bar link must match
+exactly — `navigation.test.ts` fails if they drift (a mismatch silently drops the link). Deliberately left alone:
+the site tagline "Forex Trading Tools and Market Intelligence" (`SITE_TAGLINE`, which is the default `<title>`
+and Open Graph title of the whole site) and the homepage sentence "Forex trading tools and market intelligence" —
+they describe the product, not this page; change them as a deliberate SEO decision, not as part of a rename.
+
 ## Community platform (forum + trading ideas)
 
 A Reddit/forum-style community at `/community` — posts, threaded comments,
