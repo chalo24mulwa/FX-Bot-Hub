@@ -1854,7 +1854,7 @@ original flat hamburger menu and desktops (≥ 1280px) keep the horizontal bar, 
 auth or backend code changed. Code: `src/components/layout/mobile-nav.tsx` (new), small edits in `header.tsx`, pure
 active-state helpers in `src/lib/navigation-active.ts` (unit-tested), `e2e/mobile-nav.spec.ts`.
 
-- **Quick-links bar** (`MobileUtilityBar`, `md:hidden`) sits above the header row inside the sticky `<header>`: News
+- **Quick-links bar** (`MobileUtilityBar`, `md:hidden`) sits above the header row (see "Header / quick-links bar" below for how it pins and hides): News
   (→ `/calendar`), Partner (→ `/partnership`, or `/dashboard/partnership` when signed in, via `CtaLink` with the
   existing `header-mobile` placement), Cart, Sign In, Sign Up — Account replaces the last two once signed in. A fixed
   `grid-cols-5` (4 when signed in), so five labelled ≥ 44px targets fit down to 320px with no scrolling and no overlap.
@@ -1913,8 +1913,14 @@ and desktops render as before. No route, logic, API, auth or database change. Ve
   that clipped items (Admin has 25). Phones now get a collapsible menu naming the current section (`bestMatchIndex`, unit-tested) with every
   item in two touch-sized columns, closing itself on selection; `md:` and up keep the original side nav (the two are both in the DOM, one
   hidden by CSS).
-- **Header**: the quick-links bar now sits *outside* the sticky `<header>`, so it scrolls away and only the header row stays pinned
-  (otherwise ~110px of a small screen is permanently covered). Tests reach it by `navigation` name "Quick links", not by `header`.
+- **Header / quick-links bar** (`sticky-header-group.tsx`): on phones the bar and the header row are one sticky unit (`StickyHeaderGroup`,
+  `md:contents` so tablets/desktops get no wrapper box). The bar slides up out of view while scrolling **down** and returns the instant you scroll
+  **up**; it is always shown at the top of the page, while the menu is open, and when something in it takes keyboard focus. It moves with a
+  `transform` (`.utility-sticky-group[data-utility-hidden]` in `globals.css`), so the unit keeps its full height in the layout — no jump, no reflow,
+  content never sits under it. The decision is the pure, unit-tested `nextBarVisibility` (`scroll-direction.ts`: 6px of downward travel past the bar
+  to hide, 3px up to show, iOS rubber-band at the bottom never counts as scrolling up). One passive scroll listener, one read per animation frame,
+  attached only while the screen is phone-sized (re-evaluated on resize/rotation); `prefers-reduced-motion` removes the animation. Tests reach the
+  bar by `navigation` name "Quick links", not by `header`; `e2e/mobile-utility-bar.spec.ts` covers it.
 - **Smaller fixes**: homepage hero buttons stack on small phones; auth pages use tighter gutters/card padding below `sm` (desktop values
   unchanged from `sm` up); seller screenshot-upload row and the admin posts/commissions filter bars wrap.
 - **Left alone on purpose**: overlapping controls the audit flags are intentional (favourite button over a card link, stretched card

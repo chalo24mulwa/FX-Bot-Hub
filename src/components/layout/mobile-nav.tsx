@@ -56,7 +56,7 @@ export function MobileUtilityBar({ authenticated }: { authenticated: boolean }) 
   ];
 
   return (
-    <nav aria-label="Quick links" className="border-b border-white/10 bg-[#0a1030] md:hidden">
+    <nav aria-label="Quick links" data-utility-bar className="border-b border-white/10 bg-[#0a1030] md:hidden">
       <ul className={cn("mx-auto grid max-w-md", items.length === 4 ? "grid-cols-4" : "grid-cols-5")}>
         {items.map((item) => {
           const current = onAny(pathname, item.match);
@@ -109,7 +109,7 @@ export function MobileMenuPanel({ onSearch, onNavigate }: MobileMenuPanelProps) 
   const [openGroup, setOpenGroup] = useState<string | null>(null);
 
   return (
-    <nav aria-label="Mobile menu" className="max-h-[calc(100dvh-6.5rem)] overflow-y-auto overscroll-contain pb-1">
+    <nav aria-label="Mobile menu" className="max-h-[calc(100dvh-9rem)] overflow-y-auto overscroll-contain pb-1">
       <form onSubmit={onSearch} className="mb-3" role="search">
         <Input name="q" type="search" placeholder="Search products…" aria-label="Search marketplace" className="h-11 text-base" />
       </form>

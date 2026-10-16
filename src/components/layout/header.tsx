@@ -12,6 +12,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CtaLink } from "@/components/partnership/cta-link";
 import { MobileMenuPanel, MobileUtilityBar } from "./mobile-nav";
+import { StickyHeaderGroup } from "./sticky-header-group";
 
 export function Header() {
   const { data: session, status } = useSession();
@@ -26,9 +27,9 @@ export function Header() {
   }
 
   return (
-    <>
-    {/* Smartphones only (hidden from md/768px up). It scrolls away with the page, so only the header row below
-        stays pinned and the sticky area doesn't eat a sixth of a small screen. */}
+    <StickyHeaderGroup forceVisible={mobileOpen}>
+    {/* Smartphones only (hidden from md/768px up). The bar and the header row are one sticky unit; the bar slides away when
+        the page scrolls down and back as soon as it scrolls up (StickyHeaderGroup). */}
     <MobileUtilityBar authenticated={status === "authenticated"} />
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-6">
@@ -224,6 +225,6 @@ export function Header() {
         </div>
       )}
     </header>
-    </>
+    </StickyHeaderGroup>
   );
 }

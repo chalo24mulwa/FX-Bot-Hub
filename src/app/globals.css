@@ -25,6 +25,23 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Phone header unit: the quick-links bar slides up out of view while scrolling down and back on scroll up (see
+   StickyHeaderGroup). A transform, not a layout change, so nothing reflows or jumps. */
+@media (max-width: 767.98px) {
+  .utility-sticky-group {
+    transition: transform 220ms cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform;
+  }
+  .utility-sticky-group[data-utility-hidden="true"] {
+    transform: translateY(calc(-1 * var(--utility-bar-height, 49px)));
+  }
+}
+@media (max-width: 767.98px) and (prefers-reduced-motion: reduce) {
+  .utility-sticky-group {
+    transition: none;
+  }
+}
+
 /* ---------------------------------------------------------------------------------------------
    Phones-only hardening (< 768px). Nothing here applies at tablet or desktop widths.
 
