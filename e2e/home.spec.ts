@@ -23,10 +23,13 @@ test("on a phone the News Calendar link is in the menu, between Insights and Res
   const page = await context.newPage();
   await page.goto("/");
   await page.getByRole("button", { name: "Toggle menu" }).click();
+  // The phone menu groups links into expandable sections; open Insights so its own links are in the text.
+  await page.getByRole("button", { name: "Insights", exact: true }).click();
+  await expect(page.locator("header").getByRole("link", { name: "Market Analysis" })).toBeVisible();
   const menu = page.locator("header").locator("div.xl\\:hidden");
   const text = await menu.innerText();
   // The standalone link comes after the Insights group's own links (the last of which is
-  // "Market Analysis") and before the Resources heading.
+  // "Market Analysis") and before the Resources section.
   const standalone = text.lastIndexOf("News Calendar");
   expect(text.indexOf("Market Analysis")).toBeGreaterThan(-1);
   expect(standalone).toBeGreaterThan(text.indexOf("Market Analysis"));

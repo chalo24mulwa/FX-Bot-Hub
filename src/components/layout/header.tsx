@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CtaLink } from "@/components/partnership/cta-link";
+import { MobileMenuPanel, MobileUtilityBar } from "./mobile-nav";
 
 export function Header() {
   const { data: session, status } = useSession();
@@ -26,6 +27,8 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
+      {/* Smartphones only (hidden from md/768px up). */}
+      <MobileUtilityBar authenticated={status === "authenticated"} />
       <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-6">
         <Link
           href="/"
@@ -146,7 +149,7 @@ export function Header() {
 
         <button
           type="button"
-          className="ml-auto rounded-md border border-slate-200 px-3 py-1.5 text-sm xl:hidden"
+          className="ml-auto rounded-md border border-slate-200 px-3 py-1.5 text-sm max-md:min-h-11 max-md:px-4 max-md:font-medium xl:hidden"
           onClick={() => setMobileOpen((v) => !v)}
           aria-expanded={mobileOpen}
           aria-label="Toggle menu"
@@ -157,6 +160,11 @@ export function Header() {
 
       {mobileOpen && (
         <div className="border-t border-slate-200 px-4 py-3 xl:hidden">
+          <div className="md:hidden">
+            <MobileMenuPanel onSearch={handleSearch} onNavigate={() => setMobileOpen(false)} />
+          </div>
+          {/* Tablets (md to xl): the original flat menu, unchanged. */}
+          <div className="hidden md:block">
           <form onSubmit={handleSearch} className="mb-3">
             <Input name="q" type="search" placeholder="Search products…" aria-label="Search marketplace" />
           </form>
@@ -209,6 +217,7 @@ export function Header() {
                 </Link>
               </>
             )}
+          </div>
           </div>
         </div>
       )}

@@ -1847,6 +1847,40 @@ features' tests (`brokers.test.ts`, `vps.test.ts`) must still pass.
 - **Known gaps**: no click tracking on provider links (needs an analytics event type + migration); no per-criterion
   rating breakdown; education/FAQ copy is content-as-code; no server-side image re-encoding.
 
+## Mobile navigation (phones only)
+
+A presentation-only change to the header on **smartphones (< 768px, Tailwind's `md`)**. Tablets (768–1279px) keep the
+original flat hamburger menu and desktops (≥ 1280px) keep the horizontal bar, byte-for-byte in behaviour. No route,
+auth or backend code changed. Code: `src/components/layout/mobile-nav.tsx` (new), small edits in `header.tsx`, pure
+active-state helpers in `src/lib/navigation-active.ts` (unit-tested), `e2e/mobile-nav.spec.ts`.
+
+- **Quick-links bar** (`MobileUtilityBar`, `md:hidden`) sits above the header row inside the sticky `<header>`: News
+  (→ `/calendar`), Partner (→ `/partnership`, or `/dashboard/partnership` when signed in, via `CtaLink` with the
+  existing `header-mobile` placement), Cart, Sign In, Sign Up — Account replaces the last two once signed in. A fixed
+  `grid-cols-5` (4 when signed in), so five labelled ≥ 44px targets fit down to 320px with no scrolling and no overlap.
+  Short visible labels carry fuller accessible names ("News Calendar", "Be Our Partner").
+- **Accordion menu** (`MobileMenuPanel`, `md:hidden`) renders the *same* `PRIMARY_NAV` / `MENU_BAR_LINKS` config as the
+  desktop bar, so a new group or link appears here automatically and no route is defined twice. Marketplace, Insights and
+  Resources are `aria-expanded` buttons (one section open at a time; the chevron rotates); stand-alone links
+  (News Calendar, Best Brokers, VPS, Community) sit between them in the desktop order. Because the bar already carries
+  Partner / Cart / Sign in / Sign up, the phone panel no longer repeats them; the tablet panel still does.
+- **Collapsed sections are `visibility: hidden`** (after their 200 ms closing animation), not just clipped — so their links
+  are out of the tab order and the accessibility tree, and Playwright sees them as hidden. The height animation is the
+  `grid-template-rows 0fr → 1fr` trick (no measuring); `motion-reduce` removes it.
+- **Behaviour fixes that came with it (phones only)**: following a link now closes the menu (the header persists across
+  client navigations, so the old panel stayed open over the new page); the panel is capped at `75dvh` and scrolls itself
+  (a sticky header taller than the screen can't be scrolled past, which hid the bottom links on short phones); the
+  current page/section is marked (`aria-current="page"`, violet text and a dot on the section). Links with a query string
+  (`/marketplace?platform=MT4`) are never marked current themselves — the path alone can't say which — they only mark
+  their group.
+- **To keep the e2e specs honest**: the phone menu's links live inside collapsed sections, so tests expand a section first
+  and scope locators to `header` (the footer lists the same links, so unscoped names match twice).
+  `home.spec.ts`'s phone ordering test and `partnership-cta.spec.ts` were adjusted for the bar; `brokers.spec.ts` and
+  `vps.spec.ts` click stand-alone rows and needed no change.
+- **Known, pre-existing, not touched here (page content, not navigation)**: at 320px the homepage hero's call-to-action
+  button overflows by ~18px and the sign-in card by ~29px. The header and the bar are clean at 320px, which the spec
+  asserts; the whole-page no-sideways-scroll check starts at 360px for that reason.
+
 ## Testing
 
 - `npm run test` (Vitest) — pure-logic unit tests only (authorization matrix,
