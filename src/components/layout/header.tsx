@@ -26,13 +26,15 @@ export function Header() {
   }
 
   return (
+    <>
+    {/* Smartphones only (hidden from md/768px up). It scrolls away with the page, so only the header row below
+        stays pinned and the sticky area doesn't eat a sixth of a small screen. */}
+    <MobileUtilityBar authenticated={status === "authenticated"} />
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
-      {/* Smartphones only (hidden from md/768px up). */}
-      <MobileUtilityBar authenticated={status === "authenticated"} />
       <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-6">
         <Link
           href="/"
-          className="group shrink-0 inline-flex items-center gap-1.5 text-lg font-bold tracking-tight text-slate-900"
+          className="group shrink-0 inline-flex items-center gap-1.5 text-lg font-bold tracking-tight text-slate-900 max-md:min-h-11"
         >
           <Image
               src="/logo.png"
@@ -222,5 +224,6 @@ export function Header() {
         </div>
       )}
     </header>
+    </>
   );
 }

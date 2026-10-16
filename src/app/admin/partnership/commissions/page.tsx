@@ -65,7 +65,7 @@ export default async function AdminCommissionsPage({ searchParams }: { searchPar
               <option value="MASTER_PARTNER">Master Partner</option>
             </select>
           </label>
-          <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-slate-600">
+          <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-slate-600 max-sm:min-w-full">
             Order ID, commission ID or referral code
             <input name="q" defaultValue={q} className="h-9 rounded-md border border-slate-300 px-2 text-sm" />
           </label>

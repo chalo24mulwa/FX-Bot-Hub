@@ -212,11 +212,11 @@ export function PostComposer({
       </div>
 
       <div>
-        <div className="mb-1 flex items-center justify-between">
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-y-1">
           <label htmlFor="post-content" className="text-sm font-medium text-slate-700">
             {isTrade ? "Analysis" : "Details"}
           </label>
-          <div className="flex items-center gap-1" role="toolbar" aria-label="Formatting">
+          <div className="flex flex-wrap items-center gap-1" role="toolbar" aria-label="Formatting">
             <button type="button" className={toolBtn} aria-label="Bold" title="Bold" onClick={() => edit({ before: "**" })}>
               <Bold className="h-4 w-4" />
             </button>

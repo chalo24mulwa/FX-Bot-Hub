@@ -109,7 +109,7 @@ export function MobileMenuPanel({ onSearch, onNavigate }: MobileMenuPanelProps) 
   const [openGroup, setOpenGroup] = useState<string | null>(null);
 
   return (
-    <nav aria-label="Mobile menu" className="max-h-[75dvh] overflow-y-auto overscroll-contain pb-1">
+    <nav aria-label="Mobile menu" className="max-h-[calc(100dvh-6.5rem)] overflow-y-auto overscroll-contain pb-1">
       <form onSubmit={onSearch} className="mb-3" role="search">
         <Input name="q" type="search" placeholder="Search products…" aria-label="Search marketplace" className="h-11 text-base" />
       </form>

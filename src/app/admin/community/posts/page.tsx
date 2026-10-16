@@ -33,10 +33,10 @@ export default async function AdminCommunityPosts({ searchParams }: { searchPara
   return (
     <div>
       <form className="mb-4 flex flex-wrap items-center gap-2" role="search">
-        <input name="q" defaultValue={q} placeholder="Search title or author…" aria-label="Search posts" className="h-9 w-72 rounded-md border border-slate-300 px-3 text-sm" />
+        <input name="q" defaultValue={q} placeholder="Search title or author…" aria-label="Search posts" className="h-9 w-full rounded-md border border-slate-300 px-3 text-sm sm:w-72" />
         {status && <input type="hidden" name="status" value={status} />}
         <button className="h-9 rounded-md bg-slate-900 px-4 text-sm font-medium text-white">Search</button>
-        <div className="ml-auto flex gap-1.5">
+        <div className="ml-auto flex flex-wrap gap-1.5">
           {STATUSES.map((s) => (
             <Link key={s} href={href({ status: s })} className={cn("rounded-full px-3 py-1 text-xs font-medium", (status ?? "ALL") === s ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200")}>
               {s}

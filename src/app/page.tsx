@@ -78,7 +78,7 @@ export default async function HomePage() {
             Forex trading tools and market insights: Expert Advisors, indicators, and trading
             signals for MT4 &amp; MT5 — plus a live market chart and news calendar to trade around.
           </p>
-          <div className="mt-8 flex justify-center gap-3">
+          <div className="mt-8 flex flex-wrap justify-center gap-3 max-sm:flex-col max-sm:items-stretch">
             <Link href="/marketplace" className={cn(buttonVariants({ size: "lg" }))}>
               Browse the marketplace
             </Link>

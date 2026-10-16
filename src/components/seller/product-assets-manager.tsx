@@ -84,8 +84,8 @@ export function ProductAssetsManager({
             />
           ))}
         </div>
-        <div className="mt-2 flex items-center gap-2">
-          <input ref={screenshotInput} type="file" accept="image/*" className="text-sm" />
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <input ref={screenshotInput} type="file" accept="image/*" className="min-w-0 max-w-full text-sm" />
           <Button
             type="button"
             variant="outline"

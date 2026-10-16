@@ -33,3 +33,22 @@ describe("navigation active states", () => {
     expect(isGroupCurrent("/community", find("Insights"))).toBe(false);
   });
 });
+
+import { bestMatchIndex } from "./navigation-active";
+
+describe("bestMatchIndex", () => {
+  const items = [{ href: "/dashboard" }, { href: "/dashboard/orders" }, { href: "/dashboard/partnership" }, { href: "/dashboard/partnership/payouts" }];
+
+  it("picks the most specific matching item", () => {
+    expect(bestMatchIndex("/dashboard", items)).toBe(0);
+    expect(bestMatchIndex("/dashboard/orders/abc123", items)).toBe(1);
+    expect(bestMatchIndex("/dashboard/partnership", items)).toBe(2);
+    expect(bestMatchIndex("/dashboard/partnership/payouts", items)).toBe(3);
+    expect(bestMatchIndex("/dashboard/partnership/links", items)).toBe(2);
+  });
+
+  it("returns -1 when the page is outside every item", () => {
+    expect(bestMatchIndex("/cart", items)).toBe(-1);
+    expect(bestMatchIndex("/dashboardx", items)).toBe(-1);
+  });
+});

@@ -50,8 +50,9 @@ test("visitors see the invitation in the header, homepage, footer and content pa
 test("the mobile menu has the link and nothing scrolls sideways", async ({ browser }) => {
   const page = await freshPage(browser, { width: 375, height: 812 });
   await page.goto("/");
+  // On phones the invitation is in the quick-links bar above the header (the menu itself no longer repeats it).
+  await expect(page.getByRole("navigation", { name: "Quick links" }).getByRole("link", { name: "Be Our Partner" })).toBeVisible();
   await page.getByRole("button", { name: "Toggle menu" }).click();
-  await expect(page.locator("header").getByRole("link", { name: "Be Our Partner" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBe(0);
 });
 

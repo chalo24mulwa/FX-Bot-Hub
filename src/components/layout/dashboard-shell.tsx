@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DashboardMobileNav } from "./dashboard-mobile-nav";
 
 export interface DashboardNavItem {
   label: string;
@@ -15,12 +16,13 @@ export function DashboardShell({
   children: React.ReactNode;
 }) {
   return (
-    // Below md the side nav becomes a horizontally scrolling row above the
-    // content, so pages get the full width on phones.
+    // Below md the side nav becomes a collapsible menu above the content (DashboardMobileNav), so pages get the
+    // full width on phones; the original side nav below is what tablets and desktops see.
     <main className="mx-auto flex w-full min-w-0 max-w-7xl flex-1 flex-col gap-6 px-4 py-8 sm:px-6 md:flex-row md:gap-8 md:py-10">
       <aside className="min-w-0 md:w-48 md:shrink-0">
-        <p className="mb-3 text-sm font-semibold text-slate-900">{title}</p>
-        <nav className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 md:mx-0 md:flex-col md:overflow-visible md:px-0 md:pb-0">
+        <DashboardMobileNav title={title} nav={nav} />
+        <p className="mb-3 text-sm font-semibold text-slate-900 max-md:hidden">{title}</p>
+        <nav className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 max-md:hidden md:mx-0 md:flex-col md:overflow-visible md:px-0 md:pb-0">
           {nav.map((item) => (
             <Link
               key={item.href}

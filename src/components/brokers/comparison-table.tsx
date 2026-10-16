@@ -14,7 +14,7 @@ const NOT_PROVIDED = <span className="italic text-slate-400">Not provided</span>
 export function ComparisonTable({ brokers, ranks }: { brokers: BrokerView[]; ranks: Map<string, number> }) {
   return (
     <div className="relative overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm" tabIndex={0} role="region" aria-label="Broker comparison table, scrolls sideways on small screens">
-      <table className="w-full min-w-[56rem] border-collapse text-left text-sm">
+      <table data-stack-skip className="w-full min-w-[56rem] border-collapse text-left text-sm">
         <caption className="sr-only">Comparison of the listed forex brokers: rating, platforms, minimum deposit, regulation and best-for categories</caption>
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-500">

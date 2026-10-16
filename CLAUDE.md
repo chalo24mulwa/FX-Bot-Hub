@@ -1881,6 +1881,48 @@ active-state helpers in `src/lib/navigation-active.ts` (unit-tested), `e2e/mobil
   button overflows by ~18px and the sign-in card by ~29px. The header and the bar are clean at 320px, which the spec
   asserts; the whole-page no-sideways-scroll check starts at 360px for that reason.
 
+## Mobile layout system (phones only, < 768px)
+
+A site-wide pass to make every screen work at 320-430px, done by fixing the *shared* causes rather than page by page.
+**Everything is phone-only**: Tailwind `max-md:`/`max-sm:` classes or a `@media (max-width: 767.98px)` block, so tablets (768+)
+and desktops render as before. No route, logic, API, auth or database change. Verified by auditing 109 pages × 4 widths
+(320/375/390/430) for sideways overflow, tiny text, small tap targets and overlaps — it went from 20 overflowing combinations to 0
+(`e2e/mobile-layout.spec.ts` keeps it that way).
+
+- **Root cause of the page-wide sideways scroll** (calendar, auth, seller, admin pages): `<main className="mx-auto max-w-…">` is a
+  flex-column child, and **auto margins stop a flex item stretching**, so it is sized to its widest content (a table, a long
+  form, a button row) instead of the screen. Fixed once in `globals.css` (base layer, phones only): `main { width:100%; min-width:0 }`
+  — `max-w-…` still caps it, wide children scroll inside their own `overflow-x-auto`. Same block: `fieldset { min-width:0 }`
+  (its default `min-content` pushed long forms off-screen), `body { overflow-wrap: break-word }` (long URLs/ids/env names wrap;
+  deliberately not `anywhere`, which would squeeze table columns), and `input,select,textarea { max-width:100% }`.
+  **When you add a page, you don't need `w-full min-w-0` on its `<main>` any more.**
+- **Touch**: buttons and form fields are ≥ 40px tall, text fields are **16px** (iOS zooms the page on focus below that), pill-shaped
+  links get a 40px hit area, nothing is under 11px (`.text-[10px]` is bumped), the header logo is ≥ 44px. These are unlayered CSS in
+  `globals.css`, so they intentionally beat utility classes like `h-8` on phones.
+- **Data tables become labelled cards** (`src/components/layout/responsive-tables.tsx`, mounted in the root layout): below 768px every
+  table gets `data-label` on each cell (from its header), the header row is visually hidden and each row is a card of "NAME  value"
+  lines (CSS in `globals.css`), so no column hides behind a sideways scroll. It only adds attributes (plus explicit ARIA roles, since
+  changing `display` drops table semantics) and re-labels rows React adds later via a MutationObserver. The first cell of a row heads the
+  card without a label. **Opt out with `data-stack-skip`** on a table that is a deliberate side-by-side comparison (the broker and VPS
+  tables) or has its own phone layout (the calendar).
+- **Calendar** (`calendar-table.tsx`): its own phone layout — each event is a card (time · currency · impact, the full title, then
+  Actual/Forecast/Previous one per line and only when they have a value), built from `max-md:` classes on the same markup. Tailwind only
+  emits class names it can see written out in full, so the three `before:content-['Actual']` classes are literals in a lookup, not built
+  from a template string (that silently produced no label).
+- **Account / Seller / Admin side menus** (`dashboard-shell.tsx` + `dashboard-mobile-nav.tsx`): the old phone version was a sideways row
+  that clipped items (Admin has 25). Phones now get a collapsible menu naming the current section (`bestMatchIndex`, unit-tested) with every
+  item in two touch-sized columns, closing itself on selection; `md:` and up keep the original side nav (the two are both in the DOM, one
+  hidden by CSS).
+- **Header**: the quick-links bar now sits *outside* the sticky `<header>`, so it scrolls away and only the header row stays pinned
+  (otherwise ~110px of a small screen is permanently covered). Tests reach it by `navigation` name "Quick links", not by `header`.
+- **Smaller fixes**: homepage hero buttons stack on small phones; auth pages use tighter gutters/card padding below `sm` (desktop values
+  unchanged from `sm` up); seller screenshot-upload row and the admin posts/commissions filter bars wrap.
+- **Left alone on purpose**: overlapping controls the audit flags are intentional (favourite button over a card link, stretched card
+  links, the password-visibility toggle inside its input, inline links in wrapped text). Plain inline text links stay small, as WCAG allows.
+- **To audit again**: crawl every route at 320/375/390/430 and report `documentElement.scrollWidth - innerWidth`, elements outside any
+  `overflow-x:auto` ancestor whose right edge passes the viewport, and *text nodes* whose range does (long unbroken words overflow without
+  any element box showing it). The latter found two bugs the first, element-only pass missed.
+
 ## Testing
 
 - `npm run test` (Vitest) — pure-logic unit tests only (authorization matrix,

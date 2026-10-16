@@ -81,6 +81,23 @@ function groupByDay(events: EconomicEvent[], timezone: string): Map<string, { we
   return groups;
 }
 
+/** Phone-only classes for an Actual/Forecast/Previous cell: its own line with a small label beside it,
+ * and hidden altogether when there is no value (so an upcoming event is just a time, a currency, an impact and a title). */
+const METRIC_LABEL = {
+  Actual: "max-md:before:content-['Actual']",
+  Forecast: "max-md:before:content-['Forecast']",
+  Previous: "max-md:before:content-['Previous']",
+} as const;
+
+function metric(value: string | null, label: keyof typeof METRIC_LABEL): string {
+  if (!value) return "max-md:hidden";
+  return cn(
+    // one figure per line: a fixed-width label, then the value (free-text values like "4.06 million SAAR" need the room)
+    "max-md:col-span-6 max-md:flex max-md:items-baseline max-md:gap-2 max-md:p-0 max-md:text-sm max-md:before:w-[4.5rem] max-md:before:shrink-0 max-md:before:text-[10px] max-md:before:font-semibold max-md:before:uppercase max-md:before:tracking-wider max-md:before:text-slate-400",
+    METRIC_LABEL[label],
+  );
+}
+
 function Cell({ value, className }: { value: string | null; className?: string }) {
   return value ? <span className={className}>{value}</span> : <span className="text-slate-300">–</span>;
 }
@@ -111,11 +128,12 @@ export function CalendarTable({ events, timezone, todayDate }: { events: Economi
 
   return (
     <div className={surface}>
-      <p className="border-b border-slate-100 bg-slate-50 px-4 py-1.5 text-[11px] text-slate-400 sm:hidden">Swipe sideways for Actual · Forecast · Previous →</p>
-      {/* Own horizontal scroll: a narrow screen scrolls the table, not the page. */}
+      {/* Own horizontal scroll for tablets/desktops. Below md (phones) the rows are stacked into compact cards instead
+          (every `max-md:` class below), so Event, Actual, Forecast and Previous are all readable without sideways
+          scrolling. Explicit roles keep the table semantics when the rows stop being table-rows. */}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[760px] border-collapse text-[13px]">
-          <thead>
+        <table role="table" data-stack-skip className="w-full min-w-[760px] border-collapse text-[13px] max-md:block max-md:min-w-0">
+          <thead role="rowgroup" className="max-md:sr-only">
             <tr className="border-b border-slate-200 bg-slate-50 text-left">
               <th className={cn(th, "whitespace-nowrap pl-4")} title={`Times shown in ${tzLabel}`}>
                 Time ({tzShort})
@@ -131,11 +149,11 @@ export function CalendarTable({ events, timezone, todayDate }: { events: Economi
           {days.map((day) => {
             const isToday = todayDate === day.date;
             return (
-              <tbody key={day.date}>
-                <tr>
+              <tbody key={day.date} role="rowgroup" className="max-md:block">
+                <tr role="row" className="max-md:block">
                   <th
                     colSpan={7}
-                    className="border-y border-slate-900/10 bg-gradient-to-r from-[#111a3a] via-[#191446] to-[#111a3a] px-4 py-1.5 text-left text-xs font-semibold tracking-wide text-slate-100"
+                    className="max-md:block border-y border-slate-900/10 bg-gradient-to-r from-[#111a3a] via-[#191446] to-[#111a3a] px-4 py-1.5 text-left text-xs font-semibold tracking-wide text-slate-100"
                   >
                     <span className="inline-flex items-center gap-2">
                       <span className="h-3.5 w-1 rounded-full bg-violet-400" aria-hidden="true" />
@@ -151,15 +169,25 @@ export function CalendarTable({ events, timezone, todayDate }: { events: Economi
                   const meta = IMPACT_META[event.impact] ?? IMPACT_META.OTHER;
                   const isCancelledOrPostponed = event.status === "CANCELLED" || event.status === "POSTPONED";
                   return (
-                    <tr key={event.id} className={cn("border-b border-slate-100 transition-colors motion-reduce:transition-none", meta.rowTint)}>
-                      <td className={cn("whitespace-nowrap border-l-[3px] py-2 pl-[13px] pr-3 tabular-nums text-slate-600", meta.rowAccent)}>
+                    <tr
+                      key={event.id}
+                      role="row"
+                      className={cn(
+                        "border-b border-slate-100 transition-colors motion-reduce:transition-none",
+                        meta.rowTint,
+                        // phones: one card per event — a 6-column grid (time | currency | impact, then the title, then the figures)
+                        "max-md:grid max-md:grid-cols-6 max-md:items-center max-md:gap-x-3 max-md:gap-y-1.5 max-md:border-l-[3px] max-md:px-3.5 max-md:py-3",
+                        meta.rowAccent,
+                      )}
+                    >
+                      <td role="cell" className={cn("whitespace-nowrap border-l-[3px] py-2 pl-[13px] pr-3 tabular-nums text-slate-600 max-md:col-span-2 max-md:border-l-0 max-md:p-0", meta.rowAccent)}>
                         {event.allDay ? (
                           <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-500">All day</span>
                         ) : (
                           <span className="font-medium">{time}</span>
                         )}
                       </td>
-                      <td className="px-3 py-2">
+                      <td role="cell" className="px-3 py-2 max-md:col-span-2 max-md:p-0">
                         <Link
                           href={`/calendar/${event.currency.toLowerCase()}`}
                           className="inline-flex rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-xs font-semibold text-slate-700 transition-colors hover:bg-violet-100 hover:text-violet-700"
@@ -167,24 +195,24 @@ export function CalendarTable({ events, timezone, todayDate }: { events: Economi
                           {event.currency}
                         </Link>
                       </td>
-                      <td className="px-3 py-2">
+                      <td role="cell" className="px-3 py-2 max-md:col-span-2 max-md:justify-self-end max-md:p-0">
                         <div className="flex items-center gap-2" title={event.impact}>
                           <ImpactBars impact={event.impact} />
                           {isCancelledOrPostponed && <Badge className={STATUS_STYLES[event.status]}>{event.status}</Badge>}
                         </div>
                       </td>
-                      <td className="px-3 py-2">
+                      <td role="cell" className="px-3 py-2 max-md:col-span-6 max-md:p-0 max-md:text-[15px] max-md:leading-snug">
                         <Link href={`/calendar/event/${event.id}`} className={cn("transition-colors hover:text-violet-700 hover:underline", meta.title)}>
                           {event.title}
                         </Link>
                       </td>
-                      <td className="max-w-[220px] px-3 py-2">
+                      <td role="cell" className={cn("max-w-[220px] px-3 py-2", metric(event.actual, "Actual"))}>
                         <Cell value={event.actual} className={cn("font-semibold", actualColor(event.actual, event.forecast))} />
                       </td>
-                      <td className="max-w-[200px] px-3 py-2 text-slate-600">
+                      <td role="cell" className={cn("max-w-[200px] px-3 py-2 text-slate-600", metric(event.forecast, "Forecast"))}>
                         <Cell value={event.forecast} />
                       </td>
-                      <td className="max-w-[220px] px-3 py-2 text-slate-600">
+                      <td role="cell" className={cn("max-w-[220px] px-3 py-2 text-slate-600", metric(event.previous, "Previous"))}>
                         <Cell value={event.previous} />
                         {event.revisedPrevious && (
                           <span className="ml-1 text-xs text-amber-600" title={`Revised from ${event.revisedPrevious}`}>

@@ -24,3 +24,21 @@ export function isLinkCurrent(pathname: string, href: string): boolean {
 export function isGroupCurrent(pathname: string, links: readonly { href: string }[]): boolean {
   return links.some((link) => onPath(pathname, hrefPath(link.href)));
 }
+
+/**
+ * The item that best matches the current page: the one with the longest path that the page is on or beneath, so
+ * `/dashboard` (Overview) is current only on `/dashboard` itself while `/dashboard/orders/abc` selects Orders.
+ * Returns -1 when nothing matches.
+ */
+export function bestMatchIndex(pathname: string, items: readonly { href: string }[]): number {
+  let best = -1;
+  let bestLength = -1;
+  items.forEach((item, index) => {
+    const path = hrefPath(item.href);
+    if (onPath(pathname, path) && path.length > bestLength) {
+      best = index;
+      bestLength = path.length;
+    }
+  });
+  return best;
+}

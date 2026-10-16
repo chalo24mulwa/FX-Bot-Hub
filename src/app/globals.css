@@ -24,3 +24,165 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ---------------------------------------------------------------------------------------------
+   Phones-only hardening (< 768px). Nothing here applies at tablet or desktop widths.
+
+   1. <main> is a flex-column child that almost every page gives `mx-auto max-w-…`. Auto margins stop a
+      flex item stretching, so it was sized to its widest content (a table, a long form, a wide button row)
+      instead of the screen — the root cause of the page-wide sideways scroll on the calendar, auth,
+      seller and admin pages. Giving it the full width and `min-width: 0` lets `max-w-…` still cap it and
+      lets wide children scroll inside their own overflow containers. It lives in the base layer so any
+      page that sets its own width keeps it.
+   2. <fieldset> defaults to `min-width: min-content`, which pushed long forms past the screen edge.
+   -------------------------------------------------------------------------------------------- */
+@layer base {
+  @media (max-width: 767.98px) {
+    main {
+      width: 100%;
+      min-width: 0;
+    }
+    fieldset {
+      min-width: 0;
+    }
+
+    /* Finger-sized controls. In the base layer on purpose: a component that asks for something bigger (min-h-12 on the menu
+       buttons) keeps it, and one that asks for something smaller (h-8) is lifted to 40px because min-height outranks height. */
+    button,
+    [role="button"],
+    input[type="submit"],
+    input[type="button"],
+    select {
+      min-height: 40px;
+    }
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]):not([type="color"]) {
+      min-height: 40px;
+    }
+    /* Icon-only buttons (a lone svg inside) are also at least 40px wide. Text buttons size to their label as before. */
+    button:has(> svg:only-child),
+    [role="button"]:has(> svg:only-child) {
+      min-width: 40px;
+    }
+    /* Pill-shaped links (filters, categories, tags) and button-styled links get a finger-sized hit area too. */
+    a[class*="rounded-full"] {
+      display: inline-flex;
+      align-items: center;
+      min-height: 40px;
+    }
+    a[class*="rounded-md"][class*="px-"],
+    a[class*="rounded-lg"][class*="px-"] {
+      min-height: 40px;
+    }
+  }
+}
+
+@media (max-width: 767.98px) {
+  /* A long unbroken word (a URL, an id, an env-var name) wraps instead of spilling past the screen edge. Inherited, and
+     deliberately `break-word` (not `anywhere`) so table columns and flex items are not squeezed narrower. */
+  body {
+    overflow-wrap: break-word;
+  }
+
+  /* Form controls never outgrow their container (a default text input is ~20 characters wide). */
+  input,
+  select,
+  textarea {
+    max-width: 100%;
+  }
+
+  /* 16px form text: iOS Safari zooms the whole page when a smaller field is focused. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+
+  /* Data tables as stacked cards. `ResponsiveTables` labels every cell with its column name; here each row becomes a card
+     and each cell a "NAME  value" line, so no column is ever hidden behind a sideways scroll. The table's own min-width
+     (`min-w-[820px]` and friends) is released so the cards fill the screen. */
+  table[data-stacked]:not([data-stack-skip]) {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    border-collapse: separate;
+  }
+  table[data-stacked]:not([data-stack-skip]) caption,
+  table[data-stacked]:not([data-stack-skip]) tbody,
+  table[data-stacked]:not([data-stack-skip]) tfoot {
+    display: block;
+  }
+  table[data-stacked]:not([data-stack-skip]) thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  table[data-stacked]:not([data-stack-skip]) tbody tr,
+  table[data-stacked]:not([data-stack-skip]) tfoot tr {
+    display: block;
+    margin: 0 0 0.625rem;
+    padding: 0.25rem 0.875rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+  }
+  table[data-stacked]:not([data-stack-skip]) tbody td,
+  table[data-stacked]:not([data-stack-skip]) tbody th,
+  table[data-stacked]:not([data-stack-skip]) tfoot td {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.25rem 0.75rem;
+    /* a long value (an email, an id) wraps inside its own column instead of dropping under the label */
+    overflow-wrap: anywhere;
+    width: auto;
+    max-width: none;
+    padding: 0.5rem 0;
+    border: 0;
+    border-bottom: 1px dashed #e2e8f0;
+    text-align: right;
+    white-space: normal;
+  }
+  table[data-stacked]:not([data-stack-skip]) tbody tr > :last-child {
+    border-bottom: 0;
+  }
+  table[data-stacked]:not([data-stack-skip]) td[data-label]:not([data-label=""])::before,
+  table[data-stacked]:not([data-stack-skip]) th[data-label]:not([data-label=""])::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    max-width: 42%;
+    text-align: left;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+  }
+  /* The first cell of each row is its identity (a name, an id, a time): it heads the card instead of carrying a label. */
+  table[data-stacked]:not([data-stack-skip]) tbody tr > :first-child {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    text-align: left;
+    font-weight: 600;
+    padding-top: 0.625rem;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  table[data-stacked]:not([data-stack-skip]) tbody tr > :first-child::before {
+    content: none;
+  }
+
+  /* Spanning cells ("nothing here", group headings) and unlabeled cells (action buttons) read as plain full-width rows. */
+  table[data-stacked]:not([data-stack-skip]) td[data-label=""],
+  table[data-stacked]:not([data-stack-skip]) th[data-label=""] {
+    justify-content: flex-start;
+    text-align: left;
+    flex-wrap: wrap;
+  }
+
+  /* Nothing smaller than 11px on a phone (a few badges and captions were 10px). */
+  .text-\[10px\] {
+    font-size: 11px;
+  }
+}

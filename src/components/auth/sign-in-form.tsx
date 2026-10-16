@@ -41,8 +41,8 @@ export function SignInForm({ googleEnabled, errorCode, callbackUrl }: { googleEn
   }
 
   return (
-    <main className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md flex-1 flex-col justify-center px-6 py-16">
-      <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
+    <main className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md flex-1 flex-col justify-center px-4 py-10 sm:px-6 sm:py-16">
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-10">
         <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Sign in</h1>
         <p className="mt-2 text-sm text-slate-500">Welcome back — sign in to your account.</p>
 

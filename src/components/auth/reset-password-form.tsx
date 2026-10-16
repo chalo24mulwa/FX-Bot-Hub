@@ -48,7 +48,7 @@ export function ResetPasswordForm() {
 
   if (!token) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm sm:p-10">
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-sm sm:p-10">
         <h1 className="text-2xl font-semibold text-slate-900">Invalid reset link</h1>
         <p className="mt-2 text-sm text-slate-500">This link is missing its reset token. Request a new one below.</p>
         <Link href="/auth/forgot-password" className="mt-6 inline-block font-medium text-slate-900 hover:underline">
@@ -60,7 +60,7 @@ export function ResetPasswordForm() {
 
   if (done) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-10">
         <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Password reset</h1>
         <div className="mt-4 rounded-md bg-emerald-50 p-4 text-sm text-emerald-800">
           Your password has been changed. You can now sign in with your new password.
@@ -73,7 +73,7 @@ export function ResetPasswordForm() {
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-10">
       <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Set a new password</h1>
       <p className="mt-2 text-sm text-slate-500">Choose a new password for your account.</p>
       <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">

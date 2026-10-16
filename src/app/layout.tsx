@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthSessionProvider } from "@/components/providers/session-provider";
 import { Header } from "@/components/layout/header";
+import { ResponsiveTables } from "@/components/layout/responsive-tables";
 import { ImpersonationBanner } from "@/components/admin/impersonation-banner";
 import { Footer } from "@/components/layout/footer";
 import { ReferralTracker } from "@/components/partnership/referral-tracker";
@@ -59,6 +60,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <div className="flex min-w-0 flex-1 flex-col">{children}</div>
           <Footer />
           <ReferralTracker />
+          <ResponsiveTables />
         </AuthSessionProvider>
       </body>
     </html>

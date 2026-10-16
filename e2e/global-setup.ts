@@ -1,6 +1,21 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
+/**
+ * When the calendar fixture event happens: three days from now, unless that falls into *next* week (the calendar's default view
+ * is the current Monday-Sunday week in Nairobi time), in which case one hour from now. A flat "+3 days" fell out of view on every
+ * Friday, Saturday and Sunday, so the calendar specs passed or failed depending on the weekday the suite ran.
+ */
+function fixtureEventTime(now = new Date()): Date {
+  const weekKey = (d: Date) => {
+    const local = new Date(d.getTime() + 3 * 3_600_000); // Africa/Nairobi is UTC+3 all year
+    const monday = new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate() - ((local.getUTCDay() + 6) % 7)));
+    return monday.toISOString().slice(0, 10);
+  };
+  const threeDays = new Date(now.getTime() + 3 * 86_400_000);
+  return weekKey(threeDays) === weekKey(now) ? threeDays : new Date(now.getTime() + 3_600_000);
+}
+
 // Runs once before the Playwright suite (see playwright.config.ts's
 // globalSetup) against whatever DATABASE_URL the test run points at — CI's
 // ephemeral Postgres service included. Deliberately does not depend on
@@ -64,7 +79,7 @@ export default async function globalSetup() {
     // Re-anchor on every run: an upsert with an empty update kept the date from
     // the first-ever run, so on a reused database the event drifted into the past
     // and fell out of the calendar's default "this week" view.
-    update: { eventTime: new Date(Date.now() + 3 * 86_400_000) },
+    update: { eventTime: fixtureEventTime() },
     create: {
       externalId: "e2e-fixture-event",
       country: "United States",
@@ -72,7 +87,7 @@ export default async function globalSetup() {
       title: "E2E Fixture Event",
       impact: "HIGH",
       category: "CENTRAL_BANK",
-      eventTime: new Date(Date.now() + 3 * 86_400_000),
+      eventTime: fixtureEventTime(),
       forecast: "1.0%",
       previous: "0.9%",
       source: "manual",

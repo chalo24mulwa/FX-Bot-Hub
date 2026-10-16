@@ -30,10 +30,11 @@ export default async function AlertsPage() {
         <ul className="mt-4 divide-y divide-slate-100">
           {alerts.map((alert) => (
             <li key={alert.id} className="flex items-center justify-between gap-4 py-3">
-              <div>
-                <div className="flex items-center gap-2">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <Badge>{TYPE_LABELS[alert.type]}</Badge>
-                  <span className="text-sm font-medium text-slate-900">{alert.targetId}</span>
+                  {/* a target id is one long unbroken string: let it wrap instead of widening the row (and the page) */}
+                  <span className="min-w-0 break-all text-sm font-medium text-slate-900">{alert.targetId}</span>
                 </div>
                 <p className="text-xs text-slate-500">via {alert.channels.join(", ")}</p>
               </div>
