@@ -191,7 +191,7 @@ there, not by inlining new math into `ranking-service.ts`.
 - `redis.ts` sets `commandTimeout` + a capped `retryStrategy` + an `error`
   listener so a down Redis fails fast and quietly instead of hanging requests or
   spamming "Unhandled error event" stack traces — keep that when touching it.
-- File uploads never touch the server's memory/disk: sellers get a presigned PUT
+- With a bucket configured, file uploads never touch the server's memory/disk (with none, see "Seller file uploads" below): sellers get a presigned PUT
   URL (`/api/seller/uploads/presign`, validated by `validateUpload()`) and upload
   directly to object storage, then call `/api/seller/products/[id]/assets` to
   record the resulting `storageKey` in the DB. See `src/features/seller/
@@ -1928,6 +1928,47 @@ and desktops render as before. No route, logic, API, auth or database change. Ve
 - **To audit again**: crawl every route at 320/375/390/430 and report `documentElement.scrollWidth - innerWidth`, elements outside any
   `overflow-x:auto` ancestor whose right edge passes the viewport, and *text nodes* whose range does (long unbroken words overflow without
   any element box showing it). The latter found two bugs the first, element-only pass missed.
+
+## Seller file uploads: database storage fallback and the Browse/drop area
+
+Why: production has **no object storage**, so every presigned upload (product files, screenshots, covers) failed
+there. Fixed without requiring a bucket; additive migration `20261019000000_stored_objects` (one table, `StoredObject`).
+
+- **Provider choice** (`src/lib/storage/index.ts`): `externalStorageConfigured()` = `STORAGE_ACCESS_KEY_ID` +
+  `STORAGE_SECRET_ACCESS_KEY` + `NEXT_PUBLIC_STORAGE_PUBLIC_BASE_URL` all set -> `S3StorageProvider`; otherwise
+  `DatabaseStorageProvider` keeps bytes in Postgres. Same `StorageProvider` interface and same keys, so no caller
+  changed. Setting STORAGE_* later switches *new* uploads to the bucket; **objects already in the database are not
+  migrated** and, because `getPublicUrl()` then points at the bucket, their images would stop resolving — copy them
+  over first if you ever switch. `getPublicUrl()` (client-safe) returns `/api/storage/public/<key>` when the public
+  base URL is empty, so the client/server decision stays consistent (they must both read the *same* config).
+- **"Signed URLs" are same-origin routes** with an HMAC token (`signed-token.ts`, AUTH_SECRET; mode `u`/`d`, key,
+  content type, expiry): `PUT /api/storage/upload` (body streamed with a hard byte cap per key kind, `maxBytesForKey`),
+  `GET /api/storage/download` (always an opaque `attachment`; `/api/downloads/[id]` still does the entitlement check
+  and mints the token), `GET /api/storage/public/[...key]` (images + documentation + community only — **never
+  product files**; the uploader's content type is never echoed, `publicDelivery()` derives it from the extension;
+  `nosniff` + sandbox CSP). Pure rules are in `object-serving.ts`, tested in `storage-db.test.ts`.
+- **Limits / cost**: `UPLOAD_LIMITS.productFile` stays 50 MB per file; in database mode the body is buffered in memory
+  (and a copy goes to Postgres), and files count against the database's storage quota (Neon). Fine for EAs and
+  archives; configure a real bucket before hosting large files at volume. `next/image` serves DB images through the
+  same-origin route, which `robots.txt` disallows under `/api` (so those images aren't indexed as images).
+- **Formats** (`validate-upload.ts`, one list shared by the UI, the file `accept` attribute and the server):
+  MetaTrader (`.ex4 .ex5 .mq4 .mq5 .mqh .mql .mql4 .mql5 .set .tpl .chr .ini .mqproj`), archives (`.zip .rar .7z .tar
+  .gz .tgz`), Windows (`.exe .dll .msi .bat`), documents/data. **The MIME type is not an allowlist for product files
+  or documentation** — browsers report `""`, `application/x-msdownload`, `application/x-zip-compressed`… for these,
+  which was rejecting valid uploads; extension + size decide, and the presign step signs `application/octet-stream`
+  and returns it so the client PUTs with exactly that. Images keep the PNG/JPG/WebP type check (no SVG).
+  Executables are accepted because sellers ship them, but they are only ever delivered as attachments after an
+  entitlement check — nothing scans them for malware.
+- **The upload area** (`src/components/seller/file-dropzone.tsx`): one big dashed drop target that is a `<label>`
+  for the real (visually hidden, keyboard-focusable) file input, a prominent violet "Browse files" button, grouped
+  accepted-format chips, the size limit, multi-file selection, sequential uploads with a per-file progress bar
+  (`XMLHttpRequest` — `fetch` can't report upload progress), a Retry on failure and plain-language rejections before
+  any request. Used by the wizard's Screenshots/Files steps and the edit page's Media & files; Version (and a
+  document title) must be filled before the area enables. The earlier bare `<input type=file>` swallowed errors from the
+  screenshot step and left it disabled — don't reintroduce a per-step upload input.
+- **Tests**: `e2e/file-upload.spec.ts` does real uploads/downloads against the database storage, and
+  `playwright.config.ts` blanks `STORAGE_*`/`NEXT_PUBLIC_STORAGE_PUBLIC_BASE_URL` for the build *and* server so CI (no
+  MinIO) exercises the same mode as production. A manual run against MinIO needs those set and a bucket.
 
 ## Testing
 

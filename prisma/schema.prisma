@@ -2159,3 +2159,17 @@ model VpsProvider {
   @@index([status, position])
   @@map("vps_providers")
 }
+
+/// File bytes for deployments with no S3-compatible bucket configured (the Hostinger plan today).
+/// The same StorageProvider interface fronts this and S3/R2/MinIO, so product images, screenshots and
+/// downloadable files use identical keys either way; configuring STORAGE_* switches new uploads to the
+/// bucket with no code change. Never selected by list queries — only by key (src/lib/storage/database-provider.ts).
+model StoredObject {
+  key         String   @id
+  contentType String
+  sizeBytes   Int
+  data        Bytes
+  createdAt   DateTime @default(now())
+
+  @@map("stored_objects")
+}

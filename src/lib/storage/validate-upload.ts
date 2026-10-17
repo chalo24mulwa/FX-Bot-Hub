@@ -1,8 +1,36 @@
+// Safe to import from Client Components (no env, no server code): the upload areas build their
+// "accepted formats" hint and the file-input `accept` list from here, so what the page promises is
+// exactly what the server accepts.
+
+/**
+ * Everything a seller may attach as a downloadable product file: MetaTrader sources and binaries,
+ * templates/presets, archives, Windows installers and helper tools, and plain documents. Delivery is
+ * always a signed, time-limited `attachment` download, never an inline page, and a buyer is only
+ * ever handed a file after an entitlement check.
+ */
+export const PRODUCT_FILE_GROUPS = [
+  { label: "MetaTrader", extensions: [".ex4", ".ex5", ".mq4", ".mq5", ".mqh", ".mql", ".mql4", ".mql5", ".set", ".tpl", ".chr", ".ini", ".mqproj"] },
+  { label: "Archives", extensions: [".zip", ".rar", ".7z", ".tar", ".gz", ".tgz"] },
+  { label: "Windows", extensions: [".exe", ".dll", ".msi", ".bat"] },
+  { label: "Documents & data", extensions: [".pdf", ".txt", ".md", ".csv", ".json", ".xml", ".doc", ".docx", ".xls", ".xlsx"] },
+] as const;
+
+export const PRODUCT_FILE_EXTENSIONS = PRODUCT_FILE_GROUPS.flatMap((g) => g.extensions) as readonly string[];
+
+/** The formats of an upload kind, grouped for display (kinds without named groups show one unlabeled group). */
+export function formatGroups(kind: UploadKind): readonly { label: string; extensions: readonly string[] }[] {
+  if (kind === "productFile") return PRODUCT_FILE_GROUPS;
+  return [{ label: "", extensions: UPLOAD_LIMITS[kind].extensions }];
+}
+
 export const UPLOAD_LIMITS = {
   productFile: {
     maxBytes: 50 * 1024 * 1024, // 50 MB
-    extensions: [".ex4", ".ex5", ".mq4", ".mq5", ".set", ".zip"],
-    contentTypes: ["application/octet-stream", "application/zip", "application/x-zip-compressed"],
+    extensions: PRODUCT_FILE_EXTENSIONS,
+    // Browsers disagree about the MIME type of anything MetaTrader-specific (.ex4, .set, .mq5 are often
+    // reported as "" or as a Windows-registered type), so the content type is not an allowlist here:
+    // the extension and size decide, and the type only has to be a well-formed value (see below).
+    contentTypes: null,
   },
   image: {
     maxBytes: 8 * 1024 * 1024, // 8 MB
@@ -11,8 +39,8 @@ export const UPLOAD_LIMITS = {
   },
   documentation: {
     maxBytes: 15 * 1024 * 1024, // 15 MB
-    extensions: [".pdf", ".md", ".txt"],
-    contentTypes: ["application/pdf", "text/markdown", "text/plain"],
+    extensions: [".pdf", ".md", ".txt", ".doc", ".docx", ".rtf", ".csv"],
+    contentTypes: null,
   },
 } as const;
 
@@ -30,27 +58,49 @@ export interface ValidateUploadResult {
   error?: string;
 }
 
-/**
- * Extension + MIME + size allowlist check, run before accepting any
- * user-supplied file (never trust the client-reported contentType alone —
- * this is a defense layer, not a substitute for storing files outside the
- * web root / serving them with a safe Content-Disposition).
- */
-export function validateUpload({ kind, fileName, contentType, sizeBytes }: ValidateUploadInput): ValidateUploadResult {
+const MIME_SHAPE = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/i;
+
+export function fileExtension(fileName: string): string {
+  const dot = fileName.lastIndexOf(".");
+  return dot < 0 ? "" : fileName.slice(dot).toLowerCase();
+}
+
+/** "1.5 MB" / "300 KB" — for the limits shown next to the upload areas. */
+export function formatBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+/** The comma-separated list for an `<input type="file" accept>`. */
+export function acceptAttribute(kind: UploadKind): string {
+  return UPLOAD_LIMITS[kind].extensions.join(",");
+}
+
+/** Plain-English check run in the browser before a presign round trip; the server repeats it. */
+export function describeRejection({ kind, fileName, contentType, sizeBytes }: ValidateUploadInput): string | null {
   const limits = UPLOAD_LIMITS[kind];
-
-  const ext = fileName.slice(fileName.lastIndexOf(".")).toLowerCase();
+  const ext = fileExtension(fileName);
   if (!(limits.extensions as readonly string[]).includes(ext)) {
-    return { ok: false, error: `File extension "${ext}" is not allowed for ${kind} uploads.` };
+    const shown = ext || "(no extension)";
+    return `"${fileName}": ${shown} files can't be uploaded here. Use one of the accepted formats listed above the upload button.`;
   }
-
-  if (!(limits.contentTypes as readonly string[]).includes(contentType)) {
-    return { ok: false, error: `Content type "${contentType}" is not allowed for ${kind} uploads.` };
+  if (limits.contentTypes && !(limits.contentTypes as readonly string[]).includes(contentType)) {
+    return `"${fileName}" is not a supported ${kind === "image" ? "image (use PNG, JPG or WebP)" : "file"} type.`;
   }
-
-  if (sizeBytes <= 0 || sizeBytes > limits.maxBytes) {
-    return { ok: false, error: `File must be between 1 byte and ${limits.maxBytes} bytes.` };
+  if (!limits.contentTypes && !MIME_SHAPE.test(contentType)) {
+    return `"${fileName}" has an invalid content type.`;
   }
+  if (sizeBytes <= 0) return `"${fileName}" is empty.`;
+  if (sizeBytes > limits.maxBytes) return `"${fileName}" is ${formatBytes(sizeBytes)}; the limit is ${formatBytes(limits.maxBytes)}.`;
+  return null;
+}
 
-  return { ok: true };
+/**
+ * Extension + size (+ MIME for images) allowlist check, run before accepting any user-supplied file
+ * (never trust the client-reported contentType alone — this is a defense layer, not a substitute for
+ * storing files outside the web root / serving them with a safe Content-Disposition).
+ */
+export function validateUpload(input: ValidateUploadInput): ValidateUploadResult {
+  const error = describeRejection(input);
+  return error ? { ok: false, error } : { ok: true };
 }

@@ -44,9 +44,18 @@ export async function presignProductUpload({
 
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
   const storageKey = `${productKeyPrefix(productId, kind)}${randomUUID()}-${safeName}`;
-  const uploadUrl = await storage.getSignedUploadUrl(storageKey, contentType, 300);
+  // Browsers report unreliable MIME types for MetaTrader/Windows files, so those are always stored as
+  // opaque bytes (and only ever served as downloads); the client must PUT with the type returned here.
+  // Images keep their validated type.
+  const storedContentType = kind === "image" ? contentType : "application/octet-stream";
+  let uploadUrl: string;
+  try {
+    uploadUrl = await storage.getSignedUploadUrl(storageKey, storedContentType, 300);
+  } catch {
+    throw new AssetError("File storage is not available right now. Please try again in a moment.", 503);
+  }
 
-  return { uploadUrl, storageKey };
+  return { uploadUrl, storageKey, contentType: storedContentType };
 }
 
 export async function attachImage(sellerId: string, productId: string, storageKey: string, altText?: string) {

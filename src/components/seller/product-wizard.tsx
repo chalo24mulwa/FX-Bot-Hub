@@ -10,6 +10,7 @@ import {
   submitForReviewAction,
 } from "@/features/seller/actions";
 import { CoverPhotoPicker, useCoverPreview } from "@/components/seller/cover-photo-field";
+import { FileDropzone } from "@/components/seller/file-dropzone";
 import {
   uploadAndSetCover,
   uploadAndAttachScreenshot,
@@ -279,10 +280,10 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
         {current === "Screenshots" && productId && (
           <UploadStep
             label="Add a few screenshots (optional)"
-            accept="image/*"
+            help="Show buyers the EA on a chart, its settings, or a results report. Add as many as you like."
             count={uploaded.screenshots}
-            onUpload={async (file) => {
-              await uploadAndAttachScreenshot(productId, file);
+            onUpload={async (file, onProgress) => {
+              await uploadAndAttachScreenshot(productId, file, undefined, onProgress);
               setUploaded((u) => ({ ...u, screenshots: u.screenshots + 1 }));
             }}
           />
@@ -418,42 +419,23 @@ function StepChoice({
 
 function UploadStep({
   label,
-  accept,
+  help,
   count,
-  needsTitle,
   onUpload,
 }: {
   label: string;
-  accept: string;
+  help?: string;
   count: number;
-  needsTitle?: boolean;
-  onUpload: (file: File, title?: string) => Promise<void>;
+  onUpload: (file: File, onProgress: (fraction: number) => void) => Promise<void>;
 }) {
-  const [busy, setBusy] = useState(false);
-  const [title, setTitle] = useState("");
-
   return (
-    <div>
-      <p className="mb-3 text-sm font-medium text-slate-700">{label}</p>
-      <p className="mb-2 text-xs text-slate-500">{count} uploaded so far</p>
-      {needsTitle && (
-        <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" className="mb-2 max-w-xs" />
-      )}
-      <input
-        type="file"
-        accept={accept}
-        disabled={busy}
-        onChange={async (e) => {
-          const file = e.target.files?.[0];
-          if (!file) return;
-          setBusy(true);
-          await onUpload(file, title || undefined);
-          setBusy(false);
-          e.target.value = "";
-          setTitle("");
-        }}
-        className="text-sm"
-      />
+    <div className="flex flex-col gap-3">
+      <div>
+        <p className="text-sm font-medium text-slate-700">{label}</p>
+        {help && <p className="mt-1 text-xs text-slate-500">{help}</p>}
+        <p className="mt-1 text-xs text-slate-500">{count} uploaded so far</p>
+      </div>
+      <FileDropzone kind="image" title="Drop your screenshots here" browseLabel="Browse screenshots" onUpload={onUpload} />
     </div>
   );
 }
@@ -471,48 +453,45 @@ function FileUploadStep({
 }) {
   const [version, setVersion] = useState("1.0.0");
   const [platform, setPlatform] = useState(defaultPlatform === "MULTI_PLATFORM" ? "MT4" : defaultPlatform);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   return (
-    <div>
-      <p className="mb-3 text-sm font-medium text-slate-700">Upload your product file(s)</p>
-      <p className="mb-2 text-xs text-slate-500">{count} uploaded so far</p>
-      {error && <p className="mb-2 text-xs text-red-600">{error}</p>}
-      <div className="flex flex-wrap items-center gap-2">
-        <Input value={version} onChange={(e) => setVersion(e.target.value)} placeholder="Version" className="w-28" />
-        <select
-          value={platform}
-          onChange={(e) => setPlatform(e.target.value)}
-          className="h-10 rounded-md border border-slate-300 bg-white px-2 text-sm"
-        >
-          <option value="MT4">MT4</option>
-          <option value="MT5">MT5</option>
-        </select>
-        <input
-          type="file"
-          accept=".ex4,.ex5,.mq4,.mq5,.set,.zip"
-          disabled={busy}
-          onChange={async (e) => {
-            const file = e.target.files?.[0];
-            if (!file) return;
-            setBusy(true);
-            setError(null);
-            try {
-              await uploadAndAttachProductFile(productId, file, {
-                version,
-                platform: platform as "MT4" | "MT5",
-              });
-              onUploaded();
-            } catch (err) {
-              setError(err instanceof Error ? err.message : "Upload failed.");
-            }
-            setBusy(false);
-            e.target.value = "";
-          }}
-          className="text-sm"
-        />
+    <div className="flex flex-col gap-4">
+      <div>
+        <p className="text-sm font-medium text-slate-700">Upload your product file(s)</p>
+        <p className="mt-1 text-xs text-slate-500">
+          EA, indicator, script, template, installer or archive — buyers download exactly what you upload here.
+        </p>
+        <p className="mt-1 text-xs text-slate-500">{count} uploaded so far</p>
       </div>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="flex flex-col gap-1 text-xs font-medium text-slate-600" htmlFor="wizard-file-version">
+          Version
+          <Input id="wizard-file-version" value={version} onChange={(e) => setVersion(e.target.value)} placeholder="1.0.0" className="w-28" />
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-slate-600" htmlFor="wizard-file-platform">
+          Platform
+          <select
+            id="wizard-file-platform"
+            value={platform}
+            onChange={(e) => setPlatform(e.target.value)}
+            className="h-10 rounded-md border border-slate-300 bg-white px-2 text-sm"
+          >
+            <option value="MT4">MT4</option>
+            <option value="MT5">MT5</option>
+          </select>
+        </label>
+      </div>
+      <FileDropzone
+        kind="productFile"
+        title="Drop your product files here"
+        browseLabel="Browse files"
+        disabled={!version.trim()}
+        onFileDone={onUploaded}
+        onUpload={async (file, onProgress) => {
+          await uploadAndAttachProductFile(productId, file, { version: version.trim(), platform: platform as "MT4" | "MT5" }, onProgress);
+        }}
+      />
+      {!version.trim() && <p className="text-xs text-red-600">Enter a version number to enable uploads.</p>}
     </div>
   );
 }

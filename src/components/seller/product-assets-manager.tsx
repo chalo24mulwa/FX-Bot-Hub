@@ -1,13 +1,13 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   uploadAndAttachScreenshot,
   uploadAndAttachDocumentationFile,
   uploadAndAttachProductFile,
 } from "@/features/seller/upload-client";
-import { Button } from "@/components/ui/button";
+import { FileDropzone } from "@/components/seller/file-dropzone";
 import { Input } from "@/components/ui/input";
 import { getPublicUrl } from "@/lib/storage/public-url";
 
@@ -44,146 +44,125 @@ export function ProductAssetsManager({
   versions: ProductVersion[];
 }) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-
-  const screenshotInput = useRef<HTMLInputElement>(null);
-  const docInput = useRef<HTMLInputElement>(null);
-  const docTitleInput = useRef<HTMLInputElement>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
-  const versionInput = useRef<HTMLInputElement>(null);
-  const changelogInput = useRef<HTMLTextAreaElement>(null);
+  const [docTitle, setDocTitle] = useState("");
+  const [version, setVersion] = useState("");
+  const [changelog, setChangelog] = useState("");
   const [filePlatform, setFilePlatform] = useState<"MT4" | "MT5" | "MULTI_PLATFORM">("MT4");
 
-  function run(fn: () => Promise<unknown>) {
-    setError(null);
-    startTransition(async () => {
-      try {
-        await fn();
-        router.refresh();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Upload failed.");
-      }
-    });
-  }
+  // Re-read the server-rendered lists once a file has been saved.
+  const refresh = () => router.refresh();
 
   return (
-    <div className="mt-4 flex flex-col gap-8">
-      {error && <p className="text-sm text-red-600">{error}</p>}
-
-      <section>
+    <div className="mt-4 flex flex-col gap-10">
+      <section className="flex flex-col gap-3">
         <h3 className="text-sm font-semibold text-slate-900">Screenshots</h3>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {screenshots.map((s) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              key={s.id}
-              src={getPublicUrl(s.storageKey)}
-              alt={s.caption ?? ""}
-              className="h-20 w-32 rounded border border-slate-200 object-cover"
-            />
-          ))}
-        </div>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <input ref={screenshotInput} type="file" accept="image/*" className="min-w-0 max-w-full text-sm" />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={isPending}
-            onClick={() => {
-              const file = screenshotInput.current?.files?.[0];
-              if (!file) return;
-              run(() => uploadAndAttachScreenshot(productId, file));
-            }}
-          >
-            Upload screenshot
-          </Button>
-        </div>
-      </section>
-
-      <section>
-        <h3 className="text-sm font-semibold text-slate-900">Documentation</h3>
-        <ul className="mt-2 space-y-1 text-sm text-slate-600">
-          {documentation.map((d) => (
-            <li key={d.id}>{d.title}</li>
-          ))}
-        </ul>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Input ref={docTitleInput} placeholder="Document title" className="w-48" />
-          <input ref={docInput} type="file" accept=".pdf,.md,.txt" className="text-sm" />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={isPending}
-            onClick={() => {
-              const file = docInput.current?.files?.[0];
-              const title = docTitleInput.current?.value.trim();
-              if (!file || !title) {
-                setError("Provide a title and a file.");
-                return;
-              }
-              run(() => uploadAndAttachDocumentationFile(productId, file, title));
-            }}
-          >
-            Upload document
-          </Button>
-        </div>
-      </section>
-
-      <section>
-        <h3 className="text-sm font-semibold text-slate-900">Product files</h3>
-        <ul className="mt-2 space-y-1 text-sm text-slate-600">
-          {versions.map((v) => (
-            <li key={v.id}>
-              <span className="font-medium">v{v.version}</span>{" "}
-              {v.files.map((f) => `${f.fileName} (${f.platform}, ${(f.fileSizeBytes / 1024).toFixed(0)} KB)`).join(", ")}
-            </li>
-          ))}
-        </ul>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Input ref={versionInput} placeholder="Version (e.g. 1.0.0)" className="w-32" />
-          <select
-            value={filePlatform}
-            onChange={(e) => setFilePlatform(e.target.value as typeof filePlatform)}
-            className="h-10 rounded-md border border-slate-300 bg-white px-2 text-sm"
-          >
-            <option value="MT4">MT4</option>
-            <option value="MT5">MT5</option>
-            <option value="MULTI_PLATFORM">Multi-platform</option>
-          </select>
-          <input ref={fileInput} type="file" accept=".ex4,.ex5,.mq4,.mq5,.set,.zip" className="text-sm" />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={isPending}
-            onClick={() => {
-              const file = fileInput.current?.files?.[0];
-              const version = versionInput.current?.value.trim();
-              if (!file || !version) {
-                setError("Provide a version and a file.");
-                return;
-              }
-              run(() =>
-                uploadAndAttachProductFile(productId, file, {
-                  version,
-                  changelog: changelogInput.current?.value || undefined,
-                  platform: filePlatform,
-                })
-              );
-            }}
-          >
-            Upload file
-          </Button>
-        </div>
-        <textarea
-          ref={changelogInput}
-          placeholder="Changelog for this version (optional)"
-          rows={2}
-          className="mt-2 w-full max-w-md rounded-md border border-slate-300 px-3 py-2 text-sm"
+        {screenshots.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {screenshots.map((s) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={s.id}
+                src={getPublicUrl(s.storageKey)}
+                alt={s.caption ?? ""}
+                className="h-20 w-32 rounded border border-slate-200 object-cover"
+              />
+            ))}
+          </div>
+        )}
+        <FileDropzone
+          kind="image"
+          title="Drop screenshots here"
+          browseLabel="Browse screenshots"
+          onFileDone={refresh}
+          onUpload={async (file, onProgress) => {
+            await uploadAndAttachScreenshot(productId, file, undefined, onProgress);
+          }}
         />
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h3 className="text-sm font-semibold text-slate-900">Documentation</h3>
+        {documentation.length > 0 && (
+          <ul className="space-y-1 text-sm text-slate-600">
+            {documentation.map((d) => (
+              <li key={d.id}>{d.title}</li>
+            ))}
+          </ul>
+        )}
+        <label className="flex max-w-xs flex-col gap-1 text-xs font-medium text-slate-600" htmlFor="assets-doc-title">
+          Document title
+          <Input id="assets-doc-title" value={docTitle} onChange={(e) => setDocTitle(e.target.value)} placeholder="e.g. Setup guide" />
+        </label>
+        <FileDropzone
+          kind="documentation"
+          title="Drop a document here"
+          browseLabel="Browse documents"
+          disabled={!docTitle.trim()}
+          onFileDone={refresh}
+          onUpload={async (file, onProgress) => {
+            await uploadAndAttachDocumentationFile(productId, file, docTitle.trim(), onProgress);
+          }}
+        />
+        {!docTitle.trim() && <p className="text-xs text-slate-500">Enter a title to enable the upload area.</p>}
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h3 className="text-sm font-semibold text-slate-900">Product files</h3>
+        {versions.length > 0 && (
+          <ul className="space-y-1 text-sm text-slate-600">
+            {versions.map((v) => (
+              <li key={v.id}>
+                <span className="font-medium">v{v.version}</span>{" "}
+                {v.files.map((f) => `${f.fileName} (${f.platform}, ${(f.fileSizeBytes / 1024).toFixed(0)} KB)`).join(", ")}
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1 text-xs font-medium text-slate-600" htmlFor="assets-file-version">
+            Version
+            <Input id="assets-file-version" value={version} onChange={(e) => setVersion(e.target.value)} placeholder="e.g. 1.0.0" className="w-36" />
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-slate-600" htmlFor="assets-file-platform">
+            Platform
+            <select
+              id="assets-file-platform"
+              value={filePlatform}
+              onChange={(e) => setFilePlatform(e.target.value as typeof filePlatform)}
+              className="h-10 rounded-md border border-slate-300 bg-white px-2 text-sm"
+            >
+              <option value="MT4">MT4</option>
+              <option value="MT5">MT5</option>
+              <option value="MULTI_PLATFORM">Multi-platform</option>
+            </select>
+          </label>
+        </div>
+        <label className="flex max-w-md flex-col gap-1 text-xs font-medium text-slate-600" htmlFor="assets-file-changelog">
+          Changelog for this version (optional)
+          <textarea
+            id="assets-file-changelog"
+            value={changelog}
+            onChange={(e) => setChangelog(e.target.value)}
+            rows={2}
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal"
+          />
+        </label>
+        <FileDropzone
+          kind="productFile"
+          title="Drop your product files here"
+          browseLabel="Browse files"
+          disabled={!version.trim()}
+          onFileDone={refresh}
+          onUpload={async (file, onProgress) => {
+            await uploadAndAttachProductFile(
+              productId,
+              file,
+              { version: version.trim(), changelog: changelog.trim() || undefined, platform: filePlatform },
+              onProgress,
+            );
+          }}
+        />
+        {!version.trim() && <p className="text-xs text-slate-500">Enter a version number to enable the upload area.</p>}
       </section>
     </div>
   );

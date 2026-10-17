@@ -104,3 +104,7 @@ together seamlessly.
 Every sale generates an invoice automatically, viewable from the relevant
 order (buyer-side) — there's no separate seller-side invoice list yet; use
 `/seller/orders` to find the relevant order.
+
+## Uploading files
+
+The Screenshots and Files steps (and the Media & files section of a product's page) have a large upload area: click **Browse files**, or drag files onto it. You can pick several at once; each shows its own progress and a **Retry** button if it fails. Product files can be MetaTrader files (`.ex4 .ex5 .mq4 .mq5 .mqh .mql .set .tpl`…), archives (`.zip .rar .7z`), Windows programs (`.exe .dll .msi`) and documents, up to 50 MB each. Screenshots are PNG, JPG or WebP up to 8 MB.

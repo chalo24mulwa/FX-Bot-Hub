@@ -52,6 +52,7 @@ export async function GET(
     void checkSuspiciousDownloadPattern(session.user.id);
 
     const url = await storage.getSignedDownloadUrl(file.storageKey, 120);
-    return NextResponse.redirect(url);
+    // A bucket gives an absolute URL; the database provider gives a same-site path.
+    return NextResponse.redirect(new URL(url, request.url));
   });
 }

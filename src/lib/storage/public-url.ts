@@ -14,6 +14,10 @@ const PUBLIC_BASE_URL = process.env.NEXT_PUBLIC_STORAGE_PUBLIC_BASE_URL ?? "";
  * server-only.
  */
 export function getPublicUrl(storageKey: string): string {
+  const key = storageKey.replace(/^\/+/, "");
   const base = PUBLIC_BASE_URL.replace(/\/$/, "");
-  return `${base}/${storageKey.replace(/^\//, "")}`;
+  // No bucket configured: objects live in the database and are served by this site (see
+  // src/app/api/storage/public). The route only serves image and documentation keys.
+  if (!base) return `/api/storage/public/${key.split("/").map(encodeURIComponent).join("/")}`;
+  return `${base}/${key}`;
 }
