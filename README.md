@@ -34,9 +34,9 @@ against a real production build. Full rationale in CLAUDE.md.
 
 - **Buyers**: browse/search/filter, favorite, add to cart, check out, download
   owned files, leave verified-purchase reviews.
-- **Sellers** (`/seller`): a 12-step product creation wizard (type → platform →
-  basic info → description → features → screenshots → documentation → files →
-  pricing → compatibility → testing/support → submit for review), order/sales/
+- **Sellers** (`/seller`): a 9-step product creation wizard (type → platform →
+  basic info → description → screenshots → files → pricing → compatibility →
+  submit for review; features, documentation and testing/support details are added from the product page), order/sales/
   revenue dashboard, per-product analytics, customer list, review responses,
   profile & payout settings.
 - **Admins** (`/admin`): moderation queue (claim → approve/reject-with-reason/

@@ -16,6 +16,19 @@ test("a seller can create a product through the wizard, submit it, and an admin 
   // substring search for "Next", colliding with the wizard's Next button.
   const next = sellerPage.locator("main").getByRole("button", { name: "Next", exact: true });
 
+  // The wizard has nine steps, numbered 1-9 in order: Features, Documentation and Testing & support are not part of it.
+  await expect(sellerPage.locator("main ol li")).toHaveText([
+    "1. Product type",
+    "2. Platform",
+    "3. Basic information",
+    "4. Description",
+    "5. Screenshots",
+    "6. Files",
+    "7. Pricing",
+    "8. Compatibility",
+    "9. Submit for review",
+  ]);
+
   // Step 1: product type — default EA is fine, advance.
   await next.click();
   // Step 2: platform — default MT5, advance.
@@ -24,25 +37,22 @@ test("a seller can create a product through the wizard, submit it, and an admin 
   await sellerPage.getByLabel("Product name").fill(productName);
   await sellerPage.getByLabel("Short summary").fill("An end-to-end test product short summary.");
   await next.click();
-  // Step 4: description.
+  // Step 4: description -> leaving this step creates the draft.
+  await expect(sellerPage.getByLabel(/^Features/)).toHaveCount(0);
   await sellerPage.getByLabel("Description").fill("This product was created entirely by a Playwright end-to-end test.");
-  await next.click();
-  // Step 5: features -> leaving this step creates the draft.
   await next.click();
   await expect(sellerPage.getByText(/uploaded so far/)).toBeVisible();
 
-  // Steps 6-8 (uploads) are optional — skip straight through to pricing.
+  // Steps 5-6 (uploads) are optional — skip straight through to pricing.
   await next.click(); // screenshots
-  await next.click(); // documentation
-  await next.click(); // files
-  // Step 9: pricing — leave as Free.
+  // Step 6: files.
+  await next.click();
+  // Step 7: pricing — leave as Free.
   await sellerPage.locator("main").getByRole("button", { name: "Free", exact: true }).click();
   await next.click();
-  // Step 10: compatibility.
+  // Step 8: compatibility.
   await next.click();
-  // Step 11: testing & support.
-  await next.click();
-  // Step 12: submit for review.
+  // Step 9: submit for review.
   await sellerPage.getByRole("button", { name: "Submit for review" }).click();
 
   await expect(sellerPage.getByText("PENDING REVIEW")).toBeVisible({ timeout: 10_000 });

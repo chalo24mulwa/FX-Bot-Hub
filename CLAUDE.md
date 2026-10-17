@@ -1223,7 +1223,7 @@ the cover, already what `ProductCard` and every list query read as
   above the title/form (uploads and replaces immediately). Both use the
   existing presign → PUT → attach flow via `uploadAndSetCover()`.
   Wizard detail: a draft (and so a `productId`) doesn't exist until the end
-  of step 5, so the chosen file waits in memory and uploads right after the
+  of the Description step, so the chosen file waits in memory and uploads right after the
   draft is created — if that upload fails, the draft is **still created**
   and the seller gets a retry link on the last step.
 - **Server**: `setCoverImage()` (`asset-service.ts`, `assetType: "cover"`

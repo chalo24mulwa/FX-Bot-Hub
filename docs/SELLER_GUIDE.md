@@ -7,10 +7,11 @@ selling from `/dashboard/become-seller` — instant, self-service).
 
 The product wizard (`/seller/products/new`) walks through: type
 (EA/indicator/signal/tool) → platform (MT4/MT5/multi) → basic info →
-description → features → screenshots → documentation → files → pricing →
-compatibility → testing/support → submit for review. A draft can be saved
-and resumed at any step; nothing is public until you submit it and an
-admin approves it.
+description → screenshots → files → pricing → compatibility → submit for
+review. Features, documentation, testing and support details aren't asked
+for in the wizard — add them from the product's page once the draft exists
+(the draft is created when you leave the description step). Nothing is
+public until you submit it and an admin approves it.
 
 **Pricing types**: `FREE` (priceCents must be 0), `ONE_TIME` (single
 purchase), `SUBSCRIPTION` (recurring — billed automatically every ~30

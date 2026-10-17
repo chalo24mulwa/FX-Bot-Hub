@@ -13,22 +13,21 @@ import { CoverPhotoPicker, useCoverPreview } from "@/components/seller/cover-pho
 import {
   uploadAndSetCover,
   uploadAndAttachScreenshot,
-  uploadAndAttachDocumentationFile,
   uploadAndAttachProductFile,
 } from "@/features/seller/upload-client";
 
+// Steps are looked up by label (not by position), so removing or reordering one can't silently shift what the others do.
+// Features, documentation and testing/support details are no longer asked for here; all three can still be added from the
+// product's own edit page after the draft exists.
 const STEPS = [
   "Product type",
   "Platform",
   "Basic information",
   "Description",
-  "Features",
   "Screenshots",
-  "Documentation",
   "Files",
   "Pricing",
   "Compatibility",
-  "Testing & support",
   "Submit for review",
 ] as const;
 
@@ -39,14 +38,11 @@ interface WizardData {
   categoryId: string;
   shortSummary: string;
   description: string;
-  features: string[];
   pricingType: string;
   priceCents: number;
   currency: string;
   tags: string[];
   compatibilityNotes: string;
-  requirements: string;
-  supportInfo: string;
 }
 
 const EMPTY: WizardData = {
@@ -56,34 +52,31 @@ const EMPTY: WizardData = {
   categoryId: "",
   shortSummary: "",
   description: "",
-  features: [],
   pricingType: "ONE_TIME",
   priceCents: 0,
   currency: "USD",
   tags: [],
   compatibilityNotes: "",
-  requirements: "",
-  supportInfo: "",
 };
 
 export function ProductWizard({ categories }: { categories: { id: string; name: string }[] }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
+  const current = STEPS[step];
   const [data, setData] = useState<WizardData>(EMPTY);
   const [productId, setProductId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // The cover photo is chosen on the "Basic information" step, above the
   // product name — but a draft product (and so a productId to attach it to)
-  // doesn't exist until the end of step 5, so the file waits in memory
+  // doesn't exist until the end of the "Description" step, so the file waits in memory
   // until then. If a productId already exists (the seller went Back to
   // change it), it uploads immediately instead.
   const cover = useCoverPreview();
   const [coverState, setCoverState] = useState<"idle" | "uploading" | "saved" | "failed">("idle");
   const [coverError, setCoverError] = useState<string | null>(null);
-  const [uploaded, setUploaded] = useState<{ screenshots: number; docs: number; files: number }>({
+  const [uploaded, setUploaded] = useState<{ screenshots: number; files: number }>({
     screenshots: 0,
-    docs: 0,
     files: 0,
   });
 
@@ -113,9 +106,9 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
   async function next() {
     setError(null);
 
-    // Draft is created on leaving step 5 (Features), since steps 6-8 need a
+    // Draft is created on leaving the "Description" step, since the upload steps after it need a
     // productId to attach uploads to.
-    if (step === 4 && !productId) {
+    if (current === "Description" && !productId) {
       setBusy(true);
       try {
         const product = await createProductFromDataAction({
@@ -125,14 +118,8 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
           categoryId: data.categoryId || undefined,
           shortSummary: data.shortSummary,
           description: data.description,
-          // The textarea keeps every line (including a blank trailing one
-          // from pressing Enter after the last feature) so typing feels
-          // natural — trim/filter only here, at submission time, matching
-          // formDataToProductInput()'s same treatment for the single-page
-          // edit form. An empty string fails the schema's min(1) per
-          // feature; sending one straight from a raw split() is what was
-          // producing an opaque, production-masked validation error.
-          features: data.features.map((f) => f.trim()).filter(Boolean),
+          // Features are added from the product's edit page once the draft exists (the single-page edit form).
+          features: [],
           pricingType: "ONE_TIME",
           priceCents: 0,
           currency: "USD",
@@ -151,22 +138,16 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
       setBusy(false);
     }
 
-    // Pricing/compatibility/testing steps PATCH the existing draft.
-    if (step === 8 && productId) {
+    // Pricing and compatibility steps PATCH the existing draft.
+    if (current === "Pricing" && productId) {
       await updateProductFromDataAction(productId, {
         pricingType: data.pricingType as never,
         priceCents: data.pricingType === "FREE" ? 0 : data.priceCents,
         currency: data.currency,
       });
     }
-    if (step === 9 && productId) {
+    if (current === "Compatibility" && productId) {
       await updateProductFromDataAction(productId, { compatibilityNotes: data.compatibilityNotes });
-    }
-    if (step === 10 && productId) {
-      await updateProductFromDataAction(productId, {
-        requirements: data.requirements,
-        supportInfo: data.supportInfo,
-      });
     }
 
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
@@ -189,7 +170,7 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
     }
   }
 
-  const canLeaveStep4 = data.name.trim().length >= 3 && data.shortSummary.trim().length >= 10 && data.description.trim().length >= 20;
+  const canLeaveDescription = data.name.trim().length >= 3 && data.shortSummary.trim().length >= 10 && data.description.trim().length >= 20;
 
   return (
     <div>
@@ -209,7 +190,7 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
 
       <div className="max-w-xl">
-        {step === 0 && (
+        {current === "Product type" && (
           <StepChoice
             label="What are you listing?"
             value={data.type}
@@ -224,7 +205,7 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
           />
         )}
 
-        {step === 1 && (
+        {current === "Platform" && (
           <StepChoice
             label="Which platform?"
             value={data.platform}
@@ -237,7 +218,7 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
           />
         )}
 
-        {step === 2 && (
+        {current === "Basic information" && (
           <div className="flex flex-col gap-4">
             <CoverPhotoPicker
               previewUrl={cover.url}
@@ -283,7 +264,7 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
           </div>
         )}
 
-        {step === 3 && (
+        {current === "Description" && (
           <label className="flex flex-col gap-1 text-sm">
             Description
             <textarea
@@ -295,19 +276,7 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
           </label>
         )}
 
-        {step === 4 && (
-          <label className="flex flex-col gap-1 text-sm">
-            Features (one per line)
-            <textarea
-              value={data.features.join("\n")}
-              onChange={(e) => set("features", e.target.value.split("\n"))}
-              rows={6}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </label>
-        )}
-
-        {step === 5 && productId && (
+        {current === "Screenshots" && productId && (
           <UploadStep
             label="Add a few screenshots (optional)"
             accept="image/*"
@@ -319,20 +288,7 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
           />
         )}
 
-        {step === 6 && productId && (
-          <UploadStep
-            label="Add documentation (optional — PDF, Markdown, or text)"
-            accept=".pdf,.md,.txt"
-            count={uploaded.docs}
-            needsTitle
-            onUpload={async (file, title) => {
-              await uploadAndAttachDocumentationFile(productId, file, title ?? file.name);
-              setUploaded((u) => ({ ...u, docs: u.docs + 1 }));
-            }}
-          />
-        )}
-
-        {step === 7 && productId && (
+        {current === "Files" && productId && (
           <FileUploadStep
             productId={productId}
             defaultPlatform={data.platform}
@@ -341,7 +297,7 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
           />
         )}
 
-        {step === 8 && (
+        {current === "Pricing" && (
           <div className="flex flex-col gap-4">
             <StepChoice
               label="Pricing model"
@@ -367,7 +323,7 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
           </div>
         )}
 
-        {step === 9 && (
+        {current === "Compatibility" && (
           <label className="flex flex-col gap-1 text-sm">
             Compatibility notes (brokers, account types, timeframes…)
             <textarea
@@ -379,30 +335,7 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
           </label>
         )}
 
-        {step === 10 && (
-          <div className="flex flex-col gap-4">
-            <label className="flex flex-col gap-1 text-sm">
-              Testing information (backtest period, forward-test results…)
-              <textarea
-                value={data.requirements}
-                onChange={(e) => set("requirements", e.target.value)}
-                rows={4}
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              Support information
-              <textarea
-                value={data.supportInfo}
-                onChange={(e) => set("supportInfo", e.target.value)}
-                rows={3}
-                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
-              />
-            </label>
-          </div>
-        )}
-
-        {step === 11 && (
+        {current === "Submit for review" && (
           <div className="flex flex-col gap-4">
             {cover.url && (
               <div className="relative aspect-[16/10] w-full max-w-xs overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
@@ -438,7 +371,7 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
           </Button>
         )}
         {step < STEPS.length - 1 ? (
-          <Button type="button" onClick={next} disabled={busy || (step === 4 && !canLeaveStep4)}>
+          <Button type="button" onClick={next} disabled={busy || (current === "Description" && !canLeaveDescription)}>
             {busy ? "Saving…" : "Next"}
           </Button>
         ) : (

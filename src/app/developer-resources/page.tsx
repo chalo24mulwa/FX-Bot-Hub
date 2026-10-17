@@ -91,13 +91,10 @@ const WIZARD_STEPS = [
   "Platform",
   "Basic information",
   "Description",
-  "Features",
   "Screenshots",
-  "Documentation",
   "Files",
   "Pricing",
   "Compatibility",
-  "Testing & support",
   "Submit for review",
 ];
 

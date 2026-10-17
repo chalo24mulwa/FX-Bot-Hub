@@ -47,12 +47,11 @@ test("the product wizard offers a cover photo above the product name, and it nev
   await page.getByLabel("Short summary").fill("An end-to-end test product with a cover photo.");
   await next.click();
   await page.getByLabel("Description").fill("Created by a Playwright test exercising the cover photo control.");
-  await next.click();
-  await next.click(); // features -> creates the draft (and tries the cover upload in the background)
+  await next.click(); // description -> creates the draft (and tries the cover upload in the background)
   await expect(page.getByText(/uploaded so far/)).toBeVisible();
 
   // Walk to the last step: whatever the cover upload did, listing must still be possible.
-  for (let i = 0; i < 6; i++) await next.click();
+  for (let i = 0; i < 4; i++) await next.click();
   await expect(page.getByAltText("Cover photo", { exact: true })).toBeVisible();
   await expect(page.locator("main").getByRole("button", { name: "Submit for review" })).toBeEnabled();
 });
