@@ -11,6 +11,7 @@ import {
   type CreateProductInput,
   type UpdateProductInput,
 } from "@/lib/validations/product";
+import { parseDollarsToCents } from "@/lib/pricing/price-input";
 import * as productService from "@/server/services/product-service";
 import * as reviewService from "@/features/reviews/review-service";
 
@@ -31,6 +32,16 @@ function parseOrThrowFriendly<T>(schema: ZodType<T>, input: unknown): T {
     throw new Error(issue ? `${issue.path.join(".")}: ${issue.message}` : "Invalid product data.");
   }
   return result.data;
+}
+
+// The form's price field is in dollars ("49.00"); the database and the schema are in cents. `priceCents` is still accepted
+// for any caller that posts cents directly.
+function priceCentsFromForm(formData: FormData): number {
+  const dollars = formData.get("price");
+  if (dollars === null) return Number(formData.get("priceCents") ?? 0);
+  const cents = parseDollarsToCents(String(dollars));
+  if (cents === null) throw new Error("Enter a valid price in dollars, like 49.00.");
+  return cents;
 }
 
 function formDataToProductInput(formData: FormData) {
@@ -56,7 +67,7 @@ function formDataToProductInput(formData: FormData) {
     compatibilityNotes: String(formData.get("compatibilityNotes") ?? "") || undefined,
     supportInfo: String(formData.get("supportInfo") ?? "") || undefined,
     pricingType: String(formData.get("pricingType") ?? "ONE_TIME"),
-    priceCents: Number(formData.get("priceCents") ?? 0),
+    priceCents: priceCentsFromForm(formData),
     currency: String(formData.get("currency") ?? "USD"),
     tags,
   };

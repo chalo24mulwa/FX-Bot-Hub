@@ -1,4 +1,4 @@
-import { redis, withRedisTimeout, REDIS_FAST_TIMEOUT_MS } from "@/lib/redis";
+import { redis, redisReady, withRedisTimeout, REDIS_FAST_TIMEOUT_MS } from "@/lib/redis";
 
 // Phase 5: `redis` (src/lib/redis.ts) is a single shared ioredis instance
 // used by BullMQ, rate limiting, and this cache — its own commandTimeout
@@ -25,6 +25,9 @@ const CACHE_LOOKUP_TIMEOUT_MS = REDIS_FAST_TIMEOUT_MS;
  * not for anything that must reflect a write immediately.
  */
 export async function cacheWrap<T>(key: string, ttlSeconds: number, compute: () => Promise<T>): Promise<T> {
+  // No usable Redis: compute directly, without waiting out a lookup that can't succeed.
+  if (!redisReady()) return compute();
+
   try {
     const cached = await withRedisTimeout(redis.get(key), CACHE_LOOKUP_TIMEOUT_MS);
     if (cached) return JSON.parse(cached) as T;
@@ -47,6 +50,7 @@ export async function cacheWrap<T>(key: string, ttlSeconds: number, compute: () 
 }
 
 export async function cacheInvalidate(key: string): Promise<void> {
+  if (!redisReady()) return;
   try {
     await withRedisTimeout(redis.del(key), CACHE_LOOKUP_TIMEOUT_MS);
   } catch {

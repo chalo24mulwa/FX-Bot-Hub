@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import {
 } from "@/features/seller/actions";
 import { CoverPhotoPicker, useCoverPreview } from "@/components/seller/cover-photo-field";
 import { FileDropzone } from "@/components/seller/file-dropzone";
+import { PriceInput } from "@/components/seller/price-input";
 import {
   uploadAndSetCover,
   uploadAndAttachScreenshot,
@@ -63,6 +64,11 @@ const EMPTY: WizardData = {
 export function ProductWizard({ categories }: { categories: { id: string; name: string }[] }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
+  const [priceValid, setPriceValid] = useState(true);
+  const [submitted, setSubmitted] = useState(false);
+  // Pricing and compatibility are saved in the background so "Next" is instant; Submit waits for them (and for any failure).
+  const pendingSaves = useRef<Promise<void>>(Promise.resolve());
+  const saveFailure = useRef<string | null>(null);
   const current = STEPS[step];
   const [data, setData] = useState<WizardData>(EMPTY);
   const [productId, setProductId] = useState<string | null>(null);
@@ -104,6 +110,17 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
     if (productId) void saveCover(productId, file);
   }
 
+  /** Queues a draft update behind earlier ones (so they apply in order) without making the seller wait for it. */
+  function saveInBackground(id: string, patch: Parameters<typeof updateProductFromDataAction>[1]) {
+    pendingSaves.current = pendingSaves.current.then(async () => {
+      try {
+        await updateProductFromDataAction(id, patch);
+      } catch (err) {
+        saveFailure.current = err instanceof Error ? err.message : "Could not save your changes.";
+      }
+    });
+  }
+
   async function next() {
     setError(null);
 
@@ -140,21 +157,27 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
     }
 
     // Pricing and compatibility steps PATCH the existing draft.
+    if (current === "Pricing" && data.pricingType !== "FREE" && !priceValid) {
+      setError("Enter a valid price in dollars, like 49.00.");
+      return;
+    }
     if (current === "Pricing" && productId) {
-      await updateProductFromDataAction(productId, {
+      saveInBackground(productId, {
         pricingType: data.pricingType as never,
         priceCents: data.pricingType === "FREE" ? 0 : data.priceCents,
         currency: data.currency,
       });
     }
     if (current === "Compatibility" && productId) {
-      await updateProductFromDataAction(productId, { compatibilityNotes: data.compatibilityNotes });
+      saveInBackground(productId, { compatibilityNotes: data.compatibilityNotes });
     }
 
+    setPriceValid(true); // the price field remounts from the last valid amount
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
   }
 
   function back() {
+    setPriceValid(true);
     setStep((s) => Math.max(s - 1, 0));
   }
 
@@ -163,13 +186,25 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
     setBusy(true);
     setError(null);
     try {
+      await pendingSaves.current;
+      if (saveFailure.current) {
+        const message = saveFailure.current;
+        saveFailure.current = null;
+        throw new Error(`${message} Go back, check that step, and try again.`);
+      }
       await submitForReviewAction(productId);
+      setSubmitted(true);
       router.push(`/seller/products/${productId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not submit for review.");
       setBusy(false);
     }
   }
+
+  // Warm the page the seller lands on, so the move after "Submit" doesn't wait for it to render.
+  useEffect(() => {
+    if (current === "Submit for review" && productId) router.prefetch(`/seller/products/${productId}`);
+  }, [current, productId, router]);
 
   const canLeaveDescription = data.name.trim().length >= 3 && data.shortSummary.trim().length >= 10 && data.description.trim().length >= 20;
 
@@ -311,15 +346,14 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
               ]}
             />
             {data.pricingType !== "FREE" && (
-              <label className="flex flex-col gap-1 text-sm">
-                Price (cents)
-                <Input
-                  type="number"
-                  min={0}
-                  value={data.priceCents}
-                  onChange={(e) => set("priceCents", Number(e.target.value))}
-                />
-              </label>
+              <PriceInput
+                label={data.pricingType === "SUBSCRIPTION" ? "Price per month (USD)" : "Price (USD)"}
+                defaultCents={data.priceCents}
+                onCentsChange={(cents) => {
+                  setPriceValid(cents !== null);
+                  if (cents !== null) set("priceCents", cents);
+                }}
+              />
             )}
           </div>
         )}
@@ -377,7 +411,7 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
           </Button>
         ) : (
           <Button type="button" onClick={finish} disabled={busy || !productId}>
-            {busy ? "Submitting…" : "Submit for review"}
+            {submitted ? "Submitted ✓" : busy ? "Submitting…" : "Submit for review"}
           </Button>
         )}
       </div>
@@ -435,7 +469,7 @@ function UploadStep({
         {help && <p className="mt-1 text-xs text-slate-500">{help}</p>}
         <p className="mt-1 text-xs text-slate-500">{count} uploaded so far</p>
       </div>
-      <FileDropzone kind="image" title="Drop your screenshots here" browseLabel="Browse screenshots" onUpload={onUpload} />
+      <FileDropzone kind="image" browseLabel="Browse or drag screenshots here" onUpload={onUpload} />
     </div>
   );
 }
@@ -483,8 +517,7 @@ function FileUploadStep({
       </div>
       <FileDropzone
         kind="productFile"
-        title="Drop your product files here"
-        browseLabel="Browse files"
+        browseLabel="Browse or drag files here"
         disabled={!version.trim()}
         onFileDone={onUploaded}
         onUpload={async (file, onProgress) => {

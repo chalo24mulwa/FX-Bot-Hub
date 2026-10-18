@@ -6,7 +6,7 @@ import {
   acceptAttribute,
   describeRejection,
   fileExtension,
-  formatGroups,
+  shownFormats,
   formatBytes,
   type UploadKind,
 } from "@/lib/storage/validate-upload";
@@ -26,12 +26,8 @@ export interface FileDropzoneProps {
   kind: UploadKind;
   /** Uploads one file; throw an Error with a readable message to mark it failed. */
   onUpload: (file: File, onProgress: (fraction: number) => void) => Promise<void>;
-  /** Heading inside the area, e.g. "Drop your product files here". */
-  title: string;
-  /** Text of the main button. */
+  /** Text of the button, which is also the drop target. */
   browseLabel?: string;
-  /** Visible, human-readable name for the formats (default: the extension list). */
-  formatsHint?: string;
   /** Called once each file has uploaded and been saved. */
   onFileDone?: (file: File) => void;
   disabled?: boolean;
@@ -39,17 +35,15 @@ export interface FileDropzoneProps {
 }
 
 /**
- * The shared "browse or drop files" upload area for the seller screens: one large, labelled target
- * with a prominent Browse button, drag-and-drop, many files at once, a per-file progress bar and a
+ * The shared upload control for the seller screens: one compact, left-aligned "Browse or drag files here" button that is
+ * also the drop target (no wide area), a one-line format hint, many files at once, a per-file progress bar and a
  * Retry on failures. Files upload one at a time, in the order chosen. The `<input type=file>` is
  * visually hidden but is the real, keyboard-focusable control; the whole area is its label.
  */
 export function FileDropzone({
   kind,
   onUpload,
-  title,
-  browseLabel = "Browse files",
-  formatsHint,
+  browseLabel = "Browse or drag files here",
   onFileDone,
   disabled = false,
   multiple = true,
@@ -105,11 +99,11 @@ export function FileDropzone({
     [kind, multiple, run],
   );
 
-  const groups = formatGroups(kind);
+  const hint = shownFormats(kind);
   const uploading = items.some((i) => i.status === "uploading" || i.status === "queued");
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col items-start gap-2">
       <label
         htmlFor={inputId}
         onDragOver={(e) => {
@@ -124,12 +118,12 @@ export function FileDropzone({
           if (!disabled && e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
         }}
         data-testid="dropzone"
-        className={`group relative flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-dashed px-4 py-8 text-center transition-colors focus-within:ring-2 focus-within:ring-violet-500 focus-within:ring-offset-2 sm:px-8 ${
+        className={`inline-flex min-h-12 max-w-full cursor-pointer items-center gap-3 rounded-lg border-2 border-dashed px-5 py-2.5 text-sm font-semibold transition-colors focus-within:ring-2 focus-within:ring-violet-500 focus-within:ring-offset-2 ${
           disabled
-            ? "cursor-not-allowed border-slate-200 bg-slate-50 opacity-60"
+            ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
             : dragging
-              ? "border-violet-500 bg-violet-50"
-              : "border-violet-300 bg-violet-50/50 hover:border-violet-500 hover:bg-violet-50"
+              ? "border-violet-600 bg-violet-100 text-violet-800"
+              : "border-violet-400 bg-violet-50 text-violet-700 hover:border-violet-600 hover:bg-violet-100"
         }`}
       >
         <input
@@ -144,44 +138,24 @@ export function FileDropzone({
             e.target.value = "";
           }}
         />
-        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-violet-100 text-violet-700" aria-hidden="true">
-          <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 16V4" />
-            <path d="m7 9 5-5 5 5" />
-            <path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
-          </svg>
-        </span>
-        <span className="text-base font-semibold text-slate-900">{title}</span>
-        <span className="text-sm text-slate-500">{dragging ? "Release to upload" : "Drag and drop, or"}</span>
-        <span className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-violet-600 px-6 text-sm font-semibold text-white shadow-sm transition-colors group-hover:bg-violet-700">
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-          </svg>
-          {browseLabel}
-        </span>
-        <span className="text-xs text-slate-500">
-          Up to {formatBytes(limits.maxBytes)} per file{multiple ? " · select as many files as you need" : ""}
-        </span>
-        <span className="flex max-w-2xl flex-col gap-1.5" aria-label="Accepted formats">
-          {formatsHint ? (
-            <span className="text-xs text-slate-500">{formatsHint}</span>
-          ) : (
-            groups.map((group) => (
-              <span key={group.label || "all"} className="flex flex-wrap items-center justify-center gap-1">
-                {group.label && <span className="mr-1 text-[11px] font-medium text-slate-500">{group.label}</span>}
-                {group.extensions.map((ext) => (
-                  <span key={ext} className="rounded bg-white px-1.5 py-0.5 font-mono text-[11px] text-slate-600 ring-1 ring-slate-200">
-                    {ext}
-                  </span>
-                ))}
-              </span>
-            ))
-          )}
-        </span>
+        <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M12 16V4" />
+          <path d="m7 9 5-5 5 5" />
+          <path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
+        </svg>
+        <span>{dragging ? "Release to upload" : browseLabel}</span>
       </label>
+      <p className="text-xs text-slate-500" aria-label="Accepted formats">
+        {hint.map((ext) => (
+          <span key={ext} className="mr-1.5 font-mono">
+            {ext}
+          </span>
+        ))}
+        <span className="text-slate-400">· up to {formatBytes(limits.maxBytes)} each</span>
+      </p>
 
       {rejections.length > 0 && (
-        <ul role="alert" className="flex flex-col gap-1 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <ul role="alert" className="flex max-w-xl flex-col gap-1 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {rejections.map((r) => (
             <li key={r}>{r}</li>
           ))}
@@ -189,7 +163,7 @@ export function FileDropzone({
       )}
 
       {items.length > 0 && (
-        <ul className="flex flex-col gap-2" aria-live="polite" aria-label="Selected files">
+        <ul className="flex w-full max-w-xl flex-col gap-2" aria-live="polite" aria-label="Selected files">
           {items.map((it) => (
             <li key={it.id} className="rounded-lg border border-slate-200 bg-white p-3 text-sm" data-status={it.status}>
               <div className="flex items-center gap-3">

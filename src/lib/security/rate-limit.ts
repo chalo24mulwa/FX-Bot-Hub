@@ -1,4 +1,4 @@
-import { redis, withRedisTimeout } from "@/lib/redis";
+import { redis, redisReady, withRedisTimeout } from "@/lib/redis";
 import { env } from "@/lib/env";
 
 export class RateLimitError extends Error {
@@ -42,6 +42,8 @@ export interface RateLimitOptions {
  */
 export async function checkRateLimit(key: string, options: RateLimitOptions): Promise<void> {
   if (env.RATE_LIMIT_DISABLED) return;
+  // Fails open immediately when Redis isn't configured/ready, instead of after a timeout on every request.
+  if (!redisReady()) return;
 
   const redisKey = `ratelimit:${options.bucket}:${key}`;
   let count: number;

@@ -12,9 +12,14 @@ declare global {
 // gracefully instead of hanging when Redis is unreachable (e.g. local dev
 // without `docker compose up redis`), and the "error" listener stops ioredis
 // from logging noisy "Unhandled error event" stack traces for every retry.
+// `env.REDIS_URL` has a localhost default, so whether Redis was actually configured has to come from the raw variable.
+const REDIS_CONFIGURED = !!process.env.REDIS_URL;
+
 export const redis =
   globalThis.__redis ??
   new IORedis(env.REDIS_URL, {
+    // Not configured (e.g. the Hostinger plan): don't open a connection until something actually needs one.
+    lazyConnect: !REDIS_CONFIGURED,
     maxRetriesPerRequest: null,
     commandTimeout: 2000,
     retryStrategy: (times) => Math.min(times * 200, 2000),
@@ -40,6 +45,17 @@ if (process.env.NODE_ENV !== "production") {
 // too, for the same reason — both exist to make a request faster/safer,
 // not to add multi-second latency when their backing store is down.
 export const REDIS_FAST_TIMEOUT_MS = 250;
+
+/**
+ * True only when Redis was configured AND the shared connection is currently ready. The cache and the rate limiter check
+ * this first and go straight to their fallback otherwise: with Redis missing or down, every lookup used to wait out the
+ * `withRedisTimeout` budget (250 ms each, several per page, plus rate-limit calls) before falling back — a fixed
+ * delay on most pages for no benefit. Skipping costs nothing when Redis is healthy (status is "ready"), and the first
+ * requests after a cold start simply compute directly.
+ */
+export function redisReady(): boolean {
+  return REDIS_CONFIGURED && redis.status === "ready";
+}
 
 export function withRedisTimeout<T>(promise: Promise<T>, ms: number = REDIS_FAST_TIMEOUT_MS): Promise<T> {
   return new Promise((resolve, reject) => {

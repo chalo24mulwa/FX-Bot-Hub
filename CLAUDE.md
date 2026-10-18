@@ -1959,16 +1959,41 @@ there. Fixed without requiring a bucket; additive migration `20261019000000_stor
   and returns it so the client PUTs with exactly that. Images keep the PNG/JPG/WebP type check (no SVG).
   Executables are accepted because sellers ship them, but they are only ever delivered as attachments after an
   entitlement check — nothing scans them for malware.
-- **The upload area** (`src/components/seller/file-dropzone.tsx`): one big dashed drop target that is a `<label>`
-  for the real (visually hidden, keyboard-focusable) file input, a prominent violet "Browse files" button, grouped
-  accepted-format chips, the size limit, multi-file selection, sequential uploads with a per-file progress bar
-  (`XMLHttpRequest` — `fetch` can't report upload progress), a Retry on failure and plain-language rejections before
-  any request. Used by the wizard's Screenshots/Files steps and the edit page's Media & files; Version (and a
-  document title) must be filled before the area enables. The earlier bare `<input type=file>` swallowed errors from the
-  screenshot step and left it disabled — don't reintroduce a per-step upload input.
+- **The upload area** (`src/components/seller/file-dropzone.tsx`): deliberately small and left-aligned — one dashed
+  button, "Browse or drag files here", that is a `<label>` for the real (visually hidden, keyboard-focusable) file input
+  *and* the drop target, with a single hint line under it (`shownFormats()`: **at most five MetaTrader formats**
+  `.ex4 .ex5 .mq4 .mq5 .set` for product files, `.png .jpg .webp` for images — everything in the allowlist is still
+  accepted, only these are named; a refused file gets `supportedSummary()` in its message). Multi-file selection,
+  sequential uploads with a per-file progress bar (`XMLHttpRequest` — `fetch` can't report upload progress), a Retry on
+  failure and plain-language rejections before any request. Used by the wizard's Screenshots/Files steps and the edit
+  page's Media & files; Version (and a document title) must be filled before it enables. The earlier bare
+  `<input type=file>` swallowed errors from the screenshot step and left it disabled — don't reintroduce a per-step
+  upload input, and don't grow the hint back into a list of every extension or a wide panel (the owner asked for neither).
 - **Tests**: `e2e/file-upload.spec.ts` does real uploads/downloads against the database storage, and
   `playwright.config.ts` blanks `STORAGE_*`/`NEXT_PUBLIC_STORAGE_PUBLIC_BASE_URL` for the build *and* server so CI (no
   MinIO) exercises the same mode as production. A manual run against MinIO needs those set and a bucket.
+
+## Prices in dollars, instant Redis fallback, submit speed
+
+- **Prices are typed in dollars** (`PriceInput`, `src/components/seller/price-input.tsx`: "$" prefix, `0.00`, tidied to two
+  decimals on blur, native `pattern`/`required` so a bad value can't be submitted). The database and schema are unchanged
+  (`Product.priceCents`, integer); the only conversion is the pure, unit-tested `parseDollarsToCents()` /
+  `centsToDollarString()` in `src/lib/pricing/price-input.ts` (exact — never floating point; rejects negatives, a third
+  decimal, text, and > $1,000,000). The edit form posts a dollar field named `price`; `priceCentsFromForm()` in
+  `features/seller/actions.ts` converts it (and still accepts a posted `priceCents`). Existing products show their saved
+  amount in dollars; no data was migrated. Other price surfaces (VPS `startingPrice`, partnership minimum payout) have
+  their own formats and weren't touched.
+- **Redis is skipped instantly when it isn't usable**: `redisReady()` (`src/lib/redis.ts`) is true only if `REDIS_URL` was
+  really set *and* the shared client's status is `ready`. `cacheWrap()`, `cacheInvalidate()` and `checkRateLimit()` return
+  to their fallback immediately otherwise. Before, a missing/down Redis (production today) cost up to 250 ms *per cache
+  lookup and per rate-limit call* on every page — measured locally: home 0.45 s -> 0.065 s, calendar 0.35 s -> 0.05 s. With a
+  healthy Redis nothing changes. `env.REDIS_URL` has a localhost default, so "configured" must read `process.env.REDIS_URL`.
+  The client uses `lazyConnect` when unconfigured. The Hostinger edge adds a fixed ~0.4-0.5 s to every request (a static
+  file measures the same), which no application change can remove.
+- **Submit buttons react at once**: the wizard saves Pricing/Compatibility in the background (`saveInBackground`, queued so
+  they apply in order) so "Next" is instant, and "Submit for review" waits for those saves and surfaces a failed one before
+  submitting; it prefetches the product page, shows "Submitted ✓" as soon as the action succeeds. The edit page's
+  `SubmitForReviewButton` is optimistic (flips to "Submitted ✓" on click, reverts with the error if the server refuses).
 
 ## Testing
 

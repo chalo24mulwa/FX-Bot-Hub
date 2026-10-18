@@ -1,5 +1,6 @@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { PriceInput } from "@/components/seller/price-input";
 
 export interface ProductFormCategory {
   id: string;
@@ -100,10 +101,7 @@ export function ProductForm({
             <option value="SUBSCRIPTION">Subscription</option>
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Price (cents)
-          <Input name="priceCents" type="number" min={0} defaultValue={defaults?.priceCents ?? 0} />
-        </label>
+        <PriceInput name="price" defaultCents={defaults?.priceCents ?? 0} />
         <label className="flex flex-col gap-1 text-sm">
           Currency
           <Input name="currency" defaultValue={defaults?.currency ?? "USD"} maxLength={3} />

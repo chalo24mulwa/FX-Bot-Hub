@@ -71,8 +71,7 @@ export function ProductAssetsManager({
         )}
         <FileDropzone
           kind="image"
-          title="Drop screenshots here"
-          browseLabel="Browse screenshots"
+          browseLabel="Browse or drag screenshots here"
           onFileDone={refresh}
           onUpload={async (file, onProgress) => {
             await uploadAndAttachScreenshot(productId, file, undefined, onProgress);
@@ -95,8 +94,7 @@ export function ProductAssetsManager({
         </label>
         <FileDropzone
           kind="documentation"
-          title="Drop a document here"
-          browseLabel="Browse documents"
+          browseLabel="Browse or drag a document here"
           disabled={!docTitle.trim()}
           onFileDone={refresh}
           onUpload={async (file, onProgress) => {
@@ -149,8 +147,7 @@ export function ProductAssetsManager({
         </label>
         <FileDropzone
           kind="productFile"
-          title="Drop your product files here"
-          browseLabel="Browse files"
+          browseLabel="Browse or drag files here"
           disabled={!version.trim()}
           onFileDone={refresh}
           onUpload={async (file, onProgress) => {

@@ -17,10 +17,21 @@ export const PRODUCT_FILE_GROUPS = [
 
 export const PRODUCT_FILE_EXTENSIONS = PRODUCT_FILE_GROUPS.flatMap((g) => g.extensions) as readonly string[];
 
-/** The formats of an upload kind, grouped for display (kinds without named groups show one unlabeled group). */
-export function formatGroups(kind: UploadKind): readonly { label: string; extensions: readonly string[] }[] {
-  if (kind === "productFile") return PRODUCT_FILE_GROUPS;
-  return [{ label: "", extensions: UPLOAD_LIMITS[kind].extensions }];
+/**
+ * The few formats shown next to an upload button. Everything in the allowlist is still accepted; the screen only names the
+ * ones a seller is most likely to be looking for (at most five MetaTrader formats for product files).
+ */
+export function shownFormats(kind: UploadKind): readonly string[] {
+  if (kind === "productFile") return [".ex4", ".ex5", ".mq4", ".mq5", ".set"];
+  if (kind === "image") return [".png", ".jpg", ".webp"];
+  return [".pdf", ".md", ".txt"];
+}
+
+/** One sentence naming what a kind accepts, for the message shown when a file is refused. */
+export function supportedSummary(kind: UploadKind): string {
+  if (kind === "productFile") return "Upload a MetaTrader file (.ex4, .ex5, .mq4, .mq5, .set), an archive (.zip, .rar, .7z), a Windows program or a document.";
+  if (kind === "image") return "Use a PNG, JPG or WebP image.";
+  return "Use a PDF, Markdown, text or Word document.";
 }
 
 export const UPLOAD_LIMITS = {
@@ -82,7 +93,7 @@ export function describeRejection({ kind, fileName, contentType, sizeBytes }: Va
   const ext = fileExtension(fileName);
   if (!(limits.extensions as readonly string[]).includes(ext)) {
     const shown = ext || "(no extension)";
-    return `"${fileName}": ${shown} files can't be uploaded here. Use one of the accepted formats listed above the upload button.`;
+    return `"${fileName}": ${shown} files can't be uploaded here. ${supportedSummary(kind)}`;
   }
   if (limits.contentTypes && !(limits.contentTypes as readonly string[]).includes(contentType)) {
     return `"${fileName}" is not a supported ${kind === "image" ? "image (use PNG, JPG or WebP)" : "file"} type.`;

@@ -52,16 +52,17 @@ test("screenshots and product files upload from a clear Browse area, in many for
   const productName = `E2E Upload Product ${Date.now()}`;
   const next = await startDraft(page, productName);
 
-  // ---- Screenshots step: a large, labelled area with a visible Browse button.
+  // ---- Screenshots step: one compact, left-aligned "Browse or drag" button, not a wide area.
   const area = page.getByTestId("dropzone");
   await expect(area).toBeVisible();
-  const browse = area.getByText("Browse screenshots", { exact: true });
-  await expect(browse).toBeVisible();
-  const browseBox = (await browse.boundingBox())!;
-  expect(browseBox.height).toBeGreaterThanOrEqual(40);
-  expect(browseBox.width).toBeGreaterThanOrEqual(140);
-  expect((await area.boundingBox())!.height).toBeGreaterThanOrEqual(180);
-  await expect(area.getByLabel("Accepted formats")).toContainText(".png");
+  await expect(area).toContainText("Browse or drag screenshots here");
+  const areaBox = (await area.boundingBox())!;
+  expect(areaBox.height).toBeGreaterThanOrEqual(44);
+  expect(areaBox.height).toBeLessThanOrEqual(80); // a button, not a big panel
+  expect(areaBox.width).toBeLessThanOrEqual(420);
+  const heading = (await page.getByText("Add a few screenshots (optional)").boundingBox())!;
+  expect(Math.abs(areaBox.x - heading.x)).toBeLessThanOrEqual(2); // aligned with the text above it, i.e. left
+  await expect(page.getByLabel("Accepted formats")).toContainText(".png");
 
   const input = area.locator('input[type="file"]');
   await expect(input).toHaveAttribute("multiple", "");
@@ -81,9 +82,14 @@ test("screenshots and product files upload from a clear Browse area, in many for
 
   // ---- Files step: zip, MQL source, exe and a MetaTrader binary, with MIME types browsers really report.
   const files = page.getByTestId("dropzone");
-  await expect(files.getByText("Browse files", { exact: true })).toBeVisible();
-  await expect(files.getByLabel("Accepted formats")).toContainText(".zip");
-  await expect(files.getByLabel("Accepted formats")).toContainText(".exe");
+  await expect(files).toContainText("Browse or drag files here");
+  // Only five MetaTrader formats are named; zip/exe and the rest are accepted but not listed.
+  const formats = page.getByLabel("Accepted formats");
+  await expect(formats).toContainText(".ex4");
+  await expect(formats).toContainText(".set");
+  await expect(formats).not.toContainText(".zip");
+  await expect(formats).not.toContainText(".exe");
+  expect((((await formats.innerText()).match(/\.[a-z0-9]{2,5}\b/g) ?? []).length)).toBeLessThanOrEqual(5);
   const zip = Buffer.concat([Buffer.from("PK\u0003\u0004"), Buffer.from("fx-bot-hub e2e archive ".repeat(500))]);
   await files.locator('input[type="file"]').setInputFiles([
     { name: "My EA Bundle v1.zip", mimeType: "application/x-zip-compressed", buffer: zip },
@@ -96,7 +102,7 @@ test("screenshots and product files upload from a clear Browse area, in many for
 
   // Unsupported formats are rejected up front, and say what is accepted.
   await files.locator('input[type="file"]').setInputFiles({ name: "page.html", mimeType: "text/html", buffer: Buffer.from("<b>x</b>") });
-  await expect(page.getByRole("alert").filter({ hasText: "page.html" })).toContainText("accepted formats");
+  await expect(page.getByRole("alert").filter({ hasText: "page.html" })).toContainText("MetaTrader file");
 
   // ---- The product page lists the files, the screenshots render, and the owner can download the bytes back.
   await next.click(); // pricing
@@ -153,12 +159,13 @@ test("the upload areas fit a phone screen and the Browse button stays a comforta
   await signIn(page, E2E_SELLER);
   await startDraft(page, `E2E Upload Phone ${Date.now()}`);
   const area = page.getByTestId("dropzone");
-  await expect(area.getByText("Browse screenshots", { exact: true })).toBeVisible();
-  const button = (await area.getByText("Browse screenshots", { exact: true }).boundingBox())!;
+  await expect(area).toContainText("Browse or drag screenshots here");
+  const button = (await area.boundingBox())!;
   expect(button.height).toBeGreaterThanOrEqual(44);
+  expect(button.x).toBeLessThanOrEqual(24); // left-aligned within the page gutter
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
   await page.locator("main").getByRole("button", { name: "Next", exact: true }).click();
-  await expect(page.getByTestId("dropzone").getByText("Browse files", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("dropzone")).toContainText("Browse or drag files here");
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
   await context.close();
 });

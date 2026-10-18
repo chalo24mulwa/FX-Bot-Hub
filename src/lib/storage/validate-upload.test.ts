@@ -25,10 +25,10 @@ describe("validateUpload", () => {
     expect(validateUpload({ kind: "productFile", fileName: "x.zip", contentType: "not a type", sizeBytes: 10 }).ok).toBe(false);
   });
 
-  it("rejects a disallowed extension, with the allowed list in the message", () => {
+  it("rejects a disallowed extension, with what is accepted in the message", () => {
     const result = validateUpload({ kind: "productFile", fileName: "page.html", contentType: "text/html", sizeBytes: 1024 });
     expect(result.ok).toBe(false);
-    expect(result.error).toContain("accepted formats");
+    expect(result.error).toContain("MetaTrader file");
     expect(validateUpload({ kind: "productFile", fileName: "noextension", contentType: "application/octet-stream", sizeBytes: 5 }).ok).toBe(false);
     expect(validateUpload({ kind: "productFile", fileName: "script.js", contentType: "application/octet-stream", sizeBytes: 5 }).ok).toBe(false);
   });
