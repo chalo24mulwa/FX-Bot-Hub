@@ -82,7 +82,7 @@ export default async function AdminProductDetailPage({ params }: { params: Promi
           {product.seller.bannedAt && <span className="ml-1 text-xs text-red-600">(suspended)</span>}
         </Fact>
         <Fact label="Category">{product.category?.name ?? "—"}</Fact>
-        <Fact label="Price">{product.pricingType === "FREE" ? "Free" : `${formatPriceCents(product.priceCents)}${product.pricingType === "SUBSCRIPTION" ? " / month" : ""}`}</Fact>
+        <Fact label="Price">{product.pricingType === "FREE" ? "Free" : `${formatPriceCents(product.priceCents)}${product.pricingType === "SUBSCRIPTION" ? " / month" : ""}${product.marketPriceCents ? ` (market ${formatPriceCents(product.marketPriceCents)})` : ""}`}</Fact>
         <Fact label="Created">{product.createdAt.toLocaleDateString()}</Fact>
         <Fact label="Last updated">{product.updatedAt.toLocaleDateString()}</Fact>
         <Fact label="Published">{product.publishedAt ? product.publishedAt.toLocaleDateString() : "Never"}</Fact>

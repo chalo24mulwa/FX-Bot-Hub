@@ -13,7 +13,7 @@ for in the wizard — add them from the product's page once the draft exists
 (the draft is created when you leave the description step). Nothing is
 public until you submit it and an admin approves it.
 
-**Pricing types**: `FREE` (priceCents must be 0), `ONE_TIME` (single
+**Pricing types**: `FREE` (priceCents must be 0; no market price), `ONE_TIME` (single
 purchase), `SUBSCRIPTION` (recurring — billed automatically every ~30
 days until the buyer or you cancels; see "Subscription products" below).
 
@@ -108,3 +108,7 @@ order (buyer-side) — there's no separate seller-side invoice list yet; use
 ## Uploading files
 
 The Screenshots and Files steps (and the Media & files section of a product's page) have a large upload area: click **Browse or drag files here**, or drag files onto it. You can pick several at once; each shows its own progress and a **Retry** button if it fails. Product files can be MetaTrader files (`.ex4 .ex5 .mq4 .mq5 .mqh .mql .set .tpl`…), archives (`.zip .rar .7z`), Windows programs (`.exe .dll .msi`) and documents, up to 50 MB each. Screenshots are PNG, JPG or WebP up to 8 MB.
+
+## Discounts
+
+Pricing has two fields: **Market price** (optional — the original price, shown crossed out) and **Offer price** (what buyers pay). Fill in the market price to show a red "NN% OFF" badge on the top-left of your cover photo; the percentage is calculated for you (rounded to a whole number). The market price must be higher than the offer price; leave it blank for no discount.

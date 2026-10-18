@@ -19,7 +19,7 @@ test("a seller prices a product in dollars in the wizard and on the edit page", 
 
   // Pricing step: dollars, starting at 0.00 — no mention of cents anywhere.
   await page.locator("main").getByRole("button", { name: "One-time purchase" }).click();
-  const price = page.getByLabel("Price (USD)");
+  const price = page.getByLabel("Offer price (USD)");
   await expect(price).toHaveValue("0.00");
   await expect(page.locator("main")).not.toContainText(/cents/i);
 
@@ -27,7 +27,7 @@ test("a seller prices a product in dollars in the wizard and on the edit page", 
   await price.fill("abc");
   await expect(page.getByRole("alert").filter({ hasText: "like 49.00" })).toBeVisible();
   await next.click();
-  await expect(page.getByText("Enter a valid price in dollars")).toBeVisible();
+  await expect(page.getByText("Enter valid amounts in dollars")).toBeVisible();
   await price.fill("-5");
   await expect(page.getByRole("alert").filter({ hasText: "like 49.00" })).toBeVisible();
 
@@ -42,18 +42,18 @@ test("a seller prices a product in dollars in the wizard and on the edit page", 
   await expect(page).toHaveURL(/\/seller\/products\/(?!new$)[a-z0-9]+$/, { timeout: 15_000 });
 
   // The edit page shows what was saved, in dollars; changing it round-trips.
-  const edit = page.getByLabel("Price (USD)");
+  const edit = page.getByLabel("Offer price (USD)");
   await expect(edit).toHaveValue("49.50");
   await edit.fill("12.34");
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect.poll(async () => {
     await page.reload();
-    return page.getByLabel("Price (USD)").inputValue();
+    return page.getByLabel("Offer price (USD)").inputValue();
   }, { timeout: 15_000 }).toBe("12.34");
 
   // A value that isn't a dollar amount can't be saved (the browser blocks the form), so a wrong price never reaches the database.
-  await page.getByLabel("Price (USD)").fill("1.999");
+  await page.getByLabel("Offer price (USD)").fill("1.999");
   await page.getByRole("button", { name: "Save changes" }).click();
   await page.reload();
-  await expect(page.getByLabel("Price (USD)")).toHaveValue("12.34");
+  await expect(page.getByLabel("Offer price (USD)")).toHaveValue("12.34");
 });

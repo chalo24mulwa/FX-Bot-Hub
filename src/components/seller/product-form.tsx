@@ -1,6 +1,6 @@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { PriceInput } from "@/components/seller/price-input";
+import { PricingFields } from "@/components/seller/pricing-fields";
 
 export interface ProductFormCategory {
   id: string;
@@ -13,6 +13,7 @@ export interface ProductFormDefaults {
   platform?: string;
   pricingType?: string;
   priceCents?: number;
+  marketPriceCents?: number | null;
   currency?: string;
   categoryId?: string | null;
   shortSummary?: string;
@@ -88,7 +89,7 @@ export function ProductForm({
         </select>
       </label>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <label className="flex flex-col gap-1 text-sm">
           Pricing
           <select
@@ -101,12 +102,19 @@ export function ProductForm({
             <option value="SUBSCRIPTION">Subscription</option>
           </select>
         </label>
-        <PriceInput name="price" defaultCents={defaults?.priceCents ?? 0} />
         <label className="flex flex-col gap-1 text-sm">
           Currency
           <Input name="currency" defaultValue={defaults?.currency ?? "USD"} maxLength={3} />
         </label>
       </div>
+
+      <PricingFields
+        offerName="price"
+        marketName="marketPrice"
+        defaultOfferCents={defaults?.priceCents ?? 0}
+        defaultMarketCents={defaults?.marketPriceCents ?? null}
+        subscription={defaults?.pricingType === "SUBSCRIPTION"}
+      />
 
       <label className="flex flex-col gap-1 text-sm">
         Short summary

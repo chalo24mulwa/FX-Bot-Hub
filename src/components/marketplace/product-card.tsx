@@ -5,6 +5,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { FavoriteButton } from "./favorite-button";
 import { getPublicUrl } from "@/lib/storage";
 import { cn, formatPriceCents } from "@/lib/utils";
+import { priceDisplay } from "@/lib/pricing/discount";
+import { DiscountBadge } from "./discount-badge";
 
 const TYPE_LABEL: Record<string, string> = {
   EA: "Expert Advisor",
@@ -22,6 +24,8 @@ export interface ProductCardData {
   platform: string;
   pricingType: string;
   priceCents: number;
+  /** Original price, crossed out; only shown when it forms a valid discount with priceCents. */
+  marketPriceCents?: number | null;
   currency: string;
   featured: boolean;
   updatedAt: Date | string;
@@ -39,6 +43,7 @@ export function ProductCard({
 }) {
   const cover = product.images[0];
   const updated = new Date(product.updatedAt);
+  const price = priceDisplay(product);
 
   return (
     <Card className="group relative flex h-full flex-col overflow-hidden transition-shadow hover:shadow-md">
@@ -63,8 +68,15 @@ export function ProductCard({
               No image
             </div>
           )}
+          {price.percent !== null && <DiscountBadge percent={price.percent} />}
           {product.featured && (
-            <Badge className="absolute left-2 top-2 border-amber-300 bg-amber-50 text-amber-800">
+            <Badge
+              className={cn(
+                "absolute border-amber-300 bg-amber-50 text-amber-800",
+                // The discount badge owns the top-left corner; Featured moves to the bottom-left when both apply.
+                price.percent !== null ? "bottom-2 left-2" : "left-2 top-2"
+              )}
+            >
               Featured
             </Badge>
           )}
@@ -107,6 +119,12 @@ export function ProductCard({
               {product.pricingType === "FREE"
                 ? "Free"
                 : formatPriceCents(product.priceCents, product.currency)}
+              {price.marketCents !== null && (
+                <span data-testid="market-price" className="ml-1.5 text-sm font-normal text-slate-400 line-through">
+                  <span className="sr-only">Original price </span>
+                  {formatPriceCents(price.marketCents, product.currency)}
+                </span>
+              )}
               {product.pricingType === "SUBSCRIPTION" && (
                 <span className="text-xs font-normal text-slate-500"> /mo</span>
               )}

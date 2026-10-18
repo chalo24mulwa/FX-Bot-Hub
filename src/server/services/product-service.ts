@@ -1,3 +1,4 @@
+import { normalizePricing, validatePricing } from "@/lib/pricing/discount";
 import { db } from "@/lib/db";
 import {
   findProducts,
@@ -84,17 +85,34 @@ export async function listNewestProducts(limit: number) {
 
 export async function createDraftProduct(sellerId: string, input: CreateProductInput) {
   const slug = await uniqueSlug(input.name);
+  // Re-checked here (not only in the schema) so no caller can store an invalid market/offer pair.
+  const pricing = normalizePricing({ pricingType: input.pricingType, priceCents: input.priceCents, marketPriceCents: input.marketPriceCents ?? null });
+  const problem = validatePricing(pricing);
+  if (problem) throw new Error(problem);
   return db.product.create({
-    data: { ...input, sellerId, slug, status: "DRAFT" },
+    data: { ...input, marketPriceCents: pricing.marketPriceCents, sellerId, slug, status: "DRAFT" },
   });
 }
 
 export async function updateOwnProduct(sellerId: string, productId: string, input: UpdateProductInput) {
   const product = await db.product.findUnique({
     where: { id: productId },
-    select: { sellerId: true, status: true, priceCents: true, name: true, slug: true, currency: true },
+    select: { sellerId: true, status: true, priceCents: true, marketPriceCents: true, pricingType: true, name: true, slug: true, currency: true },
   });
   if (!product || product.sellerId !== sellerId) return null;
+
+  // Validate the pricing as it will be AFTER this edit (a partial patch may change only one of the fields), on the server.
+  const touchesPricing = input.priceCents !== undefined || input.marketPriceCents !== undefined || input.pricingType !== undefined;
+  if (touchesPricing) {
+    const merged = normalizePricing({
+      pricingType: input.pricingType ?? product.pricingType,
+      priceCents: input.priceCents ?? product.priceCents,
+      marketPriceCents: input.marketPriceCents !== undefined ? input.marketPriceCents : product.marketPriceCents,
+    });
+    const problem = validatePricing(merged);
+    if (problem) throw new Error(problem);
+    input = { ...input, marketPriceCents: merged.marketPriceCents };
+  }
   // A published listing must go back through review after material edits.
   const resetsReview = product.status === "PUBLISHED" || product.status === "REJECTED";
   const wasPublished = product.status === "PUBLISHED";

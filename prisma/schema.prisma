@@ -272,7 +272,8 @@ model Product {
   compatibilityNotes       String?                  @db.Text
   supportInfo              String?                  @db.Text
   pricingType              PricingType              @default(ONE_TIME)
-  priceCents               Int // 0 when pricingType = FREE
+  priceCents               Int // the OFFER price: what buyers pay and what checkout charges; 0 when pricingType = FREE
+  marketPriceCents         Int? // optional original price shown crossed out; a discount exists only when it is above priceCents (src/lib/pricing/discount.ts)
   currency                 String                   @default("USD")
   status                   ProductStatus            @default(DRAFT)
   rejectionReason          String?                  @db.Text // most recent rejection reason; full history is in AuditLog

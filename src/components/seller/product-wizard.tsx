@@ -11,7 +11,7 @@ import {
 } from "@/features/seller/actions";
 import { CoverPhotoPicker, useCoverPreview } from "@/components/seller/cover-photo-field";
 import { FileDropzone } from "@/components/seller/file-dropzone";
-import { PriceInput } from "@/components/seller/price-input";
+import { PricingFields, type PricingState } from "@/components/seller/pricing-fields";
 import {
   uploadAndSetCover,
   uploadAndAttachScreenshot,
@@ -42,6 +42,7 @@ interface WizardData {
   description: string;
   pricingType: string;
   priceCents: number;
+  marketPriceCents: number | null;
   currency: string;
   tags: string[];
   compatibilityNotes: string;
@@ -56,6 +57,7 @@ const EMPTY: WizardData = {
   description: "",
   pricingType: "ONE_TIME",
   priceCents: 0,
+  marketPriceCents: null,
   currency: "USD",
   tags: [],
   compatibilityNotes: "",
@@ -64,7 +66,8 @@ const EMPTY: WizardData = {
 export function ProductWizard({ categories }: { categories: { id: string; name: string }[] }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
-  const [priceValid, setPriceValid] = useState(true);
+  // Set by the pricing fields while the seller types; null when the combination is valid (the server checks it again).
+  const [pricingProblem, setPricingProblem] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   // Pricing and compatibility are saved in the background so "Next" is instant; Submit waits for them (and for any failure).
   const pendingSaves = useRef<Promise<void>>(Promise.resolve());
@@ -157,14 +160,15 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
     }
 
     // Pricing and compatibility steps PATCH the existing draft.
-    if (current === "Pricing" && data.pricingType !== "FREE" && !priceValid) {
-      setError("Enter a valid price in dollars, like 49.00.");
+    if (current === "Pricing" && data.pricingType !== "FREE" && pricingProblem) {
+      setError(pricingProblem);
       return;
     }
     if (current === "Pricing" && productId) {
       saveInBackground(productId, {
         pricingType: data.pricingType as never,
         priceCents: data.pricingType === "FREE" ? 0 : data.priceCents,
+        marketPriceCents: data.pricingType === "FREE" ? null : data.marketPriceCents,
         currency: data.currency,
       });
     }
@@ -172,12 +176,12 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
       saveInBackground(productId, { compatibilityNotes: data.compatibilityNotes });
     }
 
-    setPriceValid(true); // the price field remounts from the last valid amount
+    setPricingProblem(null); // the fields remount from the last valid amounts
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
   }
 
   function back() {
-    setPriceValid(true);
+    setPricingProblem(null);
     setStep((s) => Math.max(s - 1, 0));
   }
 
@@ -346,12 +350,14 @@ export function ProductWizard({ categories }: { categories: { id: string; name: 
               ]}
             />
             {data.pricingType !== "FREE" && (
-              <PriceInput
-                label={data.pricingType === "SUBSCRIPTION" ? "Price per month (USD)" : "Price (USD)"}
-                defaultCents={data.priceCents}
-                onCentsChange={(cents) => {
-                  setPriceValid(cents !== null);
-                  if (cents !== null) set("priceCents", cents);
+              <PricingFields
+                subscription={data.pricingType === "SUBSCRIPTION"}
+                defaultOfferCents={data.priceCents}
+                defaultMarketCents={data.marketPriceCents}
+                onChange={(state: PricingState) => {
+                  setPricingProblem(state.problem);
+                  if (state.offerCents !== null) set("priceCents", state.offerCents);
+                  set("marketPriceCents", state.marketCents);
                 }}
               />
             )}

@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { MAX_PRICE_CENTS } from "@/lib/pricing/price-input";
+import { validatePricing } from "@/lib/pricing/discount";
 
 export const productTypeSchema = z.enum(["EA", "INDICATOR", "SIGNAL", "TOOL", "OTHER"]);
 export const platformSchema = z.enum(["MT4", "MT5", "MULTI_PLATFORM"]);
@@ -34,6 +36,8 @@ const productFieldsSchema = z.object({
   supportInfo: z.string().max(2000).optional(),
   pricingType: pricingTypeSchema.default("ONE_TIME"),
   priceCents: z.number().int().min(0),
+  // The original (crossed-out) price; null/absent = no discount. Cross-field rules live in validatePricing().
+  marketPriceCents: z.number().int().min(1).max(MAX_PRICE_CENTS).nullable().optional(),
   currency: z.string().length(3).default("USD"),
   tags: z.array(z.string().min(1).max(40)).max(10).default([]),
 });
@@ -41,10 +45,15 @@ const productFieldsSchema = z.object({
 const freeMeansZeroPrice = (data: { pricingType: string; priceCents: number }) =>
   data.pricingType !== "FREE" || data.priceCents === 0;
 
-export const createProductSchema = productFieldsSchema.refine(freeMeansZeroPrice, {
-  message: "priceCents must be 0 when pricingType is FREE",
-  path: ["priceCents"],
-});
+export const createProductSchema = productFieldsSchema
+  .refine(freeMeansZeroPrice, {
+    message: "priceCents must be 0 when pricingType is FREE",
+    path: ["priceCents"],
+  })
+  .superRefine((data, ctx) => {
+    const problem = validatePricing(data);
+    if (problem) ctx.addIssue({ code: "custom", message: problem, path: ["marketPriceCents"] });
+  });
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 
 export const updateProductSchema = productFieldsSchema.partial();

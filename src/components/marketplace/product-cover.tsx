@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { getPublicUrl } from "@/lib/storage/public-url";
 import { cn } from "@/lib/utils";
+import { DiscountBadge } from "./discount-badge";
 
 export interface ProductCoverImage {
   storageKey: string;
@@ -21,6 +22,7 @@ export function ProductCover({
   sizes = "(min-width: 1024px) 896px, 100vw",
   priority = false,
   compact = false,
+  discountPercent = null,
 }: {
   image?: ProductCoverImage | null;
   name: string;
@@ -29,6 +31,8 @@ export function ProductCover({
   priority?: boolean;
   /** Thumbnail mode: drops the placeholder's text label (too big for a tiny box). */
   compact?: boolean;
+  /** A valid discount (see src/lib/pricing/discount.ts); draws the red badge in the top-left corner. */
+  discountPercent?: number | null;
 }) {
   return (
     <div className={cn("relative shrink-0 overflow-hidden bg-slate-100", className)}>
@@ -46,6 +50,7 @@ export function ProductCover({
           {compact ? null : "No image"}
         </div>
       )}
+      {discountPercent ? <DiscountBadge percent={discountPercent} size="lg" /> : null}
     </div>
   );
 }

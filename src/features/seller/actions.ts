@@ -44,6 +44,15 @@ function priceCentsFromForm(formData: FormData): number {
   return cents;
 }
 
+// Optional: blank = no discount. Anything else must be a valid dollar amount.
+function marketPriceCentsFromForm(formData: FormData): number | null {
+  const raw = formData.get("marketPrice");
+  if (raw === null || String(raw).trim() === "") return null;
+  const cents = parseDollarsToCents(String(raw));
+  if (cents === null) throw new Error("Enter a valid market price in dollars, like 100.00, or leave it blank.");
+  return cents;
+}
+
 function formDataToProductInput(formData: FormData) {
   const tags = String(formData.get("tags") ?? "")
     .split(",")
@@ -68,6 +77,7 @@ function formDataToProductInput(formData: FormData) {
     supportInfo: String(formData.get("supportInfo") ?? "") || undefined,
     pricingType: String(formData.get("pricingType") ?? "ONE_TIME"),
     priceCents: priceCentsFromForm(formData),
+    marketPriceCents: marketPriceCentsFromForm(formData),
     currency: String(formData.get("currency") ?? "USD"),
     tags,
   };

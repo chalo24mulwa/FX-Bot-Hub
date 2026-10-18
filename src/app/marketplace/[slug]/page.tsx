@@ -15,6 +15,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getPublicUrl } from "@/lib/storage";
 import { formatPriceCents } from "@/lib/utils";
+import { priceDisplay } from "@/lib/pricing/discount";
 import { track } from "@/lib/analytics/track";
 import { computeQualityScore, isRecentlyUpdated } from "@/lib/quality/product-quality";
 
@@ -66,6 +67,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   // The cover photo renders above the title (top of the page) when the
   // seller has uploaded one — see ProductCover.
   const cover = product.images[0];
+  const price = priceDisplay(product);
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -121,6 +123,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           priority
           sizes="(min-width: 896px) 896px, 100vw"
           className="mb-6 aspect-[16/9] w-full rounded-lg"
+          discountPercent={price.percent}
         />
       )}
 
@@ -147,6 +150,23 @@ export default async function ProductPage({ params }: ProductPageProps) {
         </div>
 
         <div className="flex flex-col items-start gap-2 sm:items-end">
+          {!price.free && (
+            <p className="flex flex-wrap items-baseline gap-2" data-testid="detail-price">
+              <span className="text-2xl font-semibold text-slate-900">
+                {formatPriceCents(price.offerCents, product.currency)}
+                {product.pricingType === "SUBSCRIPTION" && <span className="text-sm font-normal text-slate-500"> /mo</span>}
+              </span>
+              {price.marketCents !== null && (
+                <>
+                  <span className="text-base text-slate-400 line-through">
+                    <span className="sr-only">Original price </span>
+                    {formatPriceCents(price.marketCents, product.currency)}
+                  </span>
+                  <span className="rounded bg-red-600 px-1.5 py-0.5 text-xs font-bold text-white">{price.percent}% OFF</span>
+                </>
+              )}
+            </p>
+          )}
           <div className="flex items-center gap-2">
             <FavoriteButton productId={product.id} initialFavorited={isFavorited} className="static bg-white" />
             {entitlement.entitled ? (

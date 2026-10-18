@@ -63,6 +63,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
             platform: product.platform,
             pricingType: product.pricingType,
             priceCents: product.priceCents,
+            marketPriceCents: product.marketPriceCents,
             currency: product.currency,
             categoryId: product.categoryId,
             shortSummary: product.shortSummary,

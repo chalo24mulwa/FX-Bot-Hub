@@ -1995,6 +1995,36 @@ there. Fixed without requiring a bucket; additive migration `20261019000000_stor
   submitting; it prefetches the product page, shows "Submitted ✓" as soon as the action succeeds. The edit page's
   `SubmitForReviewButton` is optimistic (flips to "Submitted ✓" on click, reverts with the error if the server refuses).
 
+## Discounts: market price vs. offer price
+
+Every product (EA, indicator, signal tool, other) has an **offer price** — the existing `Product.priceCents`, what buyers pay and what
+checkout/subscriptions/ledger/commissions all keep using, unchanged — and an optional **market price**, the new nullable
+`Product.marketPriceCents` (migration `20261020000000_product_market_price`, additive; existing rows are null = no discount, nothing
+backfilled). The percentage is **never stored**: it is derived, everywhere, by the pure `computeDiscountPercent()`
+(`src/lib/pricing/discount.ts`) = ((market - offer) / market) x 100, rounded to the nearest whole percent (halves up), so the badge, cards,
+detail page, the form preview and the server can't disagree.
+
+- **A discount is "valid" only if** both prices are positive, offer < market, and it rounds to at least 1% (capped at 99 — never "100% OFF").
+  Anything else shows the normal price and no badge, also when bad data is already in the database (`priceDisplay()`: free products and
+  invalid pairs render as plain prices).
+- **Server validation** (`validatePricing()` / `normalizePricing()`): in `createProductSchema` (zod superRefine), and again in
+  `createDraftProduct()` / `updateOwnProduct()` against the pricing *as it will be after the edit* (a partial patch can change only one
+  field). Entering a market price at or below the offer price, under 1% apart, or with a $0.00 offer is **rejected with a message**, not
+  silently dropped; a FREE product's market price is cleared. The browser runs the same pure rules for the live preview and to block Next in
+  the wizard, but nothing relies on it. Market price is optional: blank = no discount.
+- **Forms**: `PricingFields` (`src/components/seller/pricing-fields.tsx`) = "Market price (USD)" (optional) + "Offer price (USD)" +
+  a live "Buyers will see 35% OFF — $65.00 ~~$100.00~~" line; used by the wizard's Pricing step and the product edit form (posted as
+  `marketPrice` / `price` in dollars; `actions.ts` converts to cents). The wizard saves Pricing in the background like before.
+- **Display**: `DiscountBadge` (`src/components/marketplace/discount-badge.tsx`) is red outlined text ("35" + "%" over "OFF", tilted — modelled
+  on the owner's reference image), top-left of the cover, `pointer-events-none` so the card link still works. `ProductCard` (badge +
+  offer price with the market price crossed out beside it; "Featured" moves to the bottom-left when a badge is present), the product page
+  (`ProductCover discountPercent`, a price line with the crossed-out price and a "35% OFF" pill, Buy button at the offer price). Cover-less
+  cards still show the badge over the placeholder. Not applied to the cart/checkout (they show what is charged), seller/admin lists (admin
+  product page names the market price) or **signal-provider subscriptions**, which are a separate model with their own price.
+- **Tests**: `discount.test.ts` (rounding, validation, display rules), `e2e/product-discount.spec.ts` (badge position/colour, crossed-out
+  price, no badge for invalid pairs, detail page, phone layout, server refusing a bad pair via the real form, free product clearing it,
+  the wizard).
+
 ## Testing
 
 - `npm run test` (Vitest) — pure-logic unit tests only (authorization matrix,
