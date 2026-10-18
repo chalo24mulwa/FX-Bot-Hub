@@ -1,3 +1,4 @@
+import { invalidateCachePrefix } from "@/lib/cache";
 import type { BrokerStatus, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { recordAuditLog } from "@/repositories/audit-log-repository";
@@ -12,8 +13,10 @@ import { brokerInputSchema, moveBy, placeAt, publishBlockers, reorderWithin, slu
 
 type Tx = Prisma.TransactionClient;
 
-const audit = (actor: AdminActor, action: string, brokerId: string, metadata: Prisma.InputJsonValue) =>
-  recordAuditLog({ actorId: actor.id, action, entityType: "Broker", entityId: brokerId, metadata, ipAddress: actor.ipAddress });
+const audit = (actor: AdminActor, action: string, brokerId: string, metadata: Prisma.InputJsonValue) => {
+  invalidateCachePrefix("brokers:"); // every audited change here can alter a public page
+  return recordAuditLog({ actorId: actor.id, action, entityType: "Broker", entityId: brokerId, metadata, ipAddress: actor.ipAddress });
+};
 
 /** Ranked brokers (everything but archived) in current order, with the status each one has. */
 async function rankedRows(tx: Tx) {

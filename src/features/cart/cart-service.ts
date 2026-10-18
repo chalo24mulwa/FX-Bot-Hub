@@ -1,45 +1,70 @@
 import { db } from "@/lib/db";
-import { productListInclude } from "@/repositories/product-repository";
+import { productCoverSelect } from "@/repositories/product-repository";
 
+// Prisma runs an upsert as several statements inside a transaction (each a ~100 ms round trip to the database); the common case here is
+// "the cart already exists", which is one plain read.
 async function getOrCreateCart(userId: string) {
-  return db.cart.upsert({
-    where: { userId },
-    update: {},
-    create: { userId },
-  });
+  const existing = await db.cart.findUnique({ where: { userId } });
+  if (existing) return existing;
+  try {
+    return await db.cart.create({ data: { userId } });
+  } catch (err) {
+    // Two first-time requests at once: the other one created it.
+    if ((err as { code?: string }).code === "P2002") return db.cart.findUniqueOrThrow({ where: { userId } });
+    throw err;
+  }
 }
 
+// What the cart page and checkout need from each product — not the full listing include.
+const cartProductSelect = {
+  id: true,
+  slug: true,
+  name: true,
+  priceCents: true,
+  currency: true,
+  pricingType: true,
+  images: productCoverSelect,
+} as const;
+
 export async function getCartWithItems(userId: string) {
-  const cart = await getOrCreateCart(userId);
-  const items = await db.cartItem.findMany({
-    where: { cartId: cart.id },
-    orderBy: { createdAt: "asc" },
-    include: { product: { include: productListInclude } },
+  // One statement: the cart, its items, each product and its cover. (A missing cart is created on first use, which costs one more trip.)
+  let found = await db.cart.findUnique({
+    where: { userId },
+    relationLoadStrategy: "join",
+    include: { items: { orderBy: { createdAt: "asc" }, include: { product: { select: cartProductSelect } } } },
   });
+  if (!found) {
+    await getOrCreateCart(userId);
+    found = await db.cart.findUniqueOrThrow({
+      where: { userId },
+      relationLoadStrategy: "join",
+      include: { items: { orderBy: { createdAt: "asc" }, include: { product: { select: cartProductSelect } } } },
+    });
+  }
+  const { items: cartItems, ...cart } = found;
+  const items = cartItems;
   const totalCents = items.reduce((sum, item) => sum + item.product.priceCents * item.quantity, 0);
   return { cart, items, totalCents };
 }
 
 export async function addToCart(userId: string, productId: string) {
-  const product = await db.product.findUnique({ where: { id: productId }, select: { status: true } });
+  // The product check and the cart lookup are independent: run them together (one round trip instead of two).
+  const [product, cart] = await Promise.all([
+    db.product.findUnique({ where: { id: productId }, select: { status: true } }),
+    getOrCreateCart(userId),
+  ]);
   if (!product || product.status !== "PUBLISHED") {
     throw new Error("Product is not available for purchase.");
   }
-
-  const cart = await getOrCreateCart(userId);
-  return db.cartItem.upsert({
-    where: { cartId_productId: { cartId: cart.id, productId } },
-    update: {},
-    create: { cartId: cart.id, productId, quantity: 1 },
-  });
+  // INSERT ... ON CONFLICT DO NOTHING: adding the same product twice is a no-op, in a single statement.
+  await db.cartItem.createMany({ data: [{ cartId: cart.id, productId, quantity: 1 }], skipDuplicates: true });
 }
 
 export async function removeFromCart(userId: string, productId: string) {
-  const cart = await getOrCreateCart(userId);
-  await db.cartItem.deleteMany({ where: { cartId: cart.id, productId } });
+  // One statement; filtering through the cart's owner means there is no cart lookup (or creation) first.
+  await db.cartItem.deleteMany({ where: { productId, cart: { userId } } });
 }
 
 export async function clearCart(userId: string) {
-  const cart = await getOrCreateCart(userId);
-  await db.cartItem.deleteMany({ where: { cartId: cart.id } });
+  await db.cartItem.deleteMany({ where: { cart: { userId } } });
 }

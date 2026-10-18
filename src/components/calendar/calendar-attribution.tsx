@@ -1,4 +1,5 @@
 import { listDataSources } from "@/repositories/data-source-repository";
+import { cacheWrap } from "@/lib/cache";
 import { getCalendarProvider } from "@/services/calendar/providers";
 
 // The visible credit a calendar provider's terms require next to its data
@@ -11,7 +12,8 @@ import { getCalendarProvider } from "@/services/calendar/providers";
 export async function CalendarAttribution({ className = "" }: { className?: string }) {
   let credits: { name: string; url: string }[] = [];
   try {
-    const sources = await listDataSources("CALENDAR");
+    // Cached for a minute: this footnote is on every calendar view and each database round trip costs ~100 ms.
+    const sources = await cacheWrap("calendar:sources", 60, () => listDataSources("CALENDAR"));
     const seen = new Set<string>();
     for (const source of sources) {
       const attribution = getCalendarProvider(source.providerKey)?.attribution;

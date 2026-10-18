@@ -2050,6 +2050,37 @@ detail page, the form preview and the server can't disagree.
   desktop has no toggle), `e2e/product-ratings.spec.ts` (unrated honesty, purchaser-only in the page and the API, exact averages/counts/fill,
   duplicate = edit, survives product edits), `e2e/favorites-and-reviews.spec.ts` (now uses a customer with a $0 order).
 
+## Speed: the database is ~100 ms away, so fewer round trips (see docs/PERFORMANCE.md)
+
+Production's app server is in Manchester and Neon is in `us-east-2` (Ohio): **every query costs ~100 ms**, and a page's time is its
+sequential round trips. Server-side measurements are in docs/PERFORMANCE.md; the biggest remaining lever is moving the Neon project to
+`eu-west-2` (London) — a connection-string change, no code. What the code does:
+
+- **`cacheWrap()` now has an in-process tier** (`src/lib/cache.ts`) used whenever Redis is not configured/ready (production today): fresh for the
+  TTL, then stale-while-revalidate for one more TTL with a single background refresh, shared in-flight computations, `structuredClone` on the way out
+  (so a page can't mutate what the next visitor gets; real `Date`s survive), bounded to 600 entries. `invalidateCachePrefix()` drops entries; every
+  writer that changes a public page calls it: `invalidateProductCaches()` (`src/lib/product-cache.ts`; seller edits, admin moderation/listing
+  actions, rating recompute), the VPS/brokers `audit()` helpers, signals, partnership settings, news and category admin actions. **A new cached read
+  needs a matching invalidation at its writer** (or a short TTL you are happy to wait out).
+- **Cached**: home sections, marketplace listings (`marketplace:list:<query>`), product pages (`product:slug:<slug>`, 30 s), VPS/brokers, news, calendar
+  (+ last-updated, attribution), signals feed, the signed-out community feed, partnership promo settings. **Never cache anything per-visitor**
+  (favourite flag, entitlement, own review, dashboards, cart).
+- **`CACHE_MEMORY_DISABLED=true`** switches the memory tier off — `playwright.config.ts` sets it (with `DISABLE_WARMUP=true`) because specs seed the
+  database directly and read it straight back; with it on, specs that create products by direct DB writes then re-query the same listing see the
+  cached result (verified; not a bug). The cache itself is covered by `src/lib/cache.test.ts`.
+- **Warm-up** (`src/instrumentation.ts`, `src/lib/warmup.ts`): a `SELECT 1` every 45 s keeps the connection and the (auto-suspending) database awake, and the
+  busiest public listings are refreshed in the background just before expiry. Best-effort, `unref()`'d timers.
+- **Fewer round trips**: `relationLoadStrategy: "join"` (needs `previewFeatures = ["relationJoins"]` in `prisma/schema.prisma`, applied by the existing
+  `postinstall: prisma generate`) on the heavy signed-in/cold reads (cart, orders, licences, favourites, product page, listings); independent queries run in
+  `Promise.all`; the product page hands what it already has to `checkEntitlement()` / `canReviewProduct()`; cart writes are single statements
+  (`createMany skipDuplicates`, `deleteMany` through the cart relation — Prisma runs `upsert` as several statements) and the cart API no longer re-reads
+  the cart. To find slow spots, measure with a delaying TCP proxy in front of local Postgres (one-way ~50 ms) rather than trusting a local run, where
+  everything looks instant.
+- **Downloads** (`/api/downloads/[id]`): with database storage the response *is* the file (`StorageProvider.readObject`), as a `private, no-store,
+  no-transform` attachment under the seller's original file name, no hand-set `Content-Length`; there is no second hop with a token a proxy/CDN could
+  cache and replay after it expires (the suspected cause of "an error when I click my downloads"). With a bucket it still redirects to a signed URL
+  (also `no-store`). The access record is written in the background. `e2e/file-download.spec.ts` covers buyer, stranger and signed-out.
+
 ## Testing
 
 - `npm run test` (Vitest) — pure-logic unit tests only (authorization matrix,

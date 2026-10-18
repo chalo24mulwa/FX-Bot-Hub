@@ -105,6 +105,7 @@ export async function findProducts(query: ListProductsQuery, extra?: Prisma.Prod
       orderBy: sortToOrderBy(query.sort),
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,
+      relationLoadStrategy: "join",
       include: productListInclude,
     }),
     db.product.count({ where }),

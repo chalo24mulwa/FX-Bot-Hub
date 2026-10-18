@@ -61,9 +61,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
           .then(Boolean)
       : Promise.resolve(false),
     session?.user
-      ? checkEntitlement(session.user.id, session.user.role, product.id)
+      ? checkEntitlement(session.user.id, session.user.role, product.id, { sellerId: product.sellerId, pricingType: product.pricingType })
       : Promise.resolve({ entitled: false, reason: "not_entitled" as const }),
-    session?.user ? canReviewProduct(session.user.id, product.id) : Promise.resolve(null),
+    session?.user ? canReviewProduct(session.user.id, product.id, product.sellerId) : Promise.resolve(null),
     session?.user
       ? db.review.findUnique({ where: { productId_userId: { productId: product.id, userId: session.user.id } }, select: { rating: true, title: true, body: true } })
       : Promise.resolve(null),

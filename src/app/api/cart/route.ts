@@ -22,8 +22,8 @@ export async function POST(request: NextRequest) {
 
     try {
       await addToCart(session.user.id, productId);
-      const cart = await getCartWithItems(session.user.id);
-      return NextResponse.json(cart, { status: 201 });
+      // The caller only needs to know it worked (it then opens /cart, which reads the cart itself): no second read of the whole cart.
+      return NextResponse.json({ ok: true }, { status: 201 });
     } catch (err) {
       if (err instanceof Error) return NextResponse.json({ error: err.message }, { status: 400 });
       throw err;
@@ -37,7 +37,6 @@ export async function DELETE(request: NextRequest) {
     const session = await requireSession();
     const { productId } = bodySchema.parse(await request.json());
     await removeFromCart(session.user.id, productId);
-    const cart = await getCartWithItems(session.user.id);
-    return NextResponse.json(cart);
+    return NextResponse.json({ ok: true });
   });
 }

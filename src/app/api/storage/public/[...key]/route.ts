@@ -18,7 +18,6 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   return new NextResponse(new Uint8Array(row.data), {
     headers: {
       "Content-Type": contentType,
-      "Content-Length": String(row.sizeBytes),
       "Content-Disposition": contentDisposition(inline ? "inline" : "attachment", downloadFileName(key)),
       // Keys contain a random id and never change content, so they can be cached hard.
       "Cache-Control": "public, max-age=31536000, immutable",

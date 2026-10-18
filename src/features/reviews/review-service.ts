@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { createNotification } from "@/repositories/notification-repository";
+import { invalidateProductCaches } from "@/lib/product-cache";
 
 export class ReviewError extends Error {
   status: number;
@@ -21,13 +22,17 @@ async function hasPaidOrder(userId: string, productId: string): Promise<boolean>
  * Who may rate a product: a verified purchaser — someone with a PAID order for it (free products settle as $0 PAID orders, so
  * "Get for free" counts) or a licence — and never the product's own seller. Reviews written before this rule stay as they are.
  */
-export async function canReviewProduct(userId: string, productId: string): Promise<{ allowed: boolean; reason?: "owner" | "not_purchased" }> {
-  const product = await db.product.findUnique({ where: { id: productId }, select: { sellerId: true } });
-  if (!product) return { allowed: false, reason: "not_purchased" };
-  if (product.sellerId === userId) return { allowed: false, reason: "owner" };
-  if (await hasPaidOrder(userId, productId)) return { allowed: true };
-  const license = await db.license.findFirst({ where: { userId, productId }, select: { id: true } });
-  return license ? { allowed: true } : { allowed: false, reason: "not_purchased" };
+export async function canReviewProduct(
+  userId: string,
+  productId: string,
+  knownSellerId?: string // the product page already has it: one round trip fewer
+): Promise<{ allowed: boolean; reason?: "owner" | "not_purchased" }> {
+  const sellerId = knownSellerId ?? (await db.product.findUnique({ where: { id: productId }, select: { sellerId: true } }))?.sellerId;
+  if (!sellerId) return { allowed: false, reason: "not_purchased" };
+  if (sellerId === userId) return { allowed: false, reason: "owner" };
+  // The order and the licence checks are independent: ask both at once.
+  const [paid, license] = await Promise.all([hasPaidOrder(userId, productId), db.license.findFirst({ where: { userId, productId }, select: { id: true } })]);
+  return paid || license ? { allowed: true } : { allowed: false, reason: "not_purchased" };
 }
 
 /** Recomputes the materialized ProductRatingSummary from Review + ProductRating
@@ -65,6 +70,8 @@ export async function recomputeRatingSummary(productId: string) {
       star5: stars[4],
     },
   });
+  // After the write, so nobody can re-cache the old numbers in between.
+  invalidateProductCaches();
 }
 
 export interface SubmitReviewInput {

@@ -1,3 +1,4 @@
+import { cacheWrap } from "@/lib/cache";
 import type { Metadata } from "next";
 import { listProductsQuerySchema } from "@/lib/validations/product";
 import { listPublishedProducts } from "@/server/services/product-service";
@@ -22,7 +23,9 @@ interface MarketplacePageProps {
 async function resolveLanding(params: Record<string, string | string[] | undefined>) {
   const query = listProductsQuerySchema.parse(params);
   const category = query.categorySlug
-    ? await db.productCategory.findUnique({ where: { slug: query.categorySlug }, select: { name: true } })
+    ? await cacheWrap(`marketplace:category:${query.categorySlug}`, 300, () =>
+        db.productCategory.findUnique({ where: { slug: query.categorySlug as string }, select: { name: true } })
+      )
     : null;
   const landing = describeMarketplaceLanding({
     platform: query.platform,
@@ -47,12 +50,15 @@ export async function generateMetadata({ searchParams }: MarketplacePageProps): 
 
 export default async function MarketplacePage({ searchParams }: MarketplacePageProps) {
   const params = await searchParams;
-  const { query, landing } = await resolveLanding(params);
-  const [{ items, total, page, pageSize }, session] = await Promise.all([
-    listPublishedProducts(query),
-    auth(),
+  // The session is a JWT decode (no database), so resolving it first lets everything that needs the database run side by side:
+  // each database round trip is ~100 ms, and they used to queue one behind another.
+  const session = await auth();
+  const parsed = listProductsQuerySchema.parse(params);
+  const [{ query, landing }, { items, total, page, pageSize }, favoriteIds] = await Promise.all([
+    resolveLanding(params),
+    listPublishedProducts(parsed),
+    session?.user ? listFavoriteProductIds(session.user.id) : Promise.resolve(new Set<string>()),
   ]);
-  const favoriteIds = session?.user ? await listFavoriteProductIds(session.user.id) : new Set<string>();
 
   if (query.q) {
     void track({ type: "SEARCH", userId: session?.user.id, metadata: { query: query.q, resultCount: total } });

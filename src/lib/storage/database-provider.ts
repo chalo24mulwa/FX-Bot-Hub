@@ -27,6 +27,11 @@ export class DatabaseStorageProvider implements StorageProvider {
     return row ? { sizeBytes: row.sizeBytes, contentType: row.contentType } : null;
   }
 
+  async readObject(key: string): Promise<{ data: Buffer; contentType: string } | null> {
+    const row = await db.storedObject.findUnique({ where: { key }, select: { data: true, contentType: true } });
+    return row ? { data: Buffer.from(row.data), contentType: row.contentType } : null;
+  }
+
   async getSignedDownloadUrl(key: string, expiresInSeconds = 300): Promise<string> {
     const token = createStorageToken(env.AUTH_SECRET, { m: "d", k: key, e: Math.floor(Date.now() / 1000) + expiresInSeconds });
     return `/api/storage/download?token=${token}`;

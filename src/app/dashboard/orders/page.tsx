@@ -13,6 +13,7 @@ export default async function OrdersPage() {
   const orders = await db.order.findMany({
     where: { userId: session!.user.id },
     orderBy: { createdAt: "desc" },
+    relationLoadStrategy: "join",
     include: { items: { include: { product: { include: { images: productCoverSelect } } } } },
   });
 

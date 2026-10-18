@@ -18,9 +18,8 @@ export async function GET(request: NextRequest) {
   return new NextResponse(new Uint8Array(row.data), {
     headers: {
       "Content-Type": "application/octet-stream",
-      "Content-Length": String(row.sizeBytes),
       "Content-Disposition": contentDisposition("attachment", downloadFileName(payload.k)),
-      "Cache-Control": "private, no-store",
+      "Cache-Control": "private, no-store, no-transform",
       "X-Content-Type-Options": "nosniff",
     },
   });

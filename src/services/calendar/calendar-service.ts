@@ -138,11 +138,15 @@ export async function getEventRevisionHistory(eventId: string, limit = 20) {
  * row the provider returned, changed or not). Null before the first sync.
  * Read straight from the indexed column; drives the "Updated …" indicator. */
 export async function getCalendarLastUpdated(): Promise<Date | null> {
-  const row = await db.economicEvent.aggregate({
-    where: { source: { not: "manual" } },
-    _max: { lastSyncedAt: true },
+  // 30 s is far below the sync interval, and this was a database round trip on every calendar view. (A Redis hit hands back a string.)
+  const value = await cacheWrap<Date | string | null>("calendar-last-updated", 30, async () => {
+    const row = await db.economicEvent.aggregate({
+      where: { source: { not: "manual" } },
+      _max: { lastSyncedAt: true },
+    });
+    return row._max.lastSyncedAt;
   });
-  return row._max.lastSyncedAt;
+  return value ? new Date(value) : null;
 }
 
 export async function listDistinctCurrencies(): Promise<string[]> {

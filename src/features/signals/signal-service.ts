@@ -1,3 +1,4 @@
+import { cacheWrap, invalidateCachePrefix } from "@/lib/cache";
 import { db } from "@/lib/db";
 import { dispatchSignalPublished, dispatchSignalClosed } from "@/features/alerts/dispatch-service";
 import type { SignalDirection, SignalTimeframe } from "@prisma/client";
@@ -27,6 +28,7 @@ export async function createSignal(input: CreateSignalInput) {
   if (!provider) throw new SignalError("Provider profile not found.", 404);
 
   const signal = await db.signal.create({ data: input });
+  invalidateCachePrefix("signals:");
   void dispatchSignalPublished(signal, provider);
   return signal;
 }
@@ -36,6 +38,7 @@ export async function closeSignal(providerId: string, signalId: string, resultPi
   if (!signal || signal.providerId !== providerId) throw new SignalError("Signal not found.", 404);
   if (signal.status !== "ACTIVE") throw new SignalError("Signal is not active.", 409);
 
+  invalidateCachePrefix("signals:");
   const updated = await db.signal.update({
     where: { id: signalId },
     data: { status: "CLOSED", resultPips, closedAt: new Date() },
@@ -49,6 +52,7 @@ export async function closeSignal(providerId: string, signalId: string, resultPi
 export async function cancelSignal(providerId: string, signalId: string) {
   const signal = await db.signal.findUnique({ where: { id: signalId } });
   if (!signal || signal.providerId !== providerId) throw new SignalError("Signal not found.", 404);
+  invalidateCachePrefix("signals:");
   return db.signal.update({ where: { id: signalId }, data: { status: "CANCELLED", closedAt: new Date() } });
 }
 
@@ -62,6 +66,11 @@ export interface ListSignalsQuery {
 }
 
 export async function listSignals(query: ListSignalsQuery) {
+  // The public feed is the same for every visitor: cached 30 s (writers above drop it).
+  return cacheWrap(`signals:list:${JSON.stringify(query)}`, 30, () => computeSignalList(query));
+}
+
+async function computeSignalList(query: ListSignalsQuery) {
   const page = query.page ?? 1;
   const pageSize = Math.min(query.pageSize ?? 20, 50);
   const where = {

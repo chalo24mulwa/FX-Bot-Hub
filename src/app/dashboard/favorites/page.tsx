@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function FavoritesPage() {
   const session = await auth();
   const favorites = await db.favorite.findMany({
+    relationLoadStrategy: "join",
     where: { userId: session!.user.id },
     orderBy: { createdAt: "desc" },
     include: { product: { include: productListInclude } },

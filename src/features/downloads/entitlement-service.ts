@@ -30,12 +30,16 @@ export interface EntitlementCheck {
 export async function checkEntitlement(
   userId: string,
   userRole: UserRole,
-  productId: string
+  productId: string,
+  // A caller that already holds the product (the product page) passes these two fields to save a database round trip.
+  known?: { sellerId: string; pricingType: string }
 ): Promise<EntitlementCheck> {
-  const product = await db.product.findUnique({
-    where: { id: productId },
-    select: { sellerId: true, pricingType: true },
-  });
+  const product =
+    known ??
+    (await db.product.findUnique({
+      where: { id: productId },
+      select: { sellerId: true, pricingType: true },
+    }));
   if (!product) return { entitled: false, reason: "not_entitled" };
 
   if (product.sellerId === userId) return { entitled: true, reason: "owner" };

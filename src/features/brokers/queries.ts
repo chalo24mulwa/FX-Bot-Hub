@@ -1,3 +1,4 @@
+import { cacheWrap } from "@/lib/cache";
 import type { BrokerStatus, Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 
@@ -38,12 +39,15 @@ export type BrokerView = Prisma.BrokerGetPayload<{ select: typeof VIEW_SELECT }>
 const ORDER: Prisma.BrokerOrderByWithRelationInput[] = [{ position: "asc" }, { name: "asc" }];
 
 /** Published brokers in ranking order — the only thing the public page ever lists. */
+// Public pages: cached briefly (the database is ~100 ms away per round trip); the admin service invalidates "brokers:" on every change.
+const PUBLIC_TTL_SECONDS = 60;
+
 export function listPublishedBrokers(): Promise<BrokerView[]> {
-  return db.broker.findMany({ where: { status: "PUBLISHED" }, select: VIEW_SELECT, orderBy: ORDER });
+  return cacheWrap("brokers:list", PUBLIC_TTL_SECONDS, () => db.broker.findMany({ where: { status: "PUBLISHED" }, select: VIEW_SELECT, orderBy: ORDER }));
 }
 
 export function getPublishedBroker(slug: string): Promise<BrokerView | null> {
-  return db.broker.findFirst({ where: { slug, status: "PUBLISHED" }, select: VIEW_SELECT });
+  return cacheWrap(`brokers:slug:${slug}`, PUBLIC_TTL_SECONDS, () => db.broker.findFirst({ where: { slug, status: "PUBLISHED" }, select: VIEW_SELECT }));
 }
 
 // ---- admin ------------------------------------------------------------------------------------

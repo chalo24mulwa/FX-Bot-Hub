@@ -1,3 +1,4 @@
+import { cacheWrap } from "@/lib/cache";
 import type { Prisma, VpsStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 
@@ -58,12 +59,15 @@ export type VpsView = Prisma.VpsProviderGetPayload<{ select: typeof VIEW_SELECT 
 const ORDER: Prisma.VpsProviderOrderByWithRelationInput[] = [{ position: "asc" }, { name: "asc" }];
 
 /** Published providers in ranking order — the only thing the public page ever lists. */
+// Public pages: cached briefly (the database is ~100 ms away per round trip); the admin service invalidates "vps:" on every change.
+const PUBLIC_TTL_SECONDS = 60;
+
 export function listPublishedVps(): Promise<VpsView[]> {
-  return db.vpsProvider.findMany({ where: { status: "PUBLISHED" }, select: VIEW_SELECT, orderBy: ORDER });
+  return cacheWrap("vps:list", PUBLIC_TTL_SECONDS, () => db.vpsProvider.findMany({ where: { status: "PUBLISHED" }, select: VIEW_SELECT, orderBy: ORDER }));
 }
 
 export function getPublishedVps(slug: string): Promise<VpsView | null> {
-  return db.vpsProvider.findFirst({ where: { slug, status: "PUBLISHED" }, select: VIEW_SELECT });
+  return cacheWrap(`vps:slug:${slug}`, PUBLIC_TTL_SECONDS, () => db.vpsProvider.findFirst({ where: { slug, status: "PUBLISHED" }, select: VIEW_SELECT }));
 }
 
 // ---- admin ------------------------------------------------------------------------------------

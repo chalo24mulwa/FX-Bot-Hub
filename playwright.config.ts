@@ -30,6 +30,10 @@ export default defineConfig({
       STORAGE_ACCESS_KEY_ID: "",
       STORAGE_SECRET_ACCESS_KEY: "",
       NEXT_PUBLIC_STORAGE_PUBLIC_BASE_URL: "",
+      // The specs write to the database directly and read it straight back, so the in-process page cache (src/lib/cache.ts) and the
+      // background warmers are off for the suite; the cache itself is covered by src/lib/cache.test.ts.
+      CACHE_MEMORY_DISABLED: "true",
+      DISABLE_WARMUP: "true",
     },
     timeout: 120_000,
   },

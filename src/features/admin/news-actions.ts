@@ -1,5 +1,6 @@
 "use server";
 
+import { invalidateCachePrefix } from "@/lib/cache";
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/authorization";
 import { db } from "@/lib/db";
@@ -36,6 +37,7 @@ export async function createArticleAction(formData: FormData) {
   });
 
   await recordAuditLog({ actorId: session.user.id, action: "news_article.create", entityType: "NewsArticle", entityId: article.id });
+  invalidateCachePrefix("published-articles:", "news-");
   revalidatePath("/admin/news");
   revalidatePath("/news");
 }
@@ -52,6 +54,7 @@ export async function togglePublishArticleAction(id: string, publish: boolean) {
     entityType: "NewsArticle",
     entityId: id,
   });
+  invalidateCachePrefix("published-articles:", "news-");
   revalidatePath("/admin/news");
   revalidatePath("/news");
 }
@@ -60,6 +63,7 @@ export async function deleteArticleAction(id: string) {
   const session = await requirePermission("news:manage");
   await db.newsArticle.delete({ where: { id } });
   await recordAuditLog({ actorId: session.user.id, action: "news_article.delete", entityType: "NewsArticle", entityId: id });
+  invalidateCachePrefix("published-articles:", "news-");
   revalidatePath("/admin/news");
   revalidatePath("/news");
 }
@@ -69,11 +73,13 @@ export async function createNewsCategoryAction(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   if (!name) throw new Error("Name is required.");
   await db.newsCategory.create({ data: { name, slug: slugify(name) } });
+  invalidateCachePrefix("published-articles:", "news-");
   revalidatePath("/admin/news-categories");
 }
 
 export async function deleteNewsCategoryAction(id: string) {
   await requirePermission("news:manage");
   await db.newsCategory.delete({ where: { id } });
+  invalidateCachePrefix("published-articles:", "news-");
   revalidatePath("/admin/news-categories");
 }

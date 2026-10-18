@@ -17,6 +17,7 @@ const STATUS_STYLES: Record<string, string> = {
 export default async function LicensesPage() {
   const session = await auth();
   const licenses = await db.license.findMany({
+    relationLoadStrategy: "join",
     where: { userId: session!.user.id },
     orderBy: { issuedAt: "desc" },
     include: { product: { select: { name: true, slug: true, images: productCoverSelect } }, licenseActivations: { where: { deactivatedAt: null } } },

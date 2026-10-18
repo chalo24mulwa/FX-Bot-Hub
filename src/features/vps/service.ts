@@ -1,3 +1,4 @@
+import { invalidateCachePrefix } from "@/lib/cache";
 import type { Prisma, VpsStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { recordAuditLog } from "@/repositories/audit-log-repository";
@@ -12,8 +13,10 @@ import { vpsInputSchema, vpsPublishBlockers } from "@/lib/vps/validation";
 
 type Tx = Prisma.TransactionClient;
 
-const audit = (actor: AdminActor, action: string, id: string, metadata: Prisma.InputJsonValue) =>
-  recordAuditLog({ actorId: actor.id, action, entityType: "VpsProvider", entityId: id, metadata, ipAddress: actor.ipAddress });
+const audit = (actor: AdminActor, action: string, id: string, metadata: Prisma.InputJsonValue) => {
+  invalidateCachePrefix("vps:"); // every audited change here can alter a public page
+  return recordAuditLog({ actorId: actor.id, action, entityType: "VpsProvider", entityId: id, metadata, ipAddress: actor.ipAddress });
+};
 
 async function rankedRows(tx: Tx) {
   return tx.vpsProvider.findMany({ where: { status: { not: "ARCHIVED" } }, select: { id: true, status: true }, orderBy: [{ position: "asc" }, { name: "asc" }] });

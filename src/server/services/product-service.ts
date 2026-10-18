@@ -1,4 +1,5 @@
 import { normalizePricing, validatePricing } from "@/lib/pricing/discount";
+import { invalidateProductCaches } from "@/lib/product-cache";
 import { db } from "@/lib/db";
 import {
   findProducts,
@@ -37,14 +38,23 @@ export async function listPublishedProducts(query: ListProductsQuery) {
   if (query.sort === "popular" || query.sort === "best_sellers") {
     return listRankedProducts(query);
   }
-  return findProducts(query, { status: "PUBLISHED" });
+  // Public listing (every filter/sort/search combination is its own cache entry, 60 s; product writes invalidate "marketplace:").
+  return cacheWrap(`marketplace:list:${JSON.stringify(query)}`, 60, () => findProducts(query, { status: "PUBLISHED" }));
 }
 
+// The product page is the most-visited page and its query fans out over a dozen relations (each a round trip to a database that is
+// ~100 ms away), so it is cached briefly. Writers call invalidateProductCaches(); the per-visitor parts (favourite, ownership, own
+// review) are separate, uncached queries.
+const PRODUCT_PAGE_TTL_SECONDS = 30;
+
 export async function getPublishedProductBySlug(slug: string) {
-  return db.product.findFirst({
-    where: { slug, status: "PUBLISHED" },
-    include: productDetailInclude,
-  });
+  return cacheWrap(`product:slug:${slug}`, PRODUCT_PAGE_TTL_SECONDS, () =>
+    db.product.findFirst({
+      where: { slug, status: "PUBLISHED" },
+      relationLoadStrategy: "join",
+      include: productDetailInclude,
+    })
+  );
 }
 
 /** Fire-and-forget from the product detail page — a lost increment under
@@ -126,6 +136,8 @@ export async function updateOwnProduct(sellerId: string, productId: string, inpu
     },
   });
 
+  invalidateProductCaches();
+
   if (wasPublished && priceChanged) {
     void notifyPriceChange(
       productId,
@@ -154,6 +166,7 @@ export async function listSellerProducts(sellerId: string, page: number, pageSiz
       orderBy: { updatedAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
+      relationLoadStrategy: "join",
       include: {
         category: true,
         rating: true,
@@ -167,7 +180,7 @@ export async function listSellerProducts(sellerId: string, page: number, pageSiz
 }
 
 export async function getOwnProduct(sellerId: string, productId: string) {
-  const product = await db.product.findUnique({ where: { id: productId }, include: productDetailInclude });
+  const product = await db.product.findUnique({ where: { id: productId }, relationLoadStrategy: "join", include: productDetailInclude });
   if (!product || product.sellerId !== sellerId) return null;
   return product;
 }

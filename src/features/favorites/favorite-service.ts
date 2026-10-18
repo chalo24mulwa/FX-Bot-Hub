@@ -1,16 +1,16 @@
 import { db } from "@/lib/db";
 
 export async function toggleFavorite(userId: string, productId: string): Promise<boolean> {
-  const existing = await db.favorite.findUnique({
-    where: { userId_productId: { userId, productId } },
-  });
+  // One round trip when removing (each trip to the database is ~100 ms): delete first, and only create if there was nothing to delete.
+  const removed = await db.favorite.deleteMany({ where: { userId, productId } });
+  if (removed.count > 0) return false;
 
-  if (existing) {
-    await db.favorite.delete({ where: { id: existing.id } });
-    return false;
+  try {
+    await db.favorite.create({ data: { userId, productId } });
+  } catch (err) {
+    // A concurrent double-click already created it: it is favourited either way.
+    if ((err as { code?: string }).code !== "P2002") throw err;
   }
-
-  await db.favorite.create({ data: { userId, productId } });
   return true;
 }
 

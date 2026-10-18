@@ -1,3 +1,4 @@
+import { invalidateCachePrefix } from "@/lib/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { recordAuditLog } from "@/repositories/audit-log-repository";
@@ -50,6 +51,7 @@ export async function updatePartnershipSettings(actorId: string, raw: unknown) {
     termsText: input.termsText?.trim() ? input.termsText.trim() : null,
   };
   const after = await db.partnershipSettings.update({ where: { id: SETTINGS_ID }, data });
+  invalidateCachePrefix("partnership:");
 
   const changed = Object.fromEntries(
     (Object.keys(data) as (keyof typeof data)[])

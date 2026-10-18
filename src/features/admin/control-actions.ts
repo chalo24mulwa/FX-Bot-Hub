@@ -1,5 +1,6 @@
 "use server";
 
+import { invalidateProductCaches } from "@/lib/product-cache";
 import { revalidatePath } from "next/cache";
 import type { UserRole } from "@prisma/client";
 import * as moderation from "./product-moderation-service";
@@ -99,6 +100,7 @@ export async function revokeAdminRoleAction(userId: string, role: string, reason
 // -- listings ---------------------------------------------------------------
 
 function listingRefresh(id: string) {
+  invalidateProductCaches();
   revalidatePath("/admin/products");
   revalidatePath(`/admin/products/${id}`);
   revalidatePath("/marketplace");

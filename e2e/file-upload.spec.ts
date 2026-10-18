@@ -125,7 +125,7 @@ test("screenshots and product files upload from a clear Browse area, in many for
   const zipRow = stored.find((f: { fileName: string }) => f.fileName.endsWith(".zip"));
   const download = await page.request.get(`/api/downloads/${zipRow.id}`);
   expect(download.status()).toBe(200);
-  expect(download.headers()["content-disposition"]).toContain("My_EA_Bundle_v1.zip");
+  expect(download.headers()["content-disposition"]).toContain("My EA Bundle v1.zip");
   expect((await download.body()).equals(zip)).toBe(true);
 
   // A cover photo saved from the edit page renders through next/image on the seller's product list.

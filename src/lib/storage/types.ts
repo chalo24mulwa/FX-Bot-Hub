@@ -17,4 +17,6 @@ export interface StorageProvider {
   /** Time-limited URL a browser can download or upload directly to. */
   getSignedDownloadUrl(key: string, expiresInSeconds?: number): Promise<string>;
   getSignedUploadUrl(key: string, contentType: string, expiresInSeconds?: number): Promise<string>;
+  /** Only providers that hold the bytes themselves (database storage) implement this; the download route then answers directly instead of redirecting. */
+  readObject?(key: string): Promise<{ data: Buffer; contentType: string } | null>;
 }

@@ -3,7 +3,8 @@
 // Run `npx prisma migrate dev --name <change>` after editing.
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["relationJoins"]
 }
 
 datasource db {

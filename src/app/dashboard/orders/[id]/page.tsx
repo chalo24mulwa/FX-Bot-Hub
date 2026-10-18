@@ -20,6 +20,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
 
   const order = await db.order.findUnique({
     where: { id },
+    relationLoadStrategy: "join",
     include: {
       items: {
         include: {
