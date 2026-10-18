@@ -17,6 +17,19 @@ async function hasPaidOrder(userId: string, productId: string): Promise<boolean>
   return item !== null;
 }
 
+/**
+ * Who may rate a product: a verified purchaser — someone with a PAID order for it (free products settle as $0 PAID orders, so
+ * "Get for free" counts) or a licence — and never the product's own seller. Reviews written before this rule stay as they are.
+ */
+export async function canReviewProduct(userId: string, productId: string): Promise<{ allowed: boolean; reason?: "owner" | "not_purchased" }> {
+  const product = await db.product.findUnique({ where: { id: productId }, select: { sellerId: true } });
+  if (!product) return { allowed: false, reason: "not_purchased" };
+  if (product.sellerId === userId) return { allowed: false, reason: "owner" };
+  if (await hasPaidOrder(userId, productId)) return { allowed: true };
+  const license = await db.license.findFirst({ where: { userId, productId }, select: { id: true } });
+  return license ? { allowed: true } : { allowed: false, reason: "not_purchased" };
+}
+
 /** Recomputes the materialized ProductRatingSummary from Review + ProductRating
  * rows. Called after any write to either — cheap enough at this scale
  * (single grouped aggregate query), and keeps reads (product cards, list
@@ -66,7 +79,15 @@ export async function submitReview(input: SubmitReviewInput) {
   const product = await db.product.findUnique({ where: { id: input.productId }, select: { name: true, sellerId: true, slug: true } });
   if (!product) throw new ReviewError("Product not found.", 404);
 
-  const verifiedPurchase = await hasPaidOrder(input.userId, input.productId);
+  if (!Number.isInteger(input.rating) || input.rating < 1 || input.rating > 5) throw new ReviewError("Choose a rating from 1 to 5 stars.", 422);
+  const permission = await canReviewProduct(input.userId, input.productId);
+  if (!permission.allowed) {
+    throw new ReviewError(
+      permission.reason === "owner" ? "You can't rate your own product." : "Only customers who bought or got this product can rate it.",
+      403,
+    );
+  }
+  const verifiedPurchase = true; // guaranteed by the check above
 
   const review = await db.review.upsert({
     where: { productId_userId: { productId: input.productId, userId: input.userId } },

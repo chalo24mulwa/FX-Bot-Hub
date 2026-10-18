@@ -2025,6 +2025,31 @@ detail page, the form preview and the server can't disagree.
   price, no badge for invalid pairs, detail page, phone layout, server refusing a bad pair via the real form, free product clearing it,
   the wizard).
 
+## Product card preview and five-star ratings
+
+- **Card preview** (`product-card.tsx` + `product-card-shell.tsx`): hovering a card (or keyboard-focusing its link) collapses the cover image to
+  a thin strip and slides a white panel up inside the *same* fixed-ratio cover box — the short summary (3 lines), the first two features and
+  "View details →". The image layer and the panel are stacked in one `aspect-[16/10]` box, so the card's size never changes (no layout jump;
+  asserted in e2e). Pure CSS, `motion-reduce` removes the animation. The discount badge shrinks into the strip, "Featured" fades out. Hover is
+  Tailwind's `group-hover`, which only applies where the device really hovers; keyboard uses `group-has-[a:focus-visible]` — **not**
+  `focus-within`, because tapping the touch toggle focuses it and would pin the panel open. **Touch**: where `(hover: none)`, the shell shows a
+  44px "i" button (`.card-details-toggle` in `globals.css`, a *sibling* of the card link — never nested in the `<a>`) that flips `data-open`;
+  tapping elsewhere on the card still navigates. The preview needs `shortSummary`/`features` on the card data; every list query already
+  returns all scalars, and callers without them just get a smaller preview.
+- **Stars** (`star-rating.tsx`): five SVG stars, filled to the exact average (4.3 fills four and 30% of the fifth). No ratings = five **empty**
+  stars + "Not yet rated" (`data-rated="false"`) — never a default, never a 5. Used on cards, the product page header, the Reviews tab (summary
+  with a per-star breakdown) and each review. The data is the existing `ProductRatingSummary` (recomputed by `recomputeRatingSummary()` on every
+  review write/hide/delete); if a product has reviews but no summary row (older data) the page derives the numbers from the reviews. Production had
+  no reviews, so there was nothing to backfill, and **no migration** was needed: `Review`, `ProductRating` and `ProductRatingSummary` already existed.
+- **Who can rate** (`canReviewProduct()`): a verified purchaser only — a PAID order for the product (free products settle as $0 PAID orders, so
+  "Get for free" counts) or a licence — and never the product's own seller; enforced in `submitReview()` (403) as well as hidden in the UI.
+  Reviews written before this rule are untouched. One review per customer per product (`@@unique([productId, userId])`); the form reopens pre-filled
+  as **Edit your review** and saving updates it (the average recomputes). No star is pre-selected, so a rating is always a deliberate choice;
+  the API returns 422 for a missing/out-of-range rating. The text review is optional.
+- **Tests**: `e2e/product-card-preview.spec.ts` (every product type, no layout jump, restore on leave, badge, keyboard focus, touch toggle,
+  desktop has no toggle), `e2e/product-ratings.spec.ts` (unrated honesty, purchaser-only in the page and the API, exact averages/counts/fill,
+  duplicate = edit, survives product edits), `e2e/favorites-and-reviews.spec.ts` (now uses a customer with a $0 order).
+
 ## Testing
 
 - `npm run test` (Vitest) — pure-logic unit tests only (authorization matrix,

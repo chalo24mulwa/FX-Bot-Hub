@@ -21,7 +21,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // requirement in the Phase 5 brief).
     await checkRateLimit(session.user.id, { bucket: "review:create", limit: 10, windowSeconds: 3600 });
     const { id } = await params;
-    const input = bodySchema.parse(await request.json());
+    const parsed = bodySchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) return NextResponse.json({ error: "Choose a rating from 1 to 5 stars." }, { status: 422 });
+    const input = parsed.data;
 
     try {
       const review = await submitReview({ productId: id, userId: session.user.id, ...input });

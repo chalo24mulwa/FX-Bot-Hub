@@ -4,7 +4,7 @@
  * size and the percentage is always the live, server-validated one. The parent must be `relative`; the badge never takes pointer
  * events, so the card link underneath keeps working.
  */
-export function DiscountBadge({ percent, size = "md" }: { percent: number; size?: "md" | "lg" }) {
+export function DiscountBadge({ percent, size = "md", className = "" }: { percent: number; size?: "md" | "lg"; className?: string }) {
   const big = size === "lg";
   const outline = big ? "4px" : "3px";
   const style: React.CSSProperties = {
@@ -18,7 +18,7 @@ export function DiscountBadge({ percent, size = "md" }: { percent: number; size?
       data-testid="discount-badge"
       role="img"
       aria-label={`${percent}% off`}
-      className={`pointer-events-none absolute left-1.5 top-1.5 z-10 inline-flex -rotate-6 select-none items-start font-black leading-none ${big ? "sm:left-3 sm:top-3" : ""}`}
+      className={`pointer-events-none absolute left-1.5 top-1.5 z-10 inline-flex -rotate-6 select-none items-start font-black leading-none ${big ? "sm:left-3 sm:top-3" : ""} ${className}`}
       style={style}
     >
       <span aria-hidden="true" className={big ? "text-5xl sm:text-6xl" : "text-5xl"}>

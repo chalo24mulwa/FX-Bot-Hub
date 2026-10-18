@@ -9,6 +9,8 @@ import { FavoriteButton } from "@/components/marketplace/favorite-button";
 import { AddToCartButton } from "@/components/marketplace/add-to-cart-button";
 import { ContactSellerButton } from "@/components/marketplace/contact-seller-button";
 import { ReviewForm } from "@/components/marketplace/review-form";
+import { StarRating } from "@/components/marketplace/star-rating";
+import { canReviewProduct } from "@/features/reviews/review-service";
 import { ProductTabs } from "@/components/marketplace/product-tabs";
 import { PartnershipInlineLink } from "@/components/partnership/partnership-cta";
 import { auth } from "@/lib/auth";
@@ -52,7 +54,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   void incrementProductView(product.id);
   void track({ type: "PRODUCT_VIEW", userId: session?.user.id, productId: product.id });
 
-  const [isFavorited, entitlement] = await Promise.all([
+  const [isFavorited, entitlement, reviewPermission, ownReview] = await Promise.all([
     session?.user
       ? db.favorite
           .findUnique({ where: { userId_productId: { userId: session.user.id, productId: product.id } } })
@@ -61,9 +63,25 @@ export default async function ProductPage({ params }: ProductPageProps) {
     session?.user
       ? checkEntitlement(session.user.id, session.user.role, product.id)
       : Promise.resolve({ entitled: false, reason: "not_entitled" as const }),
+    session?.user ? canReviewProduct(session.user.id, product.id) : Promise.resolve(null),
+    session?.user
+      ? db.review.findUnique({ where: { productId_userId: { productId: product.id, userId: session.user.id } }, select: { rating: true, title: true, body: true } })
+      : Promise.resolve(null),
   ]);
 
   const latestVersion = product.versions[0];
+
+  // The stored summary is the source of truth; if a product has reviews but no summary row yet (older data), derive it from them
+  // instead of showing "Not yet rated" next to a list of reviews.
+  const ratingStats = (() => {
+    if (product.rating && product.rating.count > 0) {
+      const r = product.rating;
+      return { average: r.average, count: r.count, stars: [r.star1, r.star2, r.star3, r.star4, r.star5] };
+    }
+    const values = product.reviews.map((r) => r.rating);
+    const stars = [1, 2, 3, 4, 5].map((n) => values.filter((v) => v === n).length);
+    return { average: values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0, count: values.length, stars };
+  })();
   // The cover photo renders above the title (top of the page) when the
   // seller has uploaded one — see ProductCover.
   const cover = product.images[0];
@@ -87,7 +105,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
     },
   };
 
-  const myReview = session?.user ? product.reviews.find((r) => r.userId === session.user.id) : undefined;
 
   // Precise version of the ranking's approximate quality signal (see
   // src/lib/ranking/ranking-service.ts) — full review rows are already
@@ -138,14 +155,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500">
             <span>by {product.seller.name}</span>
             {product.seller.sellerProfile?.verified && <span className="text-blue-600">✓ Verified</span>}
-            {product.rating && (
-              <span>
-                · ★ {product.rating.average.toFixed(1)} ({product.rating.count} review
-                {product.rating.count === 1 ? "" : "s"})
-              </span>
-            )}
             {latestVersion && <span>· v{latestVersion.version}</span>}
             <span>· Updated {product.updatedAt.toLocaleDateString()}</span>
+          </div>
+          <div className="mt-2">
+            <a href="#reviews" className="inline-flex rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400" aria-label="Jump to reviews">
+              <StarRating average={ratingStats.average} count={ratingStats.count} size="md" />
+            </a>
           </div>
         </div>
 
@@ -306,7 +322,43 @@ export default async function ProductPage({ params }: ProductPageProps) {
             label: "Reviews",
             content: (
               <div>
-                {session?.user && !myReview && <ReviewForm productId={product.id} />}
+                <div className="flex flex-wrap items-center gap-x-8 gap-y-3" data-testid="rating-summary">
+                  <div className="flex flex-col items-start gap-1">
+                    {ratingStats.count > 0 && <p className="text-3xl font-semibold text-slate-900">{ratingStats.average.toFixed(1)}<span className="text-base font-normal text-slate-400"> / 5</span></p>}
+                    <StarRating average={ratingStats.average} count={ratingStats.count} size="lg" showText={false} />
+                    <p className="text-sm text-slate-500">
+                      {ratingStats.count > 0 ? `${ratingStats.count} review${ratingStats.count === 1 ? "" : "s"}` : "Not yet rated — no one has reviewed this product yet."}
+                    </p>
+                  </div>
+                  {ratingStats.count > 0 && (
+                    <ul className="flex min-w-[12rem] flex-1 flex-col gap-1 text-xs text-slate-600" aria-label="Rating breakdown">
+                      {[5, 4, 3, 2, 1].map((n) => (
+                        <li key={n} className="flex items-center gap-2">
+                          <span className="w-10 shrink-0">{n} star{n === 1 ? "" : "s"}</span>
+                          <span className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                            <span className="block h-full rounded-full bg-amber-500" style={{ width: `${(ratingStats.stars[n - 1] / ratingStats.count) * 100}%` }} />
+                          </span>
+                          <span className="w-6 shrink-0 text-right tabular-nums">{ratingStats.stars[n - 1]}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="mt-5">
+                  {!session?.user ? (
+                    <p className="text-sm text-slate-600">
+                      <a href="/auth/sign-in" className="text-blue-600 underline">Sign in</a> to rate this product once you&apos;ve bought it.
+                    </p>
+                  ) : reviewPermission?.allowed ? (
+                    <ReviewForm key={ownReview ? `edit-${ownReview.rating}` : "new"} productId={product.id} initial={ownReview ?? undefined} />
+                  ) : (
+                    <p className="text-sm text-slate-500" data-testid="review-not-allowed">
+                      {reviewPermission?.reason === "owner"
+                        ? "You can't rate your own product."
+                        : "Only customers who bought or got this product can rate it."}
+                    </p>
+                  )}
+                </div>
                 {product.reviews.length === 0 ? (
                   <p className="mt-4 text-sm text-slate-500">No reviews yet.</p>
                 ) : (
@@ -314,9 +366,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     {product.reviews.map((review) => (
                       <li key={review.id} className="border-b border-slate-200 pb-4">
                         <div className="flex items-center gap-2">
-                          <p className="font-medium text-slate-900">
-                            {review.user.name} — {review.rating}/5
-                          </p>
+                          <p className="font-medium text-slate-900">{review.user.name}</p>
+                          <StarRating average={review.rating} count={1} showText={false} />
+                          <span className="sr-only">{review.rating} out of 5</span>
                           {review.verifiedPurchase && (
                             <Badge className="border-emerald-300 bg-emerald-50 text-emerald-800">
                               Verified purchase

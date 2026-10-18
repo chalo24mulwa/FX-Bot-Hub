@@ -112,3 +112,7 @@ The Screenshots and Files steps (and the Media & files section of a product's pa
 ## Discounts
 
 Pricing has two fields: **Market price** (optional — the original price, shown crossed out) and **Offer price** (what buyers pay). Fill in the market price to show a red "NN% OFF" badge on the top-left of your cover photo; the percentage is calculated for you (rounded to a whole number). The market price must be higher than the offer price; leave it blank for no discount.
+
+## Ratings
+
+Every approved product shows five stars. Until a customer rates it, the stars are empty and it reads "Not yet rated" — nothing is ever pre-filled. Only customers who bought (or got for free) a product can rate it, once each; they can edit their rating later. You cannot rate your own product. Hovering a product card (or tapping the "i" button on a phone) shows its summary and first features.

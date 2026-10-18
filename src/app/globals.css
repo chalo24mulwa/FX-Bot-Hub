@@ -203,3 +203,13 @@ body {
     font-size: 11px;
   }
 }
+
+/* Product-card details toggle (src/components/marketplace/product-card-shell.tsx): only where hover does not exist (touch screens). */
+.card-details-toggle {
+  display: none;
+}
+@media (hover: none) {
+  .card-details-toggle {
+    display: inline-flex;
+  }
+}
